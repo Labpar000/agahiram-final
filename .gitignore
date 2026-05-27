@@ -127,6 +127,10 @@ uploads/
 public/uploads/
 storage/
 
+# Generated PWA service worker output
+apps/web/public/sw.js
+apps/web/public/workbox-*.js
+
 # =====================================================
 # Misc
 # =====================================================
