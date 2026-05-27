@@ -41,17 +41,21 @@ jobs:
           chmod 700 ~/.ssh
           printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/agahiram_deploy_key
           chmod 600 ~/.ssh/agahiram_deploy_key
-          ssh-keyscan -p "$SSH_PORT" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Package source
+        run: |
+          git archive --format=tar.gz --output=/tmp/agahiram-src.tar.gz HEAD
 
       - name: Deploy over SSH
         run: |
-          ssh -i ~/.ssh/agahiram_deploy_key -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "APP_DIR='$APP_DIR' bash -s" <<'REMOTE'
+          SSH_OPTS="-i ~/.ssh/agahiram_deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          scp $SSH_OPTS /tmp/agahiram-src.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-src.tar.gz"
+          ssh $SSH_OPTS "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "APP_DIR='$APP_DIR' bash -s" <<'REMOTE'
           set -euo pipefail
 
+          mkdir -p "$APP_DIR"
+          tar -xzf /tmp/agahiram-src.tar.gz -C "$APP_DIR"
           cd "$APP_DIR"
-          git fetch origin main
-          git checkout main
-          git reset --hard origin/main
 
           cd docker
           docker compose -f docker-compose.prod.yml build api web admin worker
