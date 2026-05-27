@@ -18,8 +18,7 @@ function Invoke-Native {
     [Parameter(Mandatory = $true)]
     [string]$FilePath,
 
-    [Parameter(ValueFromRemainingArguments = $true)]
-    [string[]]$Arguments
+    [string[]]$Arguments = @()
   )
 
   & $FilePath @Arguments
@@ -33,18 +32,27 @@ $Archive = Join-Path $env:TEMP "agahiram-src.tar.gz"
 Set-Location $Root
 
 Step "Running local checks"
-Invoke-Native pnpm format:check
-Invoke-Native pnpm lint
-Invoke-Native pnpm build
+Invoke-Native -FilePath pnpm -Arguments @("format:check")
+Invoke-Native -FilePath pnpm -Arguments @("lint")
+Invoke-Native -FilePath pnpm -Arguments @("build")
 
 Step "Creating source archive"
 if (Test-Path $Archive) {
   Remove-Item $Archive -Force
 }
-Invoke-Native git archive --format=tar.gz --output=$Archive HEAD
+Invoke-Native -FilePath git -Arguments @("archive", "--format=tar.gz", "--output=$Archive", "HEAD")
 
 Step "Uploading archive to VPS"
-Invoke-Native scp -i $KeyPath -P $Port -o StrictHostKeyChecking=no $Archive "${User}@${HostName}:/tmp/agahiram-src.tar.gz"
+Invoke-Native -FilePath scp -Arguments @(
+  "-i",
+  $KeyPath,
+  "-P",
+  $Port,
+  "-o",
+  "StrictHostKeyChecking=no",
+  $Archive,
+  "${User}@${HostName}:/tmp/agahiram-src.tar.gz"
+)
 
 Step "Deploying on VPS"
 $RemoteScript = @'
