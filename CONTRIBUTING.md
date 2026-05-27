@@ -65,7 +65,7 @@ pnpm dev
 - `main` همیشه باید قابل deploy باشه. مستقیماً push نکن.
 - برای هر کار یک **feature branch** بساز که از `main` به‌روز شده.
 - وقتی کار تموم شد، Pull Request باز کن. بعد از تأیید CI و review، merge می‌شه.
-- هر merge به `main` به‌صورت خودکار روی production deploy می‌شه (از طریق GitHub Actions).
+- هر merge به `main` باید CI سبز داشته باشه. deploy production فعلاً با bridge محلی انجام می‌شه چون مسیر شبکه GitHub Actions به VPS ایران بسته است.
 
 ### الگوی تیپیک
 
@@ -246,6 +246,6 @@ pnpm test:coverage  # با coverage
 - **Before PR:** `pnpm lint && pnpm format:check && pnpm build` must pass
 - **PR title:** must follow Conventional Commits
 - **Merge strategy:** Squash and merge into `main`
-- **Auto-deploy:** every push to `main` is deployed to production via GitHub Actions
+- **Deploy:** use `scripts/deploy-bridge.ps1` until GitHub runner network access to the VPS is available
 
 ممنون از مشارکتت! 💚

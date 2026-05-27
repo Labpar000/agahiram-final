@@ -1,6 +1,6 @@
 # CI/CD آگهی‌گرام
 
-این سند توضیح می‌دهد GitHub Actions پروژه چه کارهایی انجام می‌دهد و برای deploy production چه secretهایی لازم است.
+این سند توضیح می‌دهد GitHub Actions پروژه چه کارهایی انجام می‌دهد و برای deploy production چه مسیرهایی داریم.
 
 ## Workflowها
 
@@ -54,16 +54,15 @@ ci: improve deploy pipeline
 
 فایل: `.github/workflows/deploy.yml`
 
-روی این eventها اجرا می‌شود:
+فعلاً فقط با اجرای دستی از تب Actions (`workflow_dispatch`) اجرا می‌شود.
 
-- push به `main`
-- اجرای دستی از تب Actions (`workflow_dispatch`)
+> نکته مهم: مسیر شبکه بین GitHub-hosted runner و VPS ایران timeout می‌دهد، و خود VPS هم outbound مستقیم به `github.com` ندارد. بنابراین deploy خودکار از GitHub روی `push` غیرفعال شده تا pipeline قرمز نماند. برای deploy production در شرایط فعلی از bridge محلی استفاده کن.
 
 کارهایی که روی سرور انجام می‌دهد:
 
-1. اتصال SSH به VPS
-2. رفتن به مسیر `/opt/agahiram` یا مقدار `APP_DIR`
-3. گرفتن آخرین کد از `origin/main`
+1. package کردن سورس از commit فعلی
+2. آپلود archive با SSH/SCP روی VPS
+3. extract در `/opt/agahiram` یا مقدار `APP_DIR`
 4. build ایمیج‌های `api`, `web`, `admin`, `worker`
 5. اجرای migration دیتابیس
 6. بالا آوردن سرویس‌ها با Docker Compose
@@ -104,28 +103,31 @@ PRODUCTION_DOMAIN=agahiram.ir
 روی سرور باید این موارد آماده باشد:
 
 - مسیر پروژه: `/opt/agahiram`
-- ریموت GitHub روی همان مسیر تنظیم شده باشد
 - Docker و Docker Compose نصب باشند
 - فایل production env در `docker/.env` موجود باشد
-- کلید deploy GitHub اجازه `git fetch` روی repo را داشته باشد
 
-اگر پروژه هنوز روی سرور clone نشده:
+اگر پروژه هنوز روی سرور آماده نشده:
 
 ```bash
 sudo mkdir -p /opt/agahiram
 sudo chown -R ubuntu:ubuntu /opt/agahiram
-git clone git@github.com:Labpar000/agahiram.git /opt/agahiram
-cd /opt/agahiram
-bash scripts/deploy.sh
 ```
 
 ## اجرای دستی Deploy
 
-از GitHub:
+از لوکال با bridge پیشنهادی:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
+```
+
+این اسکریپت اول `format:check`، `lint` و `build` را اجرا می‌کند، بعد archive سورس commit فعلی را با `scp` به سرور می‌فرستد و همان‌جا Docker Compose build/migrate/up را انجام می‌دهد.
+
+از GitHub (فقط وقتی مسیر شبکه runner به VPS باز شود):
 
 `Actions -> Deploy Production -> Run workflow`
 
-از لوکال:
+از SSH مستقیم روی سرور:
 
 ```bash
 ssh -i .cache/ssh/agahiram_id_ed25519 ubuntu@37.32.25.153
@@ -152,6 +154,6 @@ docker compose -f docker-compose.prod.yml up -d api web admin worker caddy
 
 - هیچ `.env` یا SSH key نباید commit شود.
 - دسترسی secretها فقط در Actions است.
-- برای `main`، branch protection باید فعال باشد.
-- workflow deploy فقط از `main` اجرا می‌شود.
+- برای `main`، branch protection باید فعال باشد؛ اما GitHub برای private repo روی پلن فعلی اجازه branch protection نمی‌دهد.
+- workflow deploy فقط دستی اجرا می‌شود تا زمانی که مسیر شبکه GitHub runner به VPS باز شود یا runner داخلی راه‌اندازی شود.
 - برای کارهای destructive مثل force push، approval انسانی لازم است.

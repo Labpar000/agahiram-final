@@ -110,15 +110,15 @@ docker compose -f docker-compose.prod.yml restart api worker
 bash /opt/agahiram/scripts/update.sh
 ```
 
-## ۷. CI/CD خودکار (اختیاری ولی توصیه می‌شود)
+## ۷. CI و Deploy
 
-در GitHub، در Settings → Secrets این موارد را بساز:
+CI روی GitHub برای هر push و PR اجرا می‌شود. برای deploy production، به خاطر timeout مسیر شبکه بین GitHub Actions و VPS ایران، فعلاً از bridge محلی استفاده کن:
 
-- `SSH_HOST` = IP سرور
-- `SSH_USER` = root
-- `SSH_KEY` = محتوای فایل private SSH key
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
+```
 
-از آن به بعد، هر push به `main` خودکار سرور را آپدیت می‌کند.
+اگر بعداً runner داخلی یا مسیر شبکه پایدار فراهم شد، workflow دستی `.github/workflows/deploy.yml` هم آماده استفاده است.
 
 ## ۸. عیب‌یابی
 
