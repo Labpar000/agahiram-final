@@ -48,9 +48,9 @@ jobs:
 
       - name: Deploy over SSH
         run: |
-          SSH_OPTS="-i ~/.ssh/agahiram_deploy_key -p $SSH_PORT -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-          scp $SSH_OPTS /tmp/agahiram-src.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-src.tar.gz"
-          ssh $SSH_OPTS "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "APP_DIR='$APP_DIR' bash -s" <<'REMOTE'
+          SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-src.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-src.tar.gz"
+          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "APP_DIR='$APP_DIR' bash -s" <<'REMOTE'
           set -euo pipefail
 
           mkdir -p "$APP_DIR"
