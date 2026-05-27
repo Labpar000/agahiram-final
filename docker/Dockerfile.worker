@@ -28,6 +28,7 @@ COPY workers/media-processor/package.json ./workers/media-processor/
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/database/package.json ./packages/database/
+RUN node -e "const fs=require('fs'); const p=require('./package.json'); delete p.devDependencies; fs.writeFileSync('package.json', JSON.stringify(p));"
 RUN pnpm config set store-dir /pnpm-store \
   && pnpm install --filter @agahiram/media-processor... --offline --ignore-scripts --frozen-lockfile=false \
   && find node_modules -type f \( -path '*/bin/*' -o -path '*/.bin/*' -o -name '*.node' -o -name '*.so' -o -name '*.so.*' \) -exec chmod +x {} + 2>/dev/null || true
