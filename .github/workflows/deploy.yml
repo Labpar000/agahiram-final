@@ -58,8 +58,8 @@ jobs:
           cd docker
           docker compose -f docker-compose.prod.yml build api web admin worker
           docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch
-          docker compose -f docker-compose.prod.yml run --rm api pnpm --filter @agahiram/database migrate:deploy
-          docker compose -f docker-compose.prod.yml up -d api web admin worker caddy
+          docker compose -f docker-compose.prod.yml run --rm --workdir /app api sh -lc '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
+          docker compose -f docker-compose.prod.yml up -d --force-recreate api web admin worker caddy
           docker image prune -f
           docker compose -f docker-compose.prod.yml ps
           REMOTE
