@@ -1,0 +1,47 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+template: |
+  ## Changes
+
+  $CHANGES
+
+categories:
+  - title: "Features"
+    labels:
+      - "enhancement"
+      - "feat"
+  - title: "Fixes"
+    labels:
+      - "bug"
+      - "fix"
+  - title: "Infrastructure"
+    labels:
+      - "ci"
+      - "docker"
+      - "dependencies"
+  - title: "Documentation"
+    labels:
+      - "docs"
+  - title: "Other Changes"
+    labels:
+      - "*"
+
+change-template: "- $TITLE @$AUTHOR (#$NUMBER)"
+change-title-escapes: '\<*_&'
+version-resolver:
+  major:
+    labels:
+      - "breaking"
+  minor:
+    labels:
+      - "enhancement"
+      - "feat"
+  patch:
+    labels:
+      - "bug"
+      - "fix"
+      - "dependencies"
+  default: patch
+exclude-labels:
+  - "ignore-for-release"
+

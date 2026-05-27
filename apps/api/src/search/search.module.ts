@@ -1,0 +1,19 @@
+import { Module, forwardRef } from '@nestjs/common';
+import { BullModule } from '@nestjs/bullmq';
+import { BULL_QUEUES } from '@agahiram/shared';
+import { SearchController } from './search.controller';
+import { SearchService } from './search.service';
+import { MeiliService } from './meili.service';
+import { SearchIndexProcessor } from './search.processor';
+import { PostsModule } from '../posts/posts.module';
+
+@Module({
+  imports: [
+    forwardRef(() => PostsModule),
+    BullModule.registerQueue({ name: BULL_QUEUES.SEARCH_INDEX }),
+  ],
+  controllers: [SearchController],
+  providers: [SearchService, MeiliService, SearchIndexProcessor],
+  exports: [SearchService, MeiliService],
+})
+export class SearchModule {}

@@ -1,0 +1,571 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  user
+  admin
+  moderator
+}
+
+enum PostStatus {
+  draft
+  pendingReview
+  approved
+  rejected
+  sold
+  expired
+  deleted
+}
+
+enum PostType {
+  post
+  reel
+}
+
+enum PriceType {
+  fixed
+  negotiable
+  free
+  callForPrice
+}
+
+enum MediaType {
+  image
+  video
+}
+
+enum AttributeType {
+  text
+  number
+  select
+  bool
+}
+
+enum NotificationType {
+  like
+  comment
+  follow
+  message
+  adApproved
+  adRejected
+  adRemoved
+  boostExpiring
+  priceDropOnSaved
+  storyMention
+  walletCredit
+  walletDebit
+  broadcast
+  systemAnnouncement
+}
+
+enum PaymentStatus {
+  pending
+  success
+  failed
+  refunded
+}
+
+enum PaymentPurpose {
+  boost
+  businessAccount
+  walletTopup
+}
+
+enum MessageType {
+  text
+  image
+  voice
+  post
+}
+
+enum LiveStreamStatus {
+  scheduled
+  live
+  ended
+}
+
+model User {
+  id            String   @id @default(uuid())
+  phone         String   @unique
+  name          String?
+  username      String?  @unique
+  bio           String?
+  avatar        String?
+  isVerified    Boolean  @default(false)
+  isBusiness    Boolean  @default(false)
+  isBanned      Boolean  @default(false)
+  role          UserRole @default(user)
+  defaultCityId String?
+  walletBalance BigInt   @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  defaultCity     City?          @relation(fields: [defaultCityId], references: [id])
+  posts           Post[]
+  likes           Like[]
+  comments        Comment[]
+  savedPosts      SavedPost[]
+  followers       Follow[]       @relation("Following")
+  following       Follow[]       @relation("Follower")
+  stories         Story[]
+  highlights      Highlight[]
+  storyViews      StoryView[]
+  notifications   Notification[]
+  sentMessages    Message[]      @relation("Sender")
+  conversations   ConversationParticipant[]
+  reports         Report[]
+  payments        Payment[]
+  liveStreams     LiveStream[]
+  searchAlerts    SearchAlert[]
+  collections     Collection[]
+
+  @@index([username])
+  @@index([phone])
+}
+
+model OtpCode {
+  id        String   @id @default(uuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([phone, expiresAt])
+}
+
+model Category {
+  id       String  @id @default(uuid())
+  parentId String?
+  name     String
+  slug     String  @unique
+  icon     String?
+  order    Int     @default(0)
+
+  parent     Category?           @relation("CategoryTree", fields: [parentId], references: [id])
+  children   Category[]          @relation("CategoryTree")
+  attributes CategoryAttribute[]
+  posts      Post[]
+
+  @@index([parentId])
+  @@index([slug])
+}
+
+model CategoryAttribute {
+  id         String        @id @default(uuid())
+  categoryId String
+  key        String
+  label      String
+  type       AttributeType
+  options    String[]      @default([])
+  required   Boolean       @default(false)
+  order      Int           @default(0)
+
+  category       Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  postAttributes PostAttribute[]
+
+  @@unique([categoryId, key])
+}
+
+model Province {
+  id   String @id @default(uuid())
+  name String @unique
+  slug String @unique
+
+  cities City[]
+}
+
+model City {
+  id         String @id @default(uuid())
+  provinceId String
+  name       String
+  slug       String @unique
+  lat        Float?
+  lng        Float?
+
+  province      Province       @relation(fields: [provinceId], references: [id])
+  neighborhoods Neighborhood[]
+  posts         Post[]
+  users         User[]
+  searchAlerts  SearchAlert[]
+
+  @@index([provinceId])
+}
+
+model Neighborhood {
+  id     String @id @default(uuid())
+  cityId String
+  name   String
+  slug   String
+
+  city  City   @relation(fields: [cityId], references: [id])
+  posts Post[]
+
+  @@unique([cityId, slug])
+}
+
+model Post {
+  id                String     @id @default(uuid())
+  userId            String
+  categoryId        String
+  title             String
+  description       String?
+  price             BigInt?
+  priceType         PriceType  @default(fixed)
+  currency          String     @default("IRT")
+  cityId            String?
+  neighborhoodId    String?
+  lat               Float?
+  lng               Float?
+  hideExactLocation Boolean    @default(false)
+  status            PostStatus @default(pendingReview)
+  type              PostType   @default(post)
+  isPromoted        Boolean    @default(false)
+  boostExpiresAt    DateTime?
+  viewCount         Int        @default(0)
+  expiresAt         DateTime?
+  rejectionReason   String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id])
+  category     Category        @relation(fields: [categoryId], references: [id])
+  city         City?           @relation(fields: [cityId], references: [id])
+  neighborhood Neighborhood?   @relation(fields: [neighborhoodId], references: [id])
+  media        PostMedia[]
+  attributes   PostAttribute[]
+  likes        Like[]
+  comments     Comment[]
+  saves        SavedPost[]
+  stories      Story[]
+  reports      Report[]
+  messages     Message[]
+  payments     Payment[]
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([cityId])
+  @@index([status, createdAt])
+  @@index([isPromoted, boostExpiresAt])
+  @@index([type, status])
+}
+
+model PostMedia {
+  id           String    @id @default(uuid())
+  postId       String
+  url          String
+  thumbnailUrl String?
+  type         MediaType
+  order        Int       @default(0)
+  width        Int?
+  height       Int?
+  duration     Int?
+  hlsUrl       String?
+  createdAt    DateTime  @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model PostAttribute {
+  id          String @id @default(uuid())
+  postId      String
+  attributeId String
+  value       String
+
+  post      Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  attribute CategoryAttribute @relation(fields: [attributeId], references: [id])
+
+  @@unique([postId, attributeId])
+}
+
+model Story {
+  id           String    @id @default(uuid())
+  userId       String
+  mediaUrl     String
+  type         MediaType
+  expiresAt    DateTime
+  linkedPostId String?
+  createdAt    DateTime  @default(now())
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedPost Post?         @relation(fields: [linkedPostId], references: [id])
+  views      StoryView[]
+  highlights HighlightStory[]
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model StoryView {
+  id       String   @id @default(uuid())
+  storyId  String
+  userId   String
+  viewedAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([storyId, userId])
+}
+
+model Highlight {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  coverUrl  String?
+  createdAt DateTime @default(now())
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stories HighlightStory[]
+}
+
+model HighlightStory {
+  id          String @id @default(uuid())
+  highlightId String
+  storyId     String
+  order       Int    @default(0)
+
+  highlight Highlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([highlightId, storyId])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String
+  parentId  String?
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent  Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies Comment[] @relation("CommentReplies")
+
+  @@index([postId])
+  @@index([parentId])
+}
+
+model SavedPost {
+  id           String   @id @default(uuid())
+  userId       String
+  postId       String
+  collectionId String?
+  createdAt    DateTime @default(now())
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post       Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  collection Collection? @relation(fields: [collectionId], references: [id])
+
+  @@unique([userId, postId])
+  @@index([userId])
+}
+
+model Collection {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  saves SavedPost[]
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String
+  content        String
+  type           MessageType @default(text)
+  postId         String?
+  isRead         Boolean     @default(false)
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("Sender", fields: [senderId], references: [id])
+  post         Post?        @relation(fields: [postId], references: [id])
+
+  @@index([conversationId, createdAt])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  payload   Json
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model Report {
+  id         String   @id @default(uuid())
+  reporterId String
+  postId     String?
+  reason     String
+  details    String?
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+
+  reporter User  @relation(fields: [reporterId], references: [id])
+  post     Post? @relation(fields: [postId], references: [id])
+
+  @@index([status])
+}
+
+model BoostPlan {
+  id            String  @id @default(uuid())
+  name          String
+  durationHours Int
+  price         BigInt
+  description   String?
+  isActive      Boolean @default(true)
+
+  payments Payment[]
+}
+
+model Payment {
+  id        String         @id @default(uuid())
+  userId    String
+  postId    String?
+  planId    String?
+  amount    BigInt
+  purpose   PaymentPurpose
+  gateway   String         @default("zarinpal")
+  authority String?
+  refId     String?
+  status    PaymentStatus  @default(pending)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User       @relation(fields: [userId], references: [id])
+  post Post?      @relation(fields: [postId], references: [id])
+  plan BoostPlan? @relation(fields: [planId], references: [id])
+
+  @@index([userId])
+  @@index([authority])
+  @@index([status])
+}
+
+model SearchAlert {
+  id        String   @id @default(uuid())
+  userId    String
+  query     String?
+  filters   Json
+  cityId    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city City? @relation(fields: [cityId], references: [id])
+}
+
+model LiveStream {
+  id           String           @id @default(uuid())
+  userId       String
+  title        String
+  status       LiveStreamStatus @default(scheduled)
+  roomName     String           @unique
+  viewerCount  Int              @default(0)
+  linkedPostId String?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  createdAt    DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+/// Single-row-per-key, JSON-valued platform-wide settings (maintenance, registration,
+/// site name, etc). Read frequently — every authenticated request may touch a subset.
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+/// Append-only audit trail of every privileged mutation in the admin panel.
+/// `target` is `<kind>:<id>` (e.g. `post:abc`, `user:def`). `payload` captures
+/// the request body and any rejection/ban reasons so investigators can reconstruct
+/// what actually happened without trawling logs.
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String
+  actorRole String
+  action    String
+  target    String?
+  payload   Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([target])
+  @@index([action, createdAt])
+  @@index([createdAt])
+}

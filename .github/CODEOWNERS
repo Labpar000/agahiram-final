@@ -1,0 +1,9 @@
+* @alooche
+
+/apps/api/ @alooche
+/apps/web/ @alooche
+/apps/admin/ @alooche
+/packages/database/ @alooche
+/docker/ @alooche
+/.github/ @alooche
+

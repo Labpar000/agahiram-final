@@ -1,0 +1,67 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+env:
+  APP_DIR: ${{ vars.APP_DIR || '/opt/agahiram' }}
+  SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment:
+      name: production
+      url: https://${{ vars.PRODUCTION_DOMAIN || 'agahiram.ir' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          test -n "${{ secrets.SSH_HOST }}" || (echo "Missing SSH_HOST secret" && exit 1)
+          test -n "${{ secrets.SSH_USER }}" || (echo "Missing SSH_USER secret" && exit 1)
+          test -n "${{ secrets.SSH_KEY }}" || (echo "Missing SSH_KEY secret" && exit 1)
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/agahiram_deploy_key
+          chmod 600 ~/.ssh/agahiram_deploy_key
+          ssh-keyscan -p "$SSH_PORT" -H "${{ secrets.SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy over SSH
+        run: |
+          ssh -i ~/.ssh/agahiram_deploy_key -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "APP_DIR='$APP_DIR' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          cd "$APP_DIR"
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+
+          cd docker
+          docker compose -f docker-compose.prod.yml build api web admin worker
+          docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch
+          docker compose -f docker-compose.prod.yml run --rm api pnpm --filter @agahiram/database migrate:deploy
+          docker compose -f docker-compose.prod.yml up -d api web admin worker caddy
+          docker image prune -f
+          docker compose -f docker-compose.prod.yml ps
+          REMOTE
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/agahiram_deploy_key

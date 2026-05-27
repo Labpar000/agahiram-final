@@ -1,0 +1,37 @@
+{
+  "name": "agahiram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "آگهی‌گرام - Instagram × Divar classified ads platform",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "prepare": "husky",
+    "commitlint": "commitlint --edit",
+    "db:generate": "pnpm --filter @agahiram/database generate",
+    "db:migrate": "pnpm --filter @agahiram/database migrate:dev",
+    "db:seed": "pnpm --filter @agahiram/database seed",
+    "db:studio": "pnpm --filter @agahiram/database studio",
+    "clean": "turbo run clean && rimraf node_modules"
+  },
+  "devDependencies": {
+    "@agahiram/config": "workspace:*",
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.2",
+    "prettier": "^3.5.3",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

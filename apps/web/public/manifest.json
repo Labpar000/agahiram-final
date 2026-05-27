@@ -1,0 +1,61 @@
+{
+  "name": "آگهی‌گرام",
+  "short_name": "آگهی‌گرام",
+  "description": "پلتفرم آگهی‌های اجتماعی — ترکیب اینستاگرام و دیوار",
+  "start_url": "/feed",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "background_color": "#ffffff",
+  "theme_color": "#e11d8a",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "fa",
+  "categories": ["social", "shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "ایجاد آگهی",
+      "short_name": "ایجاد",
+      "url": "/create",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "پیام‌ها",
+      "short_name": "پیام",
+      "url": "/messages",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "ریلز",
+      "short_name": "ریلز",
+      "url": "/reels",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

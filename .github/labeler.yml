@@ -1,0 +1,45 @@
+api:
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/api/**
+          - packages/database/**
+
+web:
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/web/**
+          - packages/ui/**
+
+admin:
+  - changed-files:
+      - any-glob-to-any-file:
+          - apps/admin/**
+
+worker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - workers/**
+
+shared:
+  - changed-files:
+      - any-glob-to-any-file:
+          - packages/shared/**
+          - packages/config/**
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docker/**
+          - .dockerignore
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - .github/**
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - docs/**
+          - "**/*.md"
+

@@ -1,0 +1,130 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, AtSign, Check, UserRound } from 'lucide-react';
+import { formatPersianNumber } from '@agahiram/shared';
+import { Button, Card, CardContent, Input, Label, Textarea, toast } from '@agahiram/ui';
+import { useAuth } from '@/hooks/useAuth';
+
+export default function OnboardingPage() {
+  const router = useRouter();
+  const { completeProfile } = useAuth();
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [bio, setBio] = useState('');
+
+  const usernameValid = /^[a-z0-9_.]{3,20}$/.test(username);
+  const nameValid = name.trim().length >= 2;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nameValid) return toast.error('نام را وارد کنید');
+    if (!usernameValid) return toast.error('نام کاربری نامعتبر است');
+    try {
+      await completeProfile.mutateAsync({
+        name: name.trim(),
+        username,
+        bio: bio.trim() || undefined,
+      });
+      toast.success('پروفایل ذخیره شد');
+      router.push('/feed');
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden border-border/60 shadow-floating">
+      <CardContent className="!p-7 sm:!p-8 space-y-6">
+        <div>
+          <h1 className="text-h2 font-extrabold tracking-tight">تکمیل پروفایل</h1>
+          <p className="mt-1 text-sm text-muted-foreground">برای شروع، اطلاعات زیر را پر کنید.</p>
+        </div>
+
+        <form onSubmit={submit} className="space-y-5" noValidate>
+          <div className="space-y-2">
+            <Label htmlFor="name" required>
+              نام نمایشی
+            </Label>
+            <Input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="مثلاً علی محمدی"
+              leadingIcon={<UserRound className="size-4" aria-hidden />}
+              minLength={2}
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="username" required>
+              نام کاربری
+            </Label>
+            <Input
+              id="username"
+              type="text"
+              dir="ltr"
+              value={username}
+              onChange={(e) =>
+                setUsername(
+                  e.target.value
+                    .replace(/[^a-zA-Z0-9_.]/g, '')
+                    .toLowerCase()
+                    .slice(0, 20),
+                )
+              }
+              placeholder="ali_m"
+              leadingIcon={<AtSign className="size-4" aria-hidden />}
+              trailingIcon={
+                usernameValid ? (
+                  <span className="grid size-5 place-items-center rounded-full bg-success/15 text-success">
+                    <Check className="size-3.5" aria-hidden />
+                  </span>
+                ) : null
+              }
+              minLength={3}
+              invalid={username.length >= 3 && !usernameValid}
+              required
+            />
+            <p className="text-[11px] text-muted-foreground">
+              ۳ تا ۲۰ کاراکتر — فقط حروف انگلیسی، اعداد، نقطه و زیرخط.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="bio">بیو</Label>
+              <span className="text-[11px] text-muted-foreground tabular-nums">
+                {formatPersianNumber(bio.length)}/{formatPersianNumber(150)}
+              </span>
+            </div>
+            <Textarea
+              id="bio"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="درباره خودتان بنویسید…"
+              rows={3}
+              maxLength={150}
+              autoGrow
+            />
+          </div>
+
+          <Button
+            type="submit"
+            variant="brand"
+            size="lg"
+            fullWidth
+            isLoading={completeProfile.isPending}
+            disabled={!nameValid || !usernameValid}
+            rightIcon={<ArrowRight className="size-5" aria-hidden />}
+          >
+            شروع کنید
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}

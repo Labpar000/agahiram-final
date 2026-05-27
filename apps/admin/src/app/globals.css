@@ -1,0 +1,16 @@
+/* Single source of truth: design tokens live in @agahiram/ui */
+@import '@agahiram/ui/styles/tokens.css';
+
+/* Scan both this app and the shared UI package for class names */
+@source "../**/*.{ts,tsx}";
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+/* Admin-specific overrides — slate-leaning chrome to feel like a tool, not a consumer app */
+:root {
+  --chrome: oklch(0.985 0.003 250);
+  --surface-muted: oklch(0.97 0.004 250);
+}
+.dark {
+  --chrome: oklch(0.1 0.005 250);
+  --surface-muted: oklch(0.18 0.006 250);
+}

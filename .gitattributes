@@ -1,0 +1,76 @@
+# Auto detect text files and perform LF normalization
+* text=auto eol=lf
+
+# Source code
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.mdx text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.html text eol=lf
+*.svg text eol=lf
+
+# Shell scripts must always be LF
+*.sh text eol=lf
+*.bash text eol=lf
+
+# PowerShell prefers CRLF on Windows
+*.ps1 text eol=crlf
+*.psm1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Docker / config
+Dockerfile* text eol=lf
+.dockerignore text eol=lf
+.editorconfig text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.npmrc text eol=lf
+.prettierrc text eol=lf
+.eslintrc* text eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.mp4 binary
+*.mov binary
+*.mp3 binary
+*.wav binary
+*.zip binary
+*.tar binary
+*.tar.gz binary
+*.tgz binary
+*.gz binary
+*.7z binary
+*.pdf binary
+
+# Generated files - hide from diff by default
+pnpm-lock.yaml linguist-generated=true -diff
+package-lock.json linguist-generated=true -diff
+yarn.lock linguist-generated=true -diff
+*.snap linguist-generated=true
+
+# Language detection (GitHub linguist)
+docs/* linguist-documentation
+*.md linguist-documentation

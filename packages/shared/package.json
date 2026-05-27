@@ -1,0 +1,47 @@
+{
+  "name": "@agahiram/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./schemas": {
+      "types": "./dist/schemas/index.d.ts",
+      "default": "./dist/schemas/index.js"
+    },
+    "./constants": {
+      "types": "./dist/constants/index.d.ts",
+      "default": "./dist/constants/index.js"
+    },
+    "./i18n": {
+      "types": "./dist/i18n/index.d.ts",
+      "default": "./dist/i18n/index.js"
+    },
+    "./cn": {
+      "types": "./dist/cn.d.ts",
+      "default": "./dist/cn.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rimraf dist",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "clsx": "^2.1.1",
+    "date-fns": "^4.3.0",
+    "date-fns-jalali": "4.1.0-0",
+    "tailwind-merge": "^3.3.0",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@agahiram/config": "workspace:*",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.8.3"
+  }
+}

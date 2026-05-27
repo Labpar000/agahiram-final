@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "workers/*"
+
+supportedArchitectures:
+  os:
+    - linux
+    - current
+  cpu:
+    - x64
+    - current
+  libc:
+    - musl
+    - glibc
+    - current

@@ -1,0 +1,34 @@
+{
+  "name": "@agahiram/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "seed": "tsx prisma/seed.ts",
+    "studio": "prisma studio",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "@agahiram/shared": "workspace:*",
+    "@prisma/client": "^6.8.2"
+  },
+  "devDependencies": {
+    "@agahiram/config": "workspace:*",
+    "prisma": "^6.8.2",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}

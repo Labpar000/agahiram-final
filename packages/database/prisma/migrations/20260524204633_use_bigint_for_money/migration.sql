@@ -1,0 +1,11 @@
+-- AlterTable
+ALTER TABLE "BoostPlan" ALTER COLUMN "price" SET DATA TYPE BIGINT;
+
+-- AlterTable
+ALTER TABLE "Payment" ALTER COLUMN "amount" SET DATA TYPE BIGINT;
+
+-- AlterTable
+ALTER TABLE "Post" ALTER COLUMN "price" SET DATA TYPE BIGINT;
+
+-- AlterTable
+ALTER TABLE "User" ALTER COLUMN "walletBalance" SET DATA TYPE BIGINT;

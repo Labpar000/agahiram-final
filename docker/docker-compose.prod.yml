@@ -1,0 +1,163 @@
+services:
+  postgres:
+    image: docker.arvancloud.ir/library/postgres:16-alpine
+    container_name: agahiram-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - agahiram
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: docker.arvancloud.ir/library/redis:7-alpine
+    container_name: agahiram-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    networks:
+      - agahiram
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  meilisearch:
+    image: docker.arvancloud.ir/getmeili/meilisearch:v1.12
+    container_name: agahiram-meilisearch
+    restart: always
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_ENV: production
+    volumes:
+      - meili_data:/meili_data
+    networks:
+      - agahiram
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+      extra_hosts:
+        - "package-mirror.liara.ir:185.208.181.186"
+    container_name: agahiram-api
+    restart: always
+    env_file: .env
+    extra_hosts:
+      - "api.sms.ir:185.211.56.44"
+      - "s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
+      - "agahiram.s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
+    dns:
+      - "178.22.122.100"
+      - "185.51.200.2"
+      - "1.1.1.1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+    networks:
+      - agahiram
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+      extra_hosts:
+        - "package-mirror.liara.ir:185.208.181.186"
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-/}
+        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-${NEXT_PUBLIC_APP_URL:-/}}
+    container_name: agahiram-web
+    restart: always
+    env_file: .env
+    depends_on:
+      - api
+    networks:
+      - agahiram
+
+  admin:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.admin
+      extra_hosts:
+        - "package-mirror.liara.ir:185.208.181.186"
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-/}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-/}
+    container_name: agahiram-admin
+    restart: always
+    env_file: .env
+    depends_on:
+      - api
+    networks:
+      - agahiram
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+      extra_hosts:
+        - "package-mirror.liara.ir:185.208.181.186"
+        - "mirror.arvancloud.ir:185.143.233.234"
+    container_name: agahiram-worker
+    restart: always
+    env_file: .env
+    extra_hosts:
+      - "s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
+      - "agahiram.s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
+    dns:
+      - "178.22.122.100"
+      - "185.51.200.2"
+      - "1.1.1.1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - agahiram
+
+  caddy:
+    image: docker.arvancloud.ir/library/caddy:2-alpine
+    container_name: agahiram-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - admin
+      - api
+    networks:
+      - agahiram
+
+networks:
+  agahiram:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  meili_data:
+  caddy_data:
+  caddy_config:

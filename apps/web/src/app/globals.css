@@ -1,0 +1,8 @@
+/* Single source of truth: design tokens live in @agahiram/ui */
+@import '@agahiram/ui/styles/tokens.css';
+
+/* Scan both this app and the shared UI package for class names */
+@source "../**/*.{ts,tsx}";
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+
+/* Web-app specific overrides go below (none right now). */

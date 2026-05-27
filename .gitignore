@@ -1,0 +1,145 @@
+# =====================================================
+# Dependencies
+# =====================================================
+node_modules/
+**/node_modules/
+.pnpm-store/
+.pnpm-meta/
+jspm_packages/
+bower_components/
+
+# =====================================================
+# Build outputs
+# =====================================================
+dist/
+**/dist/
+build/
+**/build/
+out/
+**/out/
+.next/
+**/.next/
+.nuxt/
+.svelte-kit/
+.vercel/
+.turbo/
+**/.turbo/
+.cache/
+!.cache/.gitkeep
+*.tsbuildinfo
+**/*.tsbuildinfo
+
+# =====================================================
+# Environment & secrets - NEVER COMMIT
+# =====================================================
+.env
+.env.*
+.env.local
+.env.*.local
+!.env.example
+!.env.*.example
+docker/.env
+docker/.env.*
+!docker/.env.example
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# SSH keys (local cache - never push)
+.cache/ssh/
+
+# =====================================================
+# Logs
+# =====================================================
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.dev-*.log
+tmp/
+
+# =====================================================
+# Coverage & test artifacts
+# =====================================================
+coverage/
+*.lcov
+.nyc_output/
+.jest/
+junit.xml
+playwright-report/
+test-results/
+
+# =====================================================
+# IDE & Editor
+# =====================================================
+.idea/
+.vscode/*
+!.vscode/settings.recommended.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*.sublime-workspace
+*.sublime-project
+.fleet/
+.zed/
+
+# =====================================================
+# OS
+# =====================================================
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# =====================================================
+# Prisma
+# =====================================================
+packages/database/prisma/*.db
+packages/database/prisma/*.db-journal
+packages/database/prisma/migrations/dev/
+
+# =====================================================
+# Docker
+# =====================================================
+docker/data/
+docker/volumes/
+docker/ffmpeg-bin/
+docker/prisma-engines/*.gz
+.cache/docker-images/
+.cache/apk-cache/
+.cache/artifacts/
+.cache/prisma-engines/
+.cache/fonts/
+
+# =====================================================
+# Uploads / user content (local dev)
+# =====================================================
+uploads/
+public/uploads/
+storage/
+
+# =====================================================
+# Misc
+# =====================================================
+*.bak
+*.tmp
+*.orig
+.history/
+.husky/_/
+
+# =====================================================
+# Cursor / AI assistants
+# =====================================================
+.cursor/rules/
+.aider*
+.claude/
+.continue/
