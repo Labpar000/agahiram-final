@@ -54,7 +54,7 @@ ssh root@YOUR_SERVER_IP
 
 ```bash
 # آپلود پروژه از GitHub
-git clone git@github.com:alooche/agahiram.git /opt/agahiram
+git clone git@github.com:Labpar000/agahiram.git /opt/agahiram
 
 # اجرای دیپلوی صفر تا صد
 export DOMAIN=agahiram.ir

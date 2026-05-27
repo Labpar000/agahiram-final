@@ -1,7 +1,7 @@
 # آگهی‌گرام (Agahiram)
 
-[![CI](https://github.com/alooche/agahiram/actions/workflows/ci.yml/badge.svg)](https://github.com/alooche/agahiram/actions/workflows/ci.yml)
-[![Deploy Production](https://github.com/alooche/agahiram/actions/workflows/deploy.yml/badge.svg)](https://github.com/alooche/agahiram/actions/workflows/deploy.yml)
+[![CI](https://github.com/Labpar000/agahiram/actions/workflows/ci.yml/badge.svg)](https://github.com/Labpar000/agahiram/actions/workflows/ci.yml)
+[![Deploy Production](https://github.com/Labpar000/agahiram/actions/workflows/deploy.yml/badge.svg)](https://github.com/Labpar000/agahiram/actions/workflows/deploy.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **ترکیب اینستاگرام و دیوار** - یک پلتفرم وب/PWA که هر پست در آن یک آگهی است، اما UX کاملاً اینستاگرامی (فید عمودی، استوری، ریلز، لایک/کامنت/فالو/DM).
@@ -93,7 +93,7 @@ pnpm dev
 
 ```bash
 # روی VPS اوبونتو
-git clone git@github.com:alooche/agahiram.git /opt/agahiram
+git clone git@github.com:Labpar000/agahiram.git /opt/agahiram
 export DOMAIN=agahiram.ir
 bash /opt/agahiram/scripts/deploy.sh
 ```

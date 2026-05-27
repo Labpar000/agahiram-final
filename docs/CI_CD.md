@@ -114,7 +114,7 @@ PRODUCTION_DOMAIN=agahiram.ir
 ```bash
 sudo mkdir -p /opt/agahiram
 sudo chown -R ubuntu:ubuntu /opt/agahiram
-git clone git@github.com:alooche/agahiram.git /opt/agahiram
+git clone git@github.com:Labpar000/agahiram.git /opt/agahiram
 cd /opt/agahiram
 bash scripts/deploy.sh
 ```

@@ -32,7 +32,7 @@
 
 ```bash
 # 1) کلون پروژه
-git clone git@github.com:alooche/agahiram.git
+git clone git@github.com:Labpar000/agahiram.git
 cd agahiram
 
 # 2) نصب وابستگی‌ها

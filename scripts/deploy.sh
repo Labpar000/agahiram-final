@@ -13,7 +13,7 @@ log() { echo -e "${GREEN}[deploy]${NC} $1"; }
 warn() { echo -e "${YELLOW}[warn]${NC} $1"; }
 err() { echo -e "${RED}[error]${NC} $1"; exit 1; }
 
-REPO_URL="${REPO_URL:-https://github.com/YOUR_USERNAME/agahiram.git}"
+REPO_URL="${REPO_URL:-git@github.com:Labpar000/agahiram.git}"
 APP_DIR="${APP_DIR:-/opt/agahiram}"
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
