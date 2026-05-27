@@ -13,26 +13,41 @@ function Step($Message) {
   Write-Host "==> $Message" -ForegroundColor Cyan
 }
 
+function Invoke-Native {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$FilePath,
+
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Arguments
+  )
+
+  & $FilePath @Arguments
+  if ($LASTEXITCODE -ne 0) {
+    throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+  }
+}
+
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Archive = Join-Path $env:TEMP "agahiram-src.tar.gz"
 Set-Location $Root
 
 Step "Running local checks"
-pnpm format:check
-pnpm lint
-pnpm build
+Invoke-Native pnpm format:check
+Invoke-Native pnpm lint
+Invoke-Native pnpm build
 
 Step "Creating source archive"
 if (Test-Path $Archive) {
   Remove-Item $Archive -Force
 }
-git archive --format=tar.gz --output=$Archive HEAD
+Invoke-Native git archive --format=tar.gz --output=$Archive HEAD
 
 Step "Uploading archive to VPS"
-scp -i $KeyPath -P $Port -o StrictHostKeyChecking=no $Archive "${User}@${HostName}:/tmp/agahiram-src.tar.gz"
+Invoke-Native scp -i $KeyPath -P $Port -o StrictHostKeyChecking=no $Archive "${User}@${HostName}:/tmp/agahiram-src.tar.gz"
 
 Step "Deploying on VPS"
-ssh -i $KeyPath -p $Port -o StrictHostKeyChecking=no "${User}@${HostName}" "APP_DIR='$AppDir' bash -s" @'
+$RemoteScript = @'
 set -euo pipefail
 
 mkdir -p "$APP_DIR"
@@ -46,6 +61,11 @@ docker compose -f docker-compose.prod.yml up -d api web admin worker caddy
 docker image prune -f
 docker compose -f docker-compose.prod.yml ps
 '@
+
+$RemoteScript | ssh -i $KeyPath -p $Port -o StrictHostKeyChecking=no "${User}@${HostName}" "APP_DIR='$AppDir' bash -s"
+if ($LASTEXITCODE -ne 0) {
+  throw "Remote deploy failed with exit code ${LASTEXITCODE}"
+}
 
 Step "Done"
 
