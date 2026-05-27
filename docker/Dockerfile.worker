@@ -29,7 +29,7 @@ COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/database/package.json ./packages/database/
 RUN pnpm config set store-dir /pnpm-store \
-  && pnpm install --offline --ignore-scripts --frozen-lockfile=false \
+  && pnpm install --filter @agahiram/media-processor... --offline --ignore-scripts --frozen-lockfile=false \
   && find node_modules -type f \( -path '*/bin/*' -o -path '*/.bin/*' -o -name '*.node' -o -name '*.so' -o -name '*.so.*' \) -exec chmod +x {} + 2>/dev/null || true
 
 FROM base AS build
