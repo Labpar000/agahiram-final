@@ -97,9 +97,12 @@ model User {
   username      String?  @unique
   bio           String?
   avatar        String?
+  website       String?
   isVerified    Boolean  @default(false)
   isBusiness    Boolean  @default(false)
   isBanned      Boolean  @default(false)
+  isPrivate     Boolean  @default(false)
+  karma         Int      @default(0)
   role          UserRole @default(user)
   defaultCityId String?
   walletBalance BigInt   @default(0)
@@ -116,14 +119,19 @@ model User {
   stories         Story[]
   highlights      Highlight[]
   storyViews      StoryView[]
+  postViews       PostView[]
   notifications   Notification[]
+  notificationPref NotificationPreference?
   sentMessages    Message[]      @relation("Sender")
   conversations   ConversationParticipant[]
   reports         Report[]
   payments        Payment[]
+  payouts         Payout[]
   liveStreams     LiveStream[]
   searchAlerts    SearchAlert[]
   collections     Collection[]
+  blocksMade      Block[]        @relation("Blocker")
+  blocksReceived  Block[]        @relation("Blocked")
 
   @@index([username])
   @@index([phone])
@@ -229,8 +237,12 @@ model Post {
   isPromoted        Boolean    @default(false)
   boostExpiresAt    DateTime?
   viewCount         Int        @default(0)
+  qualityScore      Int        @default(0)
+  commentsEnabled   Boolean    @default(true)
   expiresAt         DateTime?
   rejectionReason   String?
+  /// PostgreSQL tsvector maintained by DB trigger for robust fallback search.
+  searchVector      Unsupported("tsvector")?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -247,6 +259,7 @@ model Post {
   reports      Report[]
   messages     Message[]
   payments     Payment[]
+  views        PostView[]
 
   @@index([userId])
   @@index([categoryId])
@@ -254,6 +267,7 @@ model Post {
   @@index([status, createdAt])
   @@index([isPromoted, boostExpiresAt])
   @@index([type, status])
+  @@index([searchVector], type: Gin)
 }
 
 model PostMedia {
@@ -358,6 +372,7 @@ model Comment {
   postId    String
   parentId  String?
   content   String
+  isPinned  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -568,4 +583,79 @@ model AuditLog {
   @@index([target])
   @@index([action, createdAt])
   @@index([createdAt])
+}
+
+/// Per-post view event used for analytics (unique vs repeat, time-of-day, last
+/// 7 days) and the "already viewed" indicator. `userId` is null for anonymous
+/// views; `viewerHash` lets us dedupe per visitor without exposing IPs.
+model PostView {
+  id         String   @id @default(uuid())
+  postId     String
+  userId     String?
+  viewerHash String?
+  viewedAt   DateTime @default(now())
+
+  post Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([postId, viewedAt])
+  @@index([userId, viewedAt])
+}
+
+/// One user blocking another. Used to hide content / disallow messages.
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+/// Per-user notification delivery preferences. `null` row means defaults (all on).
+model NotificationPreference {
+  userId         String   @id
+  likesPush      Boolean  @default(true)
+  commentsPush   Boolean  @default(true)
+  followsPush    Boolean  @default(true)
+  messagesPush   Boolean  @default(true)
+  likesEmail     Boolean  @default(false)
+  commentsEmail  Boolean  @default(false)
+  followsEmail   Boolean  @default(false)
+  messagesEmail  Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum PayoutStatus {
+  pending
+  approved
+  rejected
+  paid
+}
+
+/// User-initiated wallet withdrawal request. Admin approves -> balance is
+/// debited atomically and status moves through approved -> paid (manual bank
+/// transfer outside the system).
+model Payout {
+  id          String       @id @default(uuid())
+  userId      String
+  amount      BigInt
+  cardNumber  String?
+  iban        String?
+  status      PayoutStatus @default(pending)
+  rejectReason String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, createdAt])
 }

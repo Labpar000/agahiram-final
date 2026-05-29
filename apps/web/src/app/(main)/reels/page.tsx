@@ -6,7 +6,6 @@ import { Clapperboard, Loader2 } from 'lucide-react';
 import type { PaginatedResponse, ReelItem } from '@agahiram/shared';
 import { EmptyState } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
-import { mockReels } from '@/lib/mock-data';
 import { ReelPlayer } from '@/components/reel-player';
 
 /**
@@ -23,6 +22,7 @@ export default function ReelsPage() {
       });
       if (!r.success || !r.data) {
         if (process.env.NODE_ENV === 'development') {
+          const { mockReels } = await import('@/lib/mock-data');
           return { data: mockReels, nextCursor: null, hasMore: false };
         }
         return { data: [], nextCursor: null, hasMore: false };

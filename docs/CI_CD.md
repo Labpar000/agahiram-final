@@ -129,6 +129,23 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
 - اگر `pnpm-lock.yaml` تغییر نکرده باشد، cacheهای آفلاین (`.pnpm-store` و `.pnpm-meta`) دوباره آپلود نمی‌شوند
 - با BuildKit اجرا می‌شود تا cache لایه‌های Docker بهتر استفاده شود
 - build سرویس‌ها به‌صورت ترتیبی (سرویس‌به‌سرویس) انجام می‌شود تا روی VPS با دیسک محدود به خطای `no space left on device` نخورد
+- **cache لایه‌های Docker دیگر قبل از هر build پاک نمی‌شود.** قبلاً `docker builder prune -af` در هر deploy اجرا می‌شد و باعث می‌شد هر بار از صفر build شود (~۳۰ دقیقه). حالا cache بین deployها می‌ماند و یک تغییر کوچک فقط مرحله `build` همان سرویس را دوباره اجرا می‌کند (چند دقیقه).
+- buildهای Next.js (`web`/`admin`) از `--mount=type=cache` روی `.next/cache` استفاده می‌کنند تا incremental build cache بین buildها بماند.
+
+## مدیریت دیسک با BuildKit GC
+
+برای اینکه cache بماند ولی دیسک پر نشود، به‌جای پاک‌کردن کامل cache، یک سقف ذخیره‌سازی روی سرور تنظیم شده است. فایل `/etc/docker/daemon.json`:
+
+```json
+"builder": {
+  "gc": {
+    "enabled": true,
+    "defaultKeepStorage": "20GB"
+  }
+}
+```
+
+با این کار Docker خودش cache را تا ۲۰ گیگ نگه می‌دارد و مازاد را خودکار حذف می‌کند. (سقف باید به‌اندازه‌ای باشد که لایه‌های `deps` هر ۴ سرویس جا شوند؛ با ۴ سرویس حدود ۱۳ تا ۱۸ گیگ می‌شود، پس ۱۰ گیگ کم بود.) این تنظیم یک‌بار با اسکریپت `scripts/setup-buildkit-gc.sh` اعمال شده (نیازمند restart داکر است؛ سرویس‌ها `restart: always` دارند و خودکار بالا می‌آیند).
 
 از GitHub (فقط وقتی مسیر شبکه runner به VPS باز شود):
 
@@ -141,6 +158,8 @@ ssh -i .cache/ssh/agahiram_id_ed25519 ubuntu@37.32.26.32
 cd /opt/agahiram
 bash scripts/update.sh
 ```
+
+`update.sh` بعد از `git pull` فقط سرویس‌هایی را rebuild می‌کند که فایل‌هایشان بین HEAD قبلی و بعد تغییر کرده‌اند. برای rebuild کامل `FORCE_FULL=1 bash scripts/update.sh` و برای سرویس خاص `bash scripts/update.sh web` را اجرا کن.
 
 ## Rollback سریع
 

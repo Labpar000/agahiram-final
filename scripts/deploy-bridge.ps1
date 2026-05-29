@@ -1,6 +1,6 @@
 param(
-  [string]$HostName = "37.32.26.32",
-  [string]$User = "ubuntu",
+  [string]$HostName = "45.144.18.86",
+  [string]$User = "root",
   [string]$Port = "22",
   [string]$KeyPath = ".cache/ssh/agahiram_id_ed25519",
   [string]$AppDir = "/opt/agahiram",
@@ -214,9 +214,11 @@ cd "$APP_DIR/docker"
 
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
-docker builder prune -af >/dev/null 2>&1 || true
+# cache build عمداً پاک نمی‌شود تا rebuildها سریع بمانند؛
+# مدیریت دیسک با BuildKit GC در /etc/docker/daemon.json انجام می‌شود.
 
-docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch
+docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch minio
+docker compose -f docker-compose.prod.yml up -d createbuckets
 if [[ "$NEED_CACHE_SYNC" = "1" ]]; then
   echo "$LOCK_HASH" > "$APP_DIR/.offline-cache-lock.sha256"
 fi

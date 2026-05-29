@@ -4,11 +4,12 @@ import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ExternalLink, X } from 'lucide-react';
+import { ExternalLink, Eye, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { cn } from '@agahiram/shared';
-import { Avatar, AvatarFallback, AvatarImage, Spinner } from '@agahiram/ui';
+import { cn, formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
+import { Avatar, AvatarFallback, AvatarImage, Drawer, DrawerContent, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 
 interface StoryGroup {
   userId: string;
@@ -18,6 +19,20 @@ interface StoryGroup {
     mediaUrl: string;
     type: 'image' | 'video';
     linkedPostId: string | null;
+    viewerCount?: number;
+  }>;
+  isMe?: boolean;
+}
+
+interface ViewerListResponse {
+  count: number;
+  viewers: Array<{
+    id: string;
+    username: string | null;
+    name: string | null;
+    avatar: string | null;
+    isVerified: boolean;
+    viewedAt: string;
   }>;
 }
 
@@ -27,6 +42,8 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
   const { userId } = use(params);
   const router = useRouter();
   const [index, setIndex] = useState(0);
+  const [insightsOpen, setInsightsOpen] = useState(false);
+  const me = useAuthStore((s) => s.user);
 
   const { data: groups, isLoading } = useQuery({
     queryKey: ['stories', 'feed'],
@@ -39,6 +56,16 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
   const group = (groups ?? []).find((g) => g.userId === userId);
   const stories = group?.stories ?? [];
   const current = stories[index];
+  const isOwner = !!me && me.id === userId;
+
+  const viewersQuery = useQuery({
+    queryKey: ['story-viewers', current?.id],
+    queryFn: async () => {
+      const r = await apiClient.get<ViewerListResponse>(`/stories/${current!.id}/views`);
+      return r.data ?? { count: 0, viewers: [] };
+    },
+    enabled: isOwner && insightsOpen && !!current,
+  });
 
   useEffect(() => {
     if (!current) return;
@@ -152,6 +179,19 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
           </Link>
         ) : null}
 
+        {/* Owner-only insights toggle */}
+        {isOwner ? (
+          <button
+            type="button"
+            onClick={() => setInsightsOpen(true)}
+            aria-label="بازدیدها"
+            className="absolute end-3 bottom-[calc(var(--safe-bottom)+0.75rem)] z-10 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white shadow-md backdrop-blur-md tap-none hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <Eye className="size-4" aria-hidden />
+            {formatPersianNumber(current.viewerCount ?? 0)} بازدید
+          </button>
+        ) : null}
+
         {/* Tap zones — RTL aware: tap-end → next, tap-start → prev */}
         <button
           type="button"
@@ -170,6 +210,45 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
           )}
         />
       </div>
+
+      {isOwner ? (
+        <Drawer open={insightsOpen} onOpenChange={setInsightsOpen}>
+          <DrawerContent className="max-h-[80vh]">
+            <div className="space-y-3 p-4">
+              <h3 className="text-h3 font-bold tracking-tight">بازدیدکنندگان استوری</h3>
+              <p className="text-sm text-muted-foreground">
+                {viewersQuery.isLoading
+                  ? 'در حال بارگذاری…'
+                  : `${formatPersianNumber(viewersQuery.data?.count ?? 0)} بازدید`}
+              </p>
+              <ul className="divide-y divide-border">
+                {(viewersQuery.data?.viewers ?? []).map((v) => (
+                  <li key={v.id} className="flex items-center gap-3 py-2">
+                    <Avatar size="md" verified={v.isVerified}>
+                      {v.avatar ? <AvatarImage src={v.avatar} alt="" /> : null}
+                      <AvatarFallback>{(v.username ?? '?').slice(0, 2)}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold">{v.username}</p>
+                      {v.name ? (
+                        <p className="truncate text-xs text-muted-foreground">{v.name}</p>
+                      ) : null}
+                    </div>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {formatRelativeTimeFa(v.viewedAt)}
+                    </span>
+                  </li>
+                ))}
+                {!viewersQuery.isLoading && (viewersQuery.data?.count ?? 0) === 0 ? (
+                  <li className="py-6 text-center text-sm text-muted-foreground">
+                    هنوز کسی این استوری را ندیده است.
+                  </li>
+                ) : null}
+              </ul>
+            </div>
+          </DrawerContent>
+        </Drawer>
+      ) : null}
     </div>
   );
 }

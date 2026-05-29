@@ -25,6 +25,8 @@ import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 import { LiveModule } from './live/live.module';
 import { AiModule } from './ai/ai.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { ReputationModule } from './reputation/reputation.module';
 
 @Module({
   imports: [
@@ -70,6 +72,8 @@ import { AiModule } from './ai/ai.module';
     AdminModule,
     LiveModule,
     AiModule,
+    MetricsModule,
+    ReputationModule,
   ],
   providers: [
     {

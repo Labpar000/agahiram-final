@@ -7,8 +7,8 @@ import {
 import type { Readable } from 'stream';
 
 export const s3 = new S3Client({
-  region: process.env.S3_REGION ?? 'ir-thr-at1',
-  endpoint: process.env.S3_ENDPOINT ?? 'https://s3.ir-thr-at1.arvanstorage.ir',
+  region: process.env.S3_REGION ?? 'us-east-1',
+  endpoint: process.env.S3_ENDPOINT ?? 'http://minio:9000',
   credentials: {
     accessKeyId: process.env.S3_ACCESS_KEY ?? 'dev',
     secretAccessKey: process.env.S3_SECRET_KEY ?? 'dev',
@@ -17,8 +17,7 @@ export const s3 = new S3Client({
 });
 
 export const BUCKET = process.env.S3_BUCKET ?? 'agahiram';
-export const PUBLIC_URL =
-  process.env.S3_PUBLIC_URL ?? `https://${BUCKET}.s3.ir-thr-at1.arvanstorage.ir`;
+export const PUBLIC_URL = process.env.S3_PUBLIC_URL ?? `http://minio:9000/${BUCKET}`;
 
 export async function getObject(key: string): Promise<Buffer> {
   const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));

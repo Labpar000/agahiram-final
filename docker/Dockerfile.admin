@@ -1,21 +1,15 @@
 FROM node:22-alpine AS base
-ENV NPM_REGISTRY=https://package-mirror.liara.ir/repository/npm/
-RUN npm config set registry ${NPM_REGISTRY} \
+RUN apk add --no-cache libc6-compat \
   && npm install -g pnpm@9.15.0
 WORKDIR /app
 
 FROM base AS deps
-COPY .pnpm-store /pnpm-store
-COPY .pnpm-meta/metadata-v1.3 /root/.cache/pnpm/metadata-v1.3
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc turbo.json ./
 COPY apps/admin/package.json ./apps/admin/
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
-RUN node -e "const fs=require('fs'); const p=require('./package.json'); delete p.devDependencies; fs.writeFileSync('package.json', JSON.stringify(p));"
-RUN pnpm config set store-dir /pnpm-store \
-  && pnpm install --filter @agahiram/admin... --offline --ignore-scripts --frozen-lockfile=false \
-  && find node_modules -type f \( -path '*/bin/*' -o -path '*/.bin/*' -o -name '*.node' -o -name '*.so' -o -name '*.so.*' \) -exec chmod +x {} + 2>/dev/null || true
+RUN pnpm install --filter @agahiram/admin... --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 ARG NEXT_PUBLIC_API_URL=/api/v1
@@ -31,7 +25,7 @@ COPY packages/config ./packages/config
 COPY packages/shared ./packages/shared
 COPY packages/ui ./packages/ui
 RUN pnpm --filter @agahiram/shared build
-RUN pnpm --filter @agahiram/admin build
+RUN --mount=type=cache,target=/app/apps/admin/.next/cache pnpm --filter @agahiram/admin build
 
 FROM base AS runner
 ENV NODE_ENV=production

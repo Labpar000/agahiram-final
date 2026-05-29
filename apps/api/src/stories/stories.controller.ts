@@ -37,6 +37,12 @@ export class StoriesController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('stories/:id/views')
+  views(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.stories.listViewers(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Delete('stories/:id')
   delete(@CurrentUser('sub') userId: string, @Param('id') id: string) {
     return this.stories.delete(userId, id);

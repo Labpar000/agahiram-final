@@ -11,7 +11,11 @@ export class PaymentsService {
   ) {}
 
   async getBoostPlans() {
-    return this.prisma.boostPlan.findMany({ where: { isActive: true }, orderBy: { price: 'asc' } });
+    const plans = await this.prisma.boostPlan.findMany({
+      where: { isActive: true },
+      orderBy: { price: 'asc' },
+    });
+    return plans.map((p) => ({ ...p, price: p.price.toString() }));
   }
 
   async initiate(userId: string, input: InitiatePaymentInput) {
@@ -148,14 +152,21 @@ export class PaymentsService {
       where: { id: userId },
       select: { walletBalance: true },
     });
-    return { balance: user?.walletBalance ?? 0, currency: 'IRT' };
+    return { balance: (user?.walletBalance ?? 0n).toString(), currency: 'IRT' };
   }
 
   async listMyPayments(userId: string) {
-    return this.prisma.payment.findMany({
+    const payments = await this.prisma.payment.findMany({
       where: { userId },
       include: { plan: true, post: { select: { id: true, title: true } } },
       orderBy: { createdAt: 'desc' },
     });
+    return payments.map((p) => ({
+      ...p,
+      amount: p.amount.toString(),
+      plan: p.plan ? { ...p.plan, price: p.plan.price.toString() } : null,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    }));
   }
 }

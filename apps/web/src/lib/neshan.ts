@@ -10,7 +10,12 @@
  * header convention. We intentionally mimic that contract so the look-and-feel
  * matches what Iranian users already expect from in-app maps.
  */
-import maplibregl from 'maplibre-gl';
+// Type-only import: maplibre-gl touches `window` at module load and is heavy
+// (~200kb gzip). This file only references the library for its TypeScript types,
+// so a `type` import keeps the runtime bundle of any consumer (location picker,
+// constants) free of maplibre. The actual library is dynamically imported inside
+// the map component when it mounts on the client.
+import type maplibregl from 'maplibre-gl';
 
 export const NESHAN_MAP_KEY = process.env.NEXT_PUBLIC_NESHAN_MAP_KEY ?? '';
 

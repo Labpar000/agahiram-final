@@ -2,16 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
-import { Compass, Film, Home, MessageCircle, PlusSquare, User } from 'lucide-react';
+import { Film, Home, MessageCircle, PlusSquare, Search, User } from 'lucide-react';
 import { cn, formatPersianNumber } from '@agahiram/shared';
-import { apiClient } from '@/lib/api';
+import { useUnreadMessages } from '@/hooks/useUnreadCounts';
 import { useAuthStore } from '@/lib/auth-store';
 
 const items = [
   { href: '/feed', icon: Home, label: 'خانه' },
-  { href: '/explore', icon: Compass, label: 'گردش' },
+  { href: '/explore', icon: Search, label: 'اکسپلور' },
   { href: '/create', icon: PlusSquare, label: 'افزودن' },
   { href: '/reels', icon: Film, label: 'ریلز' },
   {
@@ -25,33 +23,32 @@ const items = [
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  const { data: msgUnread = 0 } = useQuery({
-    queryKey: ['messages', 'unread'],
-    queryFn: async () => {
-      const r = await apiClient.get<{ count: number }>('/messages/unread-count');
-      return r.data?.count ?? 0;
-    },
-    enabled: isAuthenticated,
-    refetchInterval: 30_000,
-  });
+  const msgUnread = useUnreadMessages();
+  // When the auth store already knows our username, link straight to the
+  // canonical profile route instead of bouncing through `/profile`. The
+  // hop-page ran a client redirect that sometimes flashed a "redirecting…"
+  // placeholder, which is why the profile tab felt the slowest of all.
+  const myUsername = useAuthStore((s) => s.user?.username);
 
   return (
     <nav aria-label="ناوبری اصلی" className="fixed inset-x-0 bottom-0 z-40 glass border-t pb-safe">
       <ul className="mx-auto grid h-bottom-nav max-w-2xl grid-cols-6 items-stretch px-1">
         {items.map(({ href, icon: Icon, label, ...rest }) => {
+          const resolvedHref = href === '/profile' && myUsername ? `/profile/${myUsername}` : href;
           const active =
             href === '/feed'
               ? pathname === '/' || pathname === '/feed'
-              : pathname === href || pathname.startsWith(`${href}/`);
+              : href === '/profile'
+                ? pathname === '/profile' || pathname.startsWith('/profile/')
+                : pathname === href || pathname.startsWith(`${href}/`);
           const badge = 'badgeQuery' in rest ? msgUnread : 0;
           return (
             <li key={href} className="contents">
               <Link
-                href={href}
+                href={resolvedHref}
                 aria-current={active ? 'page' : undefined}
                 aria-label={label}
+                prefetch
                 className={cn(
                   'group relative flex flex-col items-center justify-center gap-1 rounded-2xl px-1 pt-2 pb-2 tap-none',
                   'min-h-11 text-[10px] font-medium leading-none',
@@ -60,11 +57,9 @@ export function BottomNav() {
                 )}
               >
                 {active ? (
-                  <motion.span
-                    layoutId="bottom-nav-pill"
+                  <span
                     aria-hidden
                     className="absolute inset-x-4 top-1 h-1 rounded-full bg-foreground"
-                    transition={{ type: 'spring', stiffness: 480, damping: 36 }}
                   />
                 ) : null}
                 <span className="relative inline-flex">

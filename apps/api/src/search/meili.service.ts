@@ -30,15 +30,29 @@ export class MeiliService implements OnModuleInit {
     try {
       await this.client.createIndex(MEILI_INDEX_POSTS, { primaryKey: 'id' }).catch(() => null);
       await this.postsIndex.updateSettings({
-        searchableAttributes: ['title', 'description', 'categoryName', 'cityName', 'username'],
+        searchableAttributes: [
+          'normalizedTitle',
+          'normalizedDescription',
+          'title',
+          'description',
+          'categoryName',
+          'provinceName',
+          'cityName',
+          'neighborhoodName',
+          'username',
+        ],
         filterableAttributes: [
           'categoryId',
           'cityId',
           'provinceId',
+          'neighborhoodId',
           'priceType',
           'price',
           'type',
           'status',
+          'userIsPrivate',
+          'isPromoted',
+          'boostExpiresAt',
         ],
         sortableAttributes: ['price', 'createdAt', 'viewCount'],
         rankingRules: ['words', 'typo', 'proximity', 'attribute', 'exactness'],

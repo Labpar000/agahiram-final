@@ -18,9 +18,11 @@ export async function processImageJob({ mediaId }: Job) {
       .resize(1080, 1080, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 82, mozjpeg: true })
       .toBuffer();
+    // Preserve aspect ratio in thumbnails so non-square uploads aren't cropped
+    // by the display surface. Cards/grids decide their own framing.
     const thumb = await sharp(buffer)
       .rotate()
-      .resize(400, 400, { fit: 'cover' })
+      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 70, mozjpeg: true })
       .toBuffer();
 

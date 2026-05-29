@@ -217,6 +217,7 @@ export class AuthService {
     avatar: string | null;
     isVerified: boolean;
     isBusiness: boolean;
+    isPrivate?: boolean;
     role: string;
     defaultCityId: string | null;
     createdAt: Date;
@@ -230,6 +231,7 @@ export class AuthService {
       avatar: user.avatar,
       isVerified: user.isVerified,
       isBusiness: user.isBusiness,
+      isPrivate: user.isPrivate ?? false,
       role: user.role as UserRole,
       defaultCityId: user.defaultCityId,
       createdAt: user.createdAt.toISOString(),

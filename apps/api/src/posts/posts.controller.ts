@@ -41,14 +41,14 @@ export class PostsController {
   @Public()
   @Get('explore')
   @UsePipes(new ZodValidationPipe(exploreSchema))
-  explore(@Query() query: ExploreInput) {
-    return this.feedService.getExplore(query);
+  explore(@Query() query: ExploreInput, @CurrentUser('sub') viewerId?: string) {
+    return this.feedService.getExplore(query, viewerId);
   }
 
   @Public()
   @Get('reels')
-  reels(@Query('cursor') cursor?: string) {
-    return this.feedService.getReels(cursor);
+  reels(@Query('cursor') cursor?: string, @CurrentUser('sub') viewerId?: string) {
+    return this.feedService.getReels(cursor, 10, viewerId);
   }
 
   @Public()
@@ -103,6 +103,12 @@ export class PostsController {
   @Get(':id')
   getOne(@Param('id') id: string, @CurrentUser('sub') viewerId?: string) {
     return this.postsService.getById(id, viewerId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get(':id/insights')
+  insights(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.postsService.getInsights(userId, id);
   }
 
   @UseGuards(JwtAuthGuard)

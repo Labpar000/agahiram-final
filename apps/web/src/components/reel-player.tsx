@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { Phone, Play, Volume2, VolumeX } from 'lucide-react';
+import { MessageSquare, Phone, Play, Volume2, VolumeX } from 'lucide-react';
 import type { ReelItem } from '@agahiram/shared';
 import { cn, formatPersianNumber, formatPersianPrice, formatPhoneFa } from '@agahiram/shared';
 import {
@@ -162,6 +162,24 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
     setContactRevealed(true);
   }, [reel.id, contactRevealed, contactPhone]);
 
+  const [messaging, setMessaging] = useState(false);
+  const onSendMessage = useCallback(async () => {
+    if (messaging) return;
+    setMessaging(true);
+    try {
+      const r = await apiClient.post<{ conversationId: string }>(
+        `/messages/start/${reel.user.username}`,
+      );
+      if (r.success && r.data) {
+        window.location.href = `/messages/${r.data.conversationId}`;
+      } else {
+        toast.error(r.error ?? 'برای ارسال پیام ابتدا وارد شوید');
+      }
+    } finally {
+      setMessaging(false);
+    }
+  }, [messaging, reel.user.username]);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -297,22 +315,35 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
             {reel.title}
           </h3>
           <p className="text-sm font-extrabold drop-shadow-md">{formatPersianPrice(reel.price)}</p>
-          <Button
-            variant={contactRevealed ? 'outline' : 'brand'}
-            size="sm"
-            leftIcon={<Phone className="size-4" />}
-            className="w-fit shadow-md"
-            onClick={() => void onContact()}
-            aria-live="polite"
-          >
-            {contactRevealed ? (
-              <span dir="ltr" className="font-mono tracking-wide">
-                {formatPhoneFa(contactPhone ?? '')}
-              </span>
-            ) : (
-              'تماس با فروشنده'
-            )}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={contactRevealed ? 'outline' : 'brand'}
+              size="sm"
+              leftIcon={<Phone className="size-4" />}
+              className="w-fit shadow-md"
+              onClick={() => void onContact()}
+              aria-live="polite"
+            >
+              {contactRevealed ? (
+                <span dir="ltr" className="font-mono tracking-wide">
+                  {formatPhoneFa(contactPhone ?? '')}
+                </span>
+              ) : (
+                'تماس با فروشنده'
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<MessageSquare className="size-4" />}
+              className="w-fit shadow-md"
+              onClick={() => void onSendMessage()}
+              isLoading={messaging}
+              aria-label="ارسال پیام به فروشنده"
+            >
+              ارسال پیام
+            </Button>
+          </div>
         </div>
       </div>
     </div>

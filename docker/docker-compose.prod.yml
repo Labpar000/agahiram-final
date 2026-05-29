@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: docker.arvancloud.ir/library/postgres:16-alpine
+    image: postgres:16-alpine
     container_name: agahiram-postgres
     restart: always
     environment:
@@ -18,7 +18,7 @@ services:
       retries: 5
 
   redis:
-    image: docker.arvancloud.ir/library/redis:7-alpine
+    image: redis:7-alpine
     container_name: agahiram-redis
     restart: always
     volumes:
@@ -33,7 +33,7 @@ services:
       retries: 5
 
   meilisearch:
-    image: docker.arvancloud.ir/getmeili/meilisearch:v1.12
+    image: getmeili/meilisearch:v1.12
     container_name: agahiram-meilisearch
     restart: always
     environment:
@@ -44,23 +44,51 @@ services:
     networks:
       - agahiram
 
+  minio:
+    image: minio/minio:latest
+    container_name: agahiram-minio
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Allow the browser to PUT directly to presigned URLs served via Caddy.
+      MINIO_API_CORS_ALLOW_ORIGIN: ${S3_CORS_ALLOW_ORIGIN:-https://${DOMAIN}}
+    volumes:
+      - minio_data:/data
+    networks:
+      - agahiram
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # One-shot: create the bucket and make objects publicly readable
+  # (consistent with the previous public-read object storage model).
+  createbuckets:
+    image: minio/mc:latest
+    container_name: agahiram-createbuckets
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/${S3_BUCKET:-agahiram} &&
+      mc anonymous set download local/${S3_BUCKET:-agahiram} &&
+      echo 'bucket ready';
+      "
+    networks:
+      - agahiram
+
   api:
     build:
       context: ..
       dockerfile: docker/Dockerfile.api
-      extra_hosts:
-        - "package-mirror.liara.ir:185.208.181.186"
     container_name: agahiram-api
     restart: always
     env_file: .env
-    extra_hosts:
-      - "api.sms.ir:185.211.56.44"
-      - "s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
-      - "agahiram.s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
-    dns:
-      - "178.22.122.100"
-      - "185.51.200.2"
-      - "1.1.1.1"
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +96,8 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_started
+      minio:
+        condition: service_healthy
     networks:
       - agahiram
 
@@ -75,16 +105,26 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.web
-      extra_hosts:
-        - "package-mirror.liara.ir:185.208.181.186"
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-/}
         NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-${NEXT_PUBLIC_APP_URL:-/}}
+        # `next build` bakes rewrites() into routes-manifest.json, so the
+        # upstream URL must be known at build time. The runtime env below
+        # is kept as a safety net but is NOT what serves requests.
+        API_UPSTREAM_URL: ${API_UPSTREAM_URL:-http://api:4000}
     container_name: agahiram-web
     restart: always
     env_file: .env
+    # Tell Next.js (rewrites + image optimizer) to reach the API over the
+    # docker network instead of falling back to 127.0.0.1:4000, which obviously
+    # doesn't exist inside the web container. Without this, /_next/image
+    # requests for `/api/v1/media/object?key=…` URLs come back as 400 because
+    # the optimizer can't fetch the upstream image.
+    environment:
+      API_UPSTREAM_URL: http://api:4000
+      INTERNAL_API_URL: http://api:4000
     depends_on:
       - api
     networks:
@@ -94,8 +134,6 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.admin
-      extra_hosts:
-        - "package-mirror.liara.ir:185.208.181.186"
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-/}
@@ -103,13 +141,6 @@ services:
     container_name: agahiram-admin
     restart: always
     env_file: .env
-    extra_hosts:
-      - "s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
-      - "agahiram.s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
-    dns:
-      - "178.22.122.100"
-      - "185.51.200.2"
-      - "1.1.1.1"
     depends_on:
       - api
     networks:
@@ -119,29 +150,21 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.worker
-      extra_hosts:
-        - "package-mirror.liara.ir:185.208.181.186"
-        - "mirror.arvancloud.ir:185.143.233.234"
     container_name: agahiram-worker
     restart: always
     env_file: .env
-    extra_hosts:
-      - "s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
-      - "agahiram.s3.ir-thr-at1.arvanstorage.ir:185.143.234.234"
-    dns:
-      - "178.22.122.100"
-      - "185.51.200.2"
-      - "1.1.1.1"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      minio:
+        condition: service_healthy
     networks:
       - agahiram
 
   caddy:
-    image: docker.arvancloud.ir/library/caddy:2-alpine
+    image: caddy:2-alpine
     container_name: agahiram-caddy
     restart: always
     env_file: .env
@@ -150,14 +173,13 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
-      - ./acme-challenges:/srv/acme-challenges:ro
-      - ./certs:/etc/caddy/certs:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - web
       - admin
       - api
+      - minio
     networks:
       - agahiram
 
@@ -169,5 +191,6 @@ volumes:
   postgres_data:
   redis_data:
   meili_data:
+  minio_data:
   caddy_data:
   caddy_config:

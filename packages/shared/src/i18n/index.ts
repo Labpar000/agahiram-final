@@ -33,6 +33,34 @@ export function toLatinDigits(input: string): string {
     .replace(ARABIC_DIGITS_RE, (d) => String(d.charCodeAt(0) - 0x0660));
 }
 
+/**
+ * Normalize Persian/Arabic text for tolerant search matching.
+ *
+ * Handles:
+ * - Arabic vs Persian letters (ي/ى -> ی, ك -> ک)
+ * - Arabic/Persian digits to Latin (for numeric tokens)
+ * - Tatweel and Arabic diacritics removal
+ * - ZWNJ normalization to a regular space
+ * - Collapsing repeated whitespace
+ */
+export function normalizePersianText(input: string | null | undefined): string {
+  if (!input) return '';
+  const withLatinDigits = toLatinDigits(input);
+  return withLatinDigits
+    .normalize('NFKC')
+    .replace(/[يى]/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/ؤ/g, 'و')
+    .replace(/إ|أ|ٱ/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/[\u064B-\u065F\u0670]/g, '') // Arabic diacritics
+    .replace(/\u0640/g, '') // tatweel
+    .replace(/[\u200C\u200D]/g, ' ') // ZWNJ/ZWJ
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 /* =========================================================================
    Numbers
    ========================================================================= */

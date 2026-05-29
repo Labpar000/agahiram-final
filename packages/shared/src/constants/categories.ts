@@ -1159,9 +1159,12 @@ export const ROOT_CATEGORIES = DIVAR_CATEGORIES.map((c) => ({
   childrenCount: c.children?.length ?? 0,
 }));
 
+const countLeaves = (items: CategorySeed[]): number =>
+  items.reduce((n, c) => n + (c.children?.length ? countLeaves(c.children) : 1), 0);
+
 export const CATEGORY_COUNTS = {
   roots: DIVAR_CATEGORIES.length,
-  leaves: DIVAR_CATEGORIES.reduce((n, c) => n + (c.children?.length ?? 0), 0),
+  leaves: countLeaves(DIVAR_CATEGORIES),
 };
 
 export const BOOST_PLANS = [

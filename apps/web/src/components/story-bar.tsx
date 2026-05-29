@@ -2,17 +2,19 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { Plus } from 'lucide-react';
+import { Eye, Plus } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { cn } from '@agahiram/shared';
+import { cn, formatPersianNumber } from '@agahiram/shared';
 import { Skeleton } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 
 interface StoryGroup {
   userId: string;
   user: { id: string; username: string | null; avatar: string | null; isVerified: boolean };
-  stories: Array<{ id: string; mediaUrl: string; viewed: boolean }>;
+  stories: Array<{ id: string; mediaUrl: string; viewed: boolean; viewerCount?: number }>;
   hasUnviewed: boolean;
+  isMe?: boolean;
+  viewerCount?: number;
 }
 
 export function StoryBar() {
@@ -62,6 +64,7 @@ export function StoryBar() {
 }
 
 function StoryItem({ group }: { group: StoryGroup }) {
+  const showViewerCount = !!group.isMe && (group.viewerCount ?? 0) > 0;
   return (
     <Link
       href={`/stories/${group.userId}`}
@@ -92,9 +95,18 @@ function StoryItem({ group }: { group: StoryGroup }) {
             </span>
           )}
         </span>
+        {showViewerCount ? (
+          <span
+            aria-label={`${group.viewerCount} بازدید`}
+            className="absolute -bottom-1 -end-1 inline-flex items-center gap-0.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background ring-2 ring-surface"
+          >
+            <Eye className="size-3" aria-hidden />
+            {formatPersianNumber(group.viewerCount!)}
+          </span>
+        ) : null}
       </span>
       <span className="w-full truncate text-center text-[11px] text-foreground">
-        {group.user.username ?? 'کاربر'}
+        {group.isMe ? 'استوری شما' : (group.user.username ?? 'کاربر')}
       </span>
     </Link>
   );

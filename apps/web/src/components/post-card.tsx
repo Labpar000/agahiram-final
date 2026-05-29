@@ -4,9 +4,17 @@ import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState 
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, MapPin, Phone } from 'lucide-react';
+import {
+  Award,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  MapPin,
+  MessageSquare,
+  Phone,
+  Sparkles,
+} from 'lucide-react';
 import useEmblaCarousel from 'embla-carousel-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import type { PostSummary } from '@agahiram/shared';
 import {
   cn,
@@ -21,6 +29,10 @@ import {
   AvatarImage,
   Badge,
   Button,
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -35,17 +47,28 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { karmaTier, qualityLabel } from '@/lib/reputation';
+import { useAuthStore } from '@/lib/auth-store';
+import { CommentSection } from './comment-section';
 
 interface Props {
   post: PostSummary & { user: PostSummary['user'] & { phone?: string | null } };
   initialLiked?: boolean;
   initialSaved?: boolean;
+  /** Eager-load the first media (use only for the first above-the-fold card). */
+  priority?: boolean;
 }
 
-export function PostCard({ post, initialLiked = false, initialSaved = false }: Props) {
+export function PostCard({
+  post,
+  initialLiked = false,
+  initialSaved = false,
+  priority = false,
+}: Props) {
   const [liked, setLiked] = useState(initialLiked);
   const [saved, setSaved] = useState(initialSaved);
   const [likeCount, setLikeCount] = useState(post.likesCount);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const [contactRevealed, setContactRevealed] = useState(false);
   const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
@@ -53,6 +76,52 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
 
   const [emblaRef, embla] = useEmblaCarousel({ direction: 'rtl', loop: false, align: 'start' });
   const [activeIndex, setActiveIndex] = useState(0);
+
+  // "Seen" indicator: backend marks `viewedByMe` for authenticated users; for
+  // anonymous viewers we keep a small bounded localStorage cache so cards they
+  // already opened on this device are still flagged.
+  const [locallyViewed, setLocallyViewed] = useState(false);
+  useEffect(() => {
+    if (post.viewedByMe) return;
+    try {
+      const raw = window.localStorage.getItem('viewed-posts');
+      if (raw) {
+        const ids = JSON.parse(raw) as string[];
+        if (Array.isArray(ids) && ids.includes(post.id)) setLocallyViewed(true);
+      }
+    } catch {
+      /* localStorage may be unavailable; ignore. */
+    }
+  }, [post.id, post.viewedByMe]);
+  const markViewedLocally = useCallback(() => {
+    if (post.viewedByMe || locallyViewed) return;
+    try {
+      const raw = window.localStorage.getItem('viewed-posts');
+      const ids: string[] = raw ? (JSON.parse(raw) ?? []) : [];
+      if (!ids.includes(post.id)) {
+        ids.push(post.id);
+        // Cap to 1000 entries (LRU-ish: newest at end, drop from front).
+        while (ids.length > 1000) ids.shift();
+        window.localStorage.setItem('viewed-posts', JSON.stringify(ids));
+      }
+    } catch {
+      /* ignore */
+    }
+    setLocallyViewed(true);
+  }, [post.id, post.viewedByMe, locallyViewed]);
+  const showSeenBadge = Boolean(post.viewedByMe) || locallyViewed;
+
+  // Use the first media's aspect ratio (clamped) so non-square uploads are not
+  // hard-cropped to 1:1. Instagram allows 1:1, 4:5 (portrait), 1.91:1 (landscape).
+  const firstMedia = post.media[0];
+  const me = useAuthStore((s) => s.user);
+  const isOwner = me?.id === post.user.id;
+  const tier = karmaTier(post.user.karma);
+  const postQualityLabel = qualityLabel(post.qualityScore);
+  const rawAspect =
+    firstMedia?.width && firstMedia?.height ? firstMedia.width / firstMedia.height : 1;
+  // Clamp to Instagram-friendly range; default to 1 if unknown.
+  const aspectRatio = Math.min(Math.max(rawAspect, 4 / 5), 1.91);
 
   useEffect(() => {
     if (!embla) return;
@@ -147,6 +216,24 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
     }
   }, [post.id, post.title]);
 
+  const [messaging, setMessaging] = useState(false);
+  const onSendMessage = useCallback(async () => {
+    if (messaging) return;
+    setMessaging(true);
+    try {
+      const r = await apiClient.post<{ conversationId: string }>(
+        `/messages/start/${post.user.username}`,
+      );
+      if (r.success && r.data) {
+        window.location.href = `/messages/${r.data.conversationId}`;
+      } else {
+        toast.error(r.error ?? 'برای ارسال پیام ابتدا وارد شوید');
+      }
+    } finally {
+      setMessaging(false);
+    }
+  }, [messaging, post.user.username]);
+
   return (
     <article className="border-b border-border bg-surface sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card">
       {/* Header */}
@@ -174,6 +261,18 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
                 فروشگاه
               </Badge>
             ) : null}
+            {post.user.karma && post.user.karma >= 50 ? (
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                  tier.className,
+                )}
+                aria-label={`نشان کارما: ${tier.label}`}
+              >
+                <Award className="size-3" aria-hidden />
+                {tier.label}
+              </span>
+            ) : null}
           </div>
           {post.city ? (
             <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
@@ -186,6 +285,12 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
           <Badge tone="brand" size="sm">
             نردبان
           </Badge>
+        ) : null}
+        {postQualityLabel ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+            <Sparkles className="size-3" aria-hidden />
+            {postQualityLabel}
+          </span>
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -215,9 +320,19 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
 
       {/* Media carousel */}
       <div className="relative">
+        {showSeenBadge ? (
+          <span
+            className="pointer-events-none absolute start-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm"
+            aria-label="این آگهی را دیده‌اید"
+          >
+            <Eye className="size-3" aria-hidden />
+            دیده‌شده
+          </span>
+        ) : null}
         <div
           ref={emblaRef}
-          className="relative aspect-square overflow-hidden bg-muted"
+          className="relative overflow-hidden bg-muted"
+          style={{ aspectRatio: String(aspectRatio) }}
           onClick={onDoubleTap}
         >
           <div className="flex h-full">
@@ -244,8 +359,11 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
                     href={`/post/${post.id}`}
                     className="relative h-full min-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     onClick={(e: MouseEvent<HTMLAnchorElement>) => {
-                      // allow double-tap on the carousel; first tap navigates only after delay
-                      if (Date.now() - lastTapRef.current < 320) e.preventDefault();
+                      if (Date.now() - lastTapRef.current < 320) {
+                        e.preventDefault();
+                        return;
+                      }
+                      markViewedLocally();
                     }}
                   >
                     <Image
@@ -254,7 +372,8 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
                       fill
                       sizes="(max-width: 640px) 100vw, 600px"
                       className="object-cover"
-                      priority={i === 0}
+                      priority={priority && i === 0}
+                      loading={priority && i === 0 ? 'eager' : 'lazy'}
                     />
                   </Link>
                 ),
@@ -315,20 +434,15 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
               filled={liked}
               filledClass="text-[var(--like)]"
             >
-              <motion.span
+              <span
                 key={String(liked)}
-                initial={{ scale: 1 }}
-                animate={{ scale: liked ? [1, 1.25, 1] : [1, 0.9, 1] }}
-                transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
-                className="inline-flex"
+                className={cn('inline-flex', liked ? 'like-pop' : 'like-pop-off')}
               >
                 <IgHeart className="size-7" filled={liked} />
-              </motion.span>
+              </span>
             </ActionButton>
-            <ActionButton ariaLabel="نظرات" asChild>
-              <Link href={`/post/${post.id}`}>
-                <IgComment className="size-7" />
-              </Link>
+            <ActionButton ariaLabel="نظرات" onClick={() => setCommentsOpen(true)}>
+              <IgComment className="size-7" />
             </ActionButton>
             <ActionButton ariaLabel="اشتراک‌گذاری" onClick={onShare}>
               <IgShare className="size-7" />
@@ -344,19 +458,26 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
           </ActionButton>
         </div>
 
-        <AnimatePresence initial={false}>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           {likeCount > 0 ? (
-            <motion.p
+            <p
               key={likeCount}
-              initial={{ opacity: 0, y: -3 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="text-sm font-semibold leading-tight"
+              className="count-in font-semibold leading-tight"
+              aria-label={`${formatPersianNumber(likeCount)} پسند`}
             >
               {formatPersianNumber(likeCount)} پسند
-            </motion.p>
+            </p>
           ) : null}
-        </AnimatePresence>
+          {post.viewCount > 0 ? (
+            <span
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
+              aria-label={`${formatPersianNumber(post.viewCount)} بازدید`}
+            >
+              <Eye className="size-3.5" aria-hidden />
+              {formatPersianNumber(post.viewCount)}
+            </span>
+          ) : null}
+        </div>
 
         <div>
           <h3 className="line-clamp-2 text-base font-bold leading-snug">{post.title}</h3>
@@ -384,27 +505,55 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
           </Link>
         ) : null}
 
-        <Button
-          fullWidth
-          variant={contactRevealed ? 'outline' : 'secondary'}
-          size="md"
-          leftIcon={<Phone className="size-4" />}
-          onClick={onContact}
-          aria-live="polite"
-        >
-          {contactRevealed ? (
-            <span dir="ltr" className="font-mono text-base tracking-wide">
-              {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
-            </span>
-          ) : (
-            'تماس با فروشنده'
-          )}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            fullWidth
+            variant={contactRevealed ? 'outline' : 'secondary'}
+            size="md"
+            leftIcon={<Phone className="size-4" />}
+            onClick={onContact}
+            aria-live="polite"
+          >
+            {contactRevealed ? (
+              <span dir="ltr" className="font-mono text-base tracking-wide">
+                {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
+              </span>
+            ) : (
+              'تماس با فروشنده'
+            )}
+          </Button>
+          <Button
+            variant="brand"
+            size="md"
+            leftIcon={<MessageSquare className="size-4" />}
+            onClick={onSendMessage}
+            isLoading={messaging}
+            aria-label="ارسال پیام به فروشنده"
+          >
+            ارسال پیام
+          </Button>
+        </div>
 
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
           {formatRelativeTimeFa(post.createdAt)}
         </p>
       </div>
+      <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
+        <DrawerContent className="max-h-[85svh] overflow-hidden">
+          <DrawerHeader className="border-b border-border">
+            <DrawerTitle>نظرات</DrawerTitle>
+          </DrawerHeader>
+          {commentsOpen ? (
+            <div className="max-h-[72svh] overflow-y-auto">
+              <CommentSection
+                postId={post.id}
+                isOwner={isOwner}
+                commentsEnabled={post.commentsEnabled ?? true}
+              />
+            </div>
+          ) : null}
+        </DrawerContent>
+      </Drawer>
     </article>
   );
 }

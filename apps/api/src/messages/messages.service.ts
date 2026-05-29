@@ -11,6 +11,19 @@ import type { SendMessageInput } from '@agahiram/shared';
 export class MessagesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async assertNotBlocked(a: string, b: string) {
+    const block = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: a, blockedId: b },
+          { blockerId: b, blockedId: a },
+        ],
+      },
+      select: { id: true },
+    });
+    if (block) throw new ForbiddenException('امکان ارسال پیام به این کاربر وجود ندارد');
+  }
+
   async getUnreadCount(userId: string) {
     const count = await this.prisma.message.count({
       where: {
@@ -150,6 +163,7 @@ export class MessagesService {
 
     if (!conversationId) {
       if (!input.recipientId) throw new BadRequestException('گیرنده را مشخص کنید');
+      await this.assertNotBlocked(senderId, input.recipientId);
       const existing = await this.prisma.conversation.findFirst({
         where: {
           AND: [
@@ -175,6 +189,11 @@ export class MessagesService {
         where: { conversationId_userId: { conversationId, userId: senderId } },
       });
       if (!p) throw new ForbiddenException();
+      const other = await this.prisma.conversationParticipant.findFirst({
+        where: { conversationId, userId: { not: senderId } },
+        select: { userId: true },
+      });
+      if (other) await this.assertNotBlocked(senderId, other.userId);
     }
 
     const message = await this.prisma.message.create({
@@ -215,6 +234,8 @@ export class MessagesService {
   async startWithUser(userId: string, otherUsername: string) {
     const other = await this.prisma.user.findUnique({ where: { username: otherUsername } });
     if (!other) throw new NotFoundException();
+    if (other.id === userId) throw new BadRequestException('نمی‌توانید به خودتان پیام بدهید');
+    await this.assertNotBlocked(userId, other.id);
 
     const existing = await this.prisma.conversation.findFirst({
       where: {

@@ -18,18 +18,31 @@ const ALLOWED_TYPES = ALLOWED_UPLOAD_TYPES;
 export class MediaService implements OnModuleInit {
   private readonly logger = new Logger(MediaService.name);
   private s3: S3Client;
+  // Separate client used ONLY to sign browser-facing upload URLs. It points at
+  // the publicly reachable endpoint (e.g. https://s3.alooche.com) while `s3`
+  // talks to the internal endpoint (e.g. http://minio:9000) for head/delete/cors.
+  private s3Public: S3Client;
   private bucket: string;
 
   constructor(private redis: RedisService) {
     this.bucket = process.env.S3_BUCKET ?? 'agahiram';
+    const region = process.env.S3_REGION ?? 'us-east-1';
+    const forcePathStyle = process.env.S3_FORCE_PATH_STYLE === 'true';
+    const credentials = {
+      accessKeyId: process.env.S3_ACCESS_KEY ?? '',
+      secretAccessKey: process.env.S3_SECRET_KEY ?? '',
+    };
     this.s3 = new S3Client({
-      region: process.env.S3_REGION ?? 'us-east-1',
+      region,
       endpoint: process.env.S3_ENDPOINT,
-      forcePathStyle: process.env.S3_FORCE_PATH_STYLE === 'true',
-      credentials: {
-        accessKeyId: process.env.S3_ACCESS_KEY ?? '',
-        secretAccessKey: process.env.S3_SECRET_KEY ?? '',
-      },
+      forcePathStyle,
+      credentials,
+    });
+    this.s3Public = new S3Client({
+      region,
+      endpoint: process.env.S3_PUBLIC_ENDPOINT ?? process.env.S3_ENDPOINT,
+      forcePathStyle,
+      credentials,
     });
   }
 
@@ -80,7 +93,7 @@ export class MediaService implements OnModuleInit {
       ContentType: contentType,
     });
 
-    const uploadUrl = await getSignedUrl(this.s3, command, { expiresIn: 600 });
+    const uploadUrl = await getSignedUrl(this.s3Public, command, { expiresIn: 600 });
 
     await this.redis.set(
       `upload:${key}`,
@@ -172,7 +185,6 @@ export class MediaService implements OnModuleInit {
       process.env.NEXT_PUBLIC_APP_URL,
       process.env.DOMAIN ? `http://${process.env.DOMAIN}` : undefined,
       process.env.DOMAIN ? `https://${process.env.DOMAIN}` : undefined,
-      'http://37.32.26.32',
       'http://localhost:5173',
       'http://localhost:3000',
     ].filter((origin): origin is string => !!origin);

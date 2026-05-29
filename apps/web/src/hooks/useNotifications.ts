@@ -3,14 +3,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NotificationItem, PaginatedResponse } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
-import { mockNotifications } from '@/lib/mock-data';
 
 type NotificationsResponse = PaginatedResponse<NotificationItem> | NotificationItem[];
 
 function normalizeNotifications(payload: NotificationsResponse | undefined): NotificationItem[] {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.data)) return payload.data;
-  return process.env.NODE_ENV === 'development' ? mockNotifications : [];
+  return [];
 }
 
 export function useNotifications() {
@@ -21,7 +20,11 @@ export function useNotifications() {
     queryFn: async () => {
       const res = await apiClient.get<NotificationsResponse>('/notifications');
       if (res.success) return normalizeNotifications(res.data);
-      return mockNotifications;
+      if (process.env.NODE_ENV === 'development') {
+        const { mockNotifications } = await import('@/lib/mock-data');
+        return mockNotifications;
+      }
+      return [] as NotificationItem[];
     },
   });
 

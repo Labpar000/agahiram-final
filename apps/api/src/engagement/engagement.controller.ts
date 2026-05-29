@@ -55,6 +55,26 @@ export class EngagementController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('comments/:id/pin')
+  pinComment(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body() body: { pinned?: boolean },
+  ) {
+    return this.comments.setPinned(userId, id, body?.pinned ?? true);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('posts/:id/comments/toggle')
+  toggleComments(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.comments.setCommentsEnabled(userId, id, Boolean(body?.enabled));
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('posts/:id/save')
   save(
     @CurrentUser('sub') userId: string,

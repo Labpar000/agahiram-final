@@ -111,6 +111,7 @@ export interface UserProfile {
   avatar: string | null;
   isVerified: boolean;
   isBusiness: boolean;
+  isPrivate?: boolean;
   role: UserRole;
   defaultCityId: string | null;
   createdAt: string;
@@ -128,7 +129,10 @@ export interface PostSummary {
   status: PostStatus;
   type: PostType;
   isPromoted: boolean;
+  commentsEnabled?: boolean;
+  qualityScore?: number;
   viewCount: number;
+  viewedByMe?: boolean;
   likesCount: number;
   commentsCount: number;
   createdAt: string;
@@ -139,6 +143,7 @@ export interface PostSummary {
     avatar: string | null;
     isVerified: boolean;
     isBusiness: boolean;
+    karma?: number;
   };
   category: {
     id: string;
@@ -155,6 +160,8 @@ export interface PostSummary {
     thumbnailUrl: string | null;
     type: MediaType;
     order: number;
+    width?: number | null;
+    height?: number | null;
     hlsUrl?: string | null;
   }>;
 }
@@ -179,18 +186,32 @@ export interface CategoryAttributeDef {
 }
 
 export interface SearchFilters {
+  q?: string;
   query?: string;
   categoryId?: string;
   cityId?: string;
   provinceId?: string;
+  neighborhoodId?: string;
   minPrice?: number;
   maxPrice?: number;
   priceType?: PriceType;
   hasImage?: boolean;
+  onlyImage?: boolean;
+  onlyVideo?: boolean;
+  onlyPromoted?: boolean;
+  lat?: number;
+  lng?: number;
   sortBy?: 'newest' | 'cheapest' | 'nearest' | 'mostViewed' | 'relevance';
   attributes?: Record<string, string>;
   cursor?: string;
   limit?: number;
+}
+
+export interface SearchSuggestionItem {
+  text: string;
+  postId?: string;
+  categoryId?: string | null;
+  cityId?: string | null;
 }
 
 export interface ConversationSummary {

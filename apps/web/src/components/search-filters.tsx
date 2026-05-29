@@ -15,6 +15,7 @@ import {
   Input,
   Label,
   ScrollArea,
+  toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 
@@ -29,16 +30,19 @@ export interface Filters {
   provinceName?: string;
   minPrice?: number;
   maxPrice?: number;
-  sortBy?: 'newest' | 'cheapest' | 'mostExpensive' | 'mostViewed';
+  sortBy?: 'newest' | 'cheapest' | 'mostExpensive' | 'mostViewed' | 'nearest' | 'relevance';
   onlyImage?: boolean;
   onlyVideo?: boolean;
   onlyPromoted?: boolean;
+  lat?: number;
+  lng?: number;
 }
 
 interface Category {
   id: string;
   name: string;
   slug: string;
+  parentId?: string | null;
   icon?: string | null;
   emoji?: string | null;
   children?: Category[];
@@ -69,6 +73,8 @@ const SORT_OPTIONS = [
   { v: 'cheapest', l: 'ارزان‌ترین' },
   { v: 'mostExpensive', l: 'گران‌ترین' },
   { v: 'mostViewed', l: 'پربازدید' },
+  { v: 'relevance', l: 'مرتبط‌ترین' },
+  { v: 'nearest', l: 'نزدیک‌ترین' },
 ] as const;
 
 type Step = 'main' | 'category' | 'location';
@@ -100,7 +106,35 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
     [local],
   );
 
-  const handleApply = () => {
+  const handleApply = async () => {
+    if (
+      local.sortBy === 'nearest' &&
+      (typeof local.lat !== 'number' || typeof local.lng !== 'number') &&
+      typeof navigator !== 'undefined' &&
+      navigator.geolocation
+    ) {
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 5000,
+            maximumAge: 60_000,
+          });
+        });
+        const withGeo = {
+          ...local,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setLocal(withGeo);
+        onApply(withGeo);
+        onOpenChange(false);
+        return;
+      } catch {
+        toast.error('برای مرتب‌سازی نزدیک‌ترین، دسترسی موقعیت مکانی لازم است.');
+        return;
+      }
+    }
     onApply(local);
     onOpenChange(false);
   };
@@ -383,7 +417,7 @@ function CategoryPicker({
   onPick: (c: { id: string; name: string }) => void;
   onClear: () => void;
 }) {
-  const [parent, setParent] = useState<Category | null>(null);
+  const [path, setPath] = useState<Category[]>([]);
   const [q, setQ] = useState('');
 
   const { data: tree, isLoading } = useQuery({
@@ -398,14 +432,20 @@ function CategoryPicker({
     if (!q.trim()) return null;
     const lower = q.trim().toLowerCase();
     const flat: Array<Category & { parentName?: string }> = [];
-    (tree ?? []).forEach((root) => {
-      if (root.name.toLowerCase().includes(lower)) flat.push(root);
-      (root.children ?? []).forEach((c) => {
-        if (c.name.toLowerCase().includes(lower)) flat.push({ ...c, parentName: root.name });
-      });
-    });
+    const walk = (items: Category[], parents: string[]) => {
+      for (const item of items) {
+        if (item.name.toLowerCase().includes(lower)) {
+          flat.push({ ...item, parentName: parents.join(' / ') || undefined });
+        }
+        walk(item.children ?? [], [...parents, item.name]);
+      }
+    };
+    walk(tree ?? [], []);
     return flat;
   }, [q, tree]);
+
+  const parent = path[path.length - 1] ?? null;
+  const visible = parent?.children?.length ? parent.children : (tree ?? []);
 
   return (
     <div className="flex h-full flex-col">
@@ -469,11 +509,11 @@ function CategoryPicker({
               <li>
                 <button
                   type="button"
-                  onClick={() => setParent(null)}
+                  onClick={() => setPath((p) => p.slice(0, -1))}
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-start text-xs text-muted-foreground transition-colors hover:bg-muted tap-none"
                 >
                   <ChevronLeft className="size-4 rtl:scale-x-[-1]" aria-hidden />
-                  بازگشت به دسته‌های اصلی
+                  بازگشت
                 </button>
               </li>
               <li>
@@ -491,32 +531,43 @@ function CategoryPicker({
                   ) : null}
                 </button>
               </li>
-              {(parent.children ?? []).map((child) => (
-                <li key={child.id}>
-                  <button
-                    type="button"
-                    onClick={() => onPick({ id: child.id, name: child.name })}
-                    className={cn(
-                      'flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-sm transition-colors hover:bg-muted tap-none',
-                      currentId === child.id && 'bg-accent text-accent-foreground',
-                    )}
-                  >
-                    <span>{child.name}</span>
-                    {currentId === child.id ? (
-                      <Check className="size-4 text-primary" aria-hidden />
-                    ) : null}
-                  </button>
-                </li>
-              ))}
+              {(parent.children ?? []).map((child) => {
+                const hasChildren = !!child.children?.length;
+                return (
+                  <li key={child.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (hasChildren) setPath((p) => [...p, child]);
+                        else onPick({ id: child.id, name: child.name });
+                      }}
+                      className={cn(
+                        'flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-sm transition-colors hover:bg-muted tap-none',
+                        currentId === child.id && 'bg-accent text-accent-foreground',
+                      )}
+                    >
+                      <span>{child.name}</span>
+                      {hasChildren ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                          {formatPersianNumber(child.children!.length)} زیرشاخه
+                          <ChevronLeft className="size-3.5 rtl:scale-x-[-1]" aria-hidden />
+                        </span>
+                      ) : currentId === child.id ? (
+                        <Check className="size-4 text-primary" aria-hidden />
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <ul className="space-y-1">
-              {(tree ?? []).map((root) => (
+              {visible.map((root) => (
                 <li key={root.id}>
                   <button
                     type="button"
                     onClick={() => {
-                      if (root.children && root.children.length > 0) setParent(root);
+                      if (root.children && root.children.length > 0) setPath((p) => [...p, root]);
                       else onPick({ id: root.id, name: root.name });
                     }}
                     className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-sm font-medium transition-colors hover:bg-muted tap-none"

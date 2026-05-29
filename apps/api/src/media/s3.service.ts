@@ -17,12 +17,11 @@ export class S3Service {
 
   constructor() {
     this.bucket = process.env.S3_BUCKET ?? 'agahiram';
-    this.publicUrl =
-      process.env.S3_PUBLIC_URL ?? `https://${this.bucket}.s3.ir-thr-at1.arvanstorage.ir`;
+    this.publicUrl = process.env.S3_PUBLIC_URL ?? `http://minio:9000/${this.bucket}`;
 
     this.client = new S3Client({
-      region: process.env.S3_REGION ?? 'ir-thr-at1',
-      endpoint: process.env.S3_ENDPOINT ?? 'https://s3.ir-thr-at1.arvanstorage.ir',
+      region: process.env.S3_REGION ?? 'us-east-1',
+      endpoint: process.env.S3_ENDPOINT ?? 'http://minio:9000',
       credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY ?? 'dev',
         secretAccessKey: process.env.S3_SECRET_KEY ?? 'dev',
@@ -110,7 +109,13 @@ export class S3Service {
       const url = new URL(urlOrKey);
       const publicBase = new URL(this.publicUrl);
       if (url.hostname === publicBase.hostname) {
-        return decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+        // Path-style endpoints (e.g. MinIO http://host/bucket/key) carry the
+        // bucket as the first path segment, so strip it. Virtual-host style
+        // (bucket in hostname) has no leading bucket segment to remove.
+        const path = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+        const parts = path.split('/');
+        if (parts[0] === this.bucket) return parts.slice(1).join('/');
+        return path;
       }
 
       const endpoint = process.env.S3_ENDPOINT ? new URL(process.env.S3_ENDPOINT) : null;

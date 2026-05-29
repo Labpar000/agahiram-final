@@ -1,14 +1,25 @@
 {
-    auto_https off
+    email {$ACME_EMAIL}
 }
 
-(app_routes) {
-    encode gzip zstd
-
-    handle_path /.well-known/acme-challenge/* {
-        root * /srv/acme-challenges
-        file_server
+(security_headers) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
     }
+}
+
+# Redirect www -> apex
+www.{$DOMAIN:agahiram.ir} {
+    redir https://{$DOMAIN:agahiram.ir}{uri} permanent
+}
+
+# Main app
+{$DOMAIN:agahiram.ir} {
+    encode gzip zstd
+    import security_headers
 
     handle /api/* {
         reverse_proxy api:4000
@@ -27,29 +38,11 @@
     }
 }
 
-http://{$DOMAIN:agahiram.ir}, http://www.{$DOMAIN:agahiram.ir}, :80 {
-    @domain host {$DOMAIN:agahiram.ir} www.{$DOMAIN:agahiram.ir}
-    redir @domain https://{host}{uri} permanent
-
-    import app_routes
-
-    header {
-        Strict-Transport-Security "max-age=0"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "strict-origin-when-cross-origin"
+# Object storage (browser presigned uploads + public reads)
+s3.{$DOMAIN:agahiram.ir} {
+    encode gzip zstd
+    request_body {
+        max_size 250MB
     }
-}
-
-https://{$DOMAIN:agahiram.ir}, https://www.{$DOMAIN:agahiram.ir} {
-    tls /etc/caddy/certs/alooche.com/fullchain.pem /etc/caddy/certs/alooche.com/key.pem
-
-    import app_routes
-
-    header {
-        Strict-Transport-Security "max-age=31536000; includeSubDomains"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "strict-origin-when-cross-origin"
-    }
+    reverse_proxy minio:9000
 }

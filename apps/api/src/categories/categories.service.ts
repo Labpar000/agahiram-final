@@ -21,12 +21,34 @@ export class CategoriesService {
         id: c.id,
         name: c.name,
         slug: c.slug,
+        parentId: c.parentId,
         icon: c.icon,
         order: c.order,
         attributes: c.attributes,
         children: build(c.id),
       }));
     return build(null);
+  }
+
+  async getDescendantIds(id: string) {
+    const all = await this.prisma.category.findMany({
+      select: { id: true, parentId: true },
+    });
+    const byParent = new Map<string | null, string[]>();
+    for (const c of all) {
+      if (!byParent.has(c.parentId)) byParent.set(c.parentId, []);
+      byParent.get(c.parentId)!.push(c.id);
+    }
+    const out = new Set<string>([id]);
+    const visit = (parentId: string) => {
+      for (const childId of byParent.get(parentId) ?? []) {
+        if (out.has(childId)) continue;
+        out.add(childId);
+        visit(childId);
+      }
+    };
+    visit(id);
+    return [...out];
   }
 
   async getById(id: string) {

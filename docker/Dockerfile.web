@@ -1,31 +1,31 @@
 FROM node:22-alpine AS base
-ENV NPM_REGISTRY=https://package-mirror.liara.ir/repository/npm/
-RUN npm config set registry ${NPM_REGISTRY} \
+RUN apk add --no-cache libc6-compat \
   && npm install -g pnpm@9.15.0
 WORKDIR /app
 
 FROM base AS deps
-COPY .pnpm-store /pnpm-store
-COPY .pnpm-meta/metadata-v1.3 /root/.cache/pnpm/metadata-v1.3
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc turbo.json ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
-RUN node -e "const fs=require('fs'); const p=require('./package.json'); delete p.devDependencies; fs.writeFileSync('package.json', JSON.stringify(p));"
-RUN pnpm config set store-dir /pnpm-store \
-  && pnpm install --filter @agahiram/web... --offline --ignore-scripts --frozen-lockfile=false \
-  && find node_modules -type f \( -path '*/bin/*' -o -path '*/.bin/*' -o -name '*.node' -o -name '*.so' -o -name '*.so.*' \) -exec chmod +x {} + 2>/dev/null || true
+RUN pnpm install --filter @agahiram/web... --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 ARG NEXT_PUBLIC_API_URL=/api/v1
 ARG NEXT_PUBLIC_WS_URL=
 ARG NEXT_PUBLIC_APP_URL=/
 ARG NEXT_PUBLIC_SOCKET_URL=
+# `next build` bakes the result of `rewrites()` into routes-manifest.json,
+# and that result is what `next start` actually serves — runtime changes to
+# this env var do NOT re-route requests. So we set it at build time too,
+# defaulting to the docker service hostname used in docker-compose.prod.yml.
+ARG API_UPSTREAM_URL=http://api:4000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
-    NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL
+    NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL \
+    API_UPSTREAM_URL=$API_UPSTREAM_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json pnpm-workspace.yaml turbo.json ./
 COPY apps/web ./apps/web
@@ -33,7 +33,7 @@ COPY packages/config ./packages/config
 COPY packages/shared ./packages/shared
 COPY packages/ui ./packages/ui
 RUN pnpm --filter @agahiram/shared build
-RUN pnpm --filter @agahiram/web build
+RUN --mount=type=cache,target=/app/apps/web/.next/cache pnpm --filter @agahiram/web build
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -42,6 +42,11 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages/shared ./packages/shared
 COPY --from=build /app/apps/web/.next ./apps/web/.next
 COPY --from=build /app/apps/web/public ./apps/web/public
+# The Next.js image optimiser re-reads the `images` config from this file at
+# server startup. Without it, runtime falls back to default deviceSizes /
+# imageSizes and rejects the custom widths we generate in srcsets (200, 360,
+# 414, 768), which surfaces in the browser as 400 on /_next/image requests.
+COPY --from=build /app/apps/web/next.config.mjs ./apps/web/
 COPY --from=build /app/apps/web/package.json ./apps/web/
 COPY --from=build /app/pnpm-workspace.yaml ./
 COPY --from=build /app/package.json ./

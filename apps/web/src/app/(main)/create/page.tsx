@@ -38,8 +38,20 @@ import {
   Textarea,
   toast,
 } from '@agahiram/ui';
+import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api';
-import { LocationPicker, type PickedLocation } from '@/components/maps/location-picker';
+import { ImageEditor } from '@/components/image-editor';
+import type { PickedLocation } from '@/components/maps/location-picker';
+
+// Map picker pulls in maplibre-gl; it only appears on the last step of the
+// create flow, so load it on demand instead of in the initial page bundle.
+const LocationPicker = dynamic(
+  () => import('@/components/maps/location-picker').then((m) => m.LocationPicker),
+  {
+    ssr: false,
+    loading: () => <div className="h-64 w-full animate-pulse rounded-2xl bg-muted" />,
+  },
+);
 
 type Step = 0 | 1 | 2 | 3 | 4;
 const STEP_LABELS = ['عکس و ویدیو', 'دسته‌بندی', 'مشخصات', 'عنوان و قیمت', 'موقعیت'];
@@ -76,7 +88,7 @@ export default function CreatePage() {
   const [media, setMedia] = useState<UploadedMedia[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [categoryParentId, setCategoryParentId] = useState<string>('');
+  const [categoryPath, setCategoryPath] = useState<Category[]>([]);
   const [categoryId, setCategoryId] = useState<string>('');
   const [category, setCategory] = useState<Category | null>(null);
   const [attributes, setAttributes] = useState<Record<string, string>>({});
@@ -88,6 +100,9 @@ export default function CreatePage() {
   const [cityId, setCityId] = useState('');
   const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [hideExactLocation, setHideExactLocation] = useState(false);
+  // Editor queue: image files awaiting crop/filter/rotate before upload.
+  const [editorFile, setEditorFile] = useState<File | null>(null);
+  const [editorQueue, setEditorQueue] = useState<File[]>([]);
 
   const { data: cats } = useQuery({
     queryKey: ['categories'],
@@ -117,69 +132,108 @@ export default function CreatePage() {
       ? { lat: selectedCity.lat, lng: selectedCity.lng }
       : undefined;
 
+  const uploadSingle = async (file: File): Promise<boolean> => {
+    try {
+      const extension = getFileExtension(file);
+      const contentType = file.type || getContentTypeFromExtension(extension);
+      const isVideo = contentType.startsWith('video/');
+
+      const allowed = isVideo ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
+      if (!(allowed as readonly string[]).includes(contentType)) {
+        toast.error(`فرمت «${file.name}» پشتیبانی نمی‌شود`);
+        return false;
+      }
+
+      const maxBytes = isVideo ? MAX_VIDEO_UPLOAD_BYTES : MAX_IMAGE_UPLOAD_BYTES;
+      if (file.size > maxBytes) {
+        const maxMb = Math.round(maxBytes / (1024 * 1024));
+        toast.error(`حجم «${file.name}» بیش از حد مجاز است (حداکثر ${toFa(maxMb)} مگابایت)`);
+        return false;
+      }
+
+      const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
+        '/media/presign',
+        { folder: 'posts', fileName: file.name, contentType, extension },
+      );
+      if (!presign.success || !presign.data) {
+        toast.error('خطا در دریافت لینک آپلود');
+        return false;
+      }
+
+      setUploadProgress(0);
+      const ok = await uploadToS3(presign.data.uploadUrl, file, contentType, setUploadProgress);
+      if (!ok) {
+        toast.error(`آپلود «${file.name}» ناموفق بود`);
+        return false;
+      }
+
+      const confirmRes = await apiClient.post('/media/confirm', { key: presign.data.key });
+      if (!confirmRes.success) {
+        toast.error(confirmRes.error ?? `تأیید «${file.name}» ناموفق بود`);
+        return false;
+      }
+
+      const preview = URL.createObjectURL(file);
+      setMedia((m) => [
+        ...m,
+        {
+          key: presign.data!.key,
+          url: presign.data!.publicUrl,
+          type: isVideo ? 'video' : 'image',
+          preview,
+        },
+      ]);
+      return true;
+    } catch (e) {
+      toast.error(`خطا در آپلود: ${(e as Error).message}`);
+      return false;
+    }
+  };
+
+  // Route image files through the editor (one at a time). Videos upload directly.
   const handleFiles = async (files: FileList) => {
     if (media.length + files.length > MAX_MEDIA) {
       toast.error(`حداکثر ${MAX_MEDIA} مورد مجاز است`);
       return;
     }
-    setUploading(true);
-    for (const file of Array.from(files)) {
-      try {
-        const extension = getFileExtension(file);
-        const contentType = file.type || getContentTypeFromExtension(extension);
-        const isVideo = contentType.startsWith('video/');
-
-        const allowed = isVideo ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
-        if (!(allowed as readonly string[]).includes(contentType)) {
-          toast.error(`فرمت «${file.name}» پشتیبانی نمی‌شود`);
-          continue;
-        }
-
-        const maxBytes = isVideo ? MAX_VIDEO_UPLOAD_BYTES : MAX_IMAGE_UPLOAD_BYTES;
-        if (file.size > maxBytes) {
-          const maxMb = Math.round(maxBytes / (1024 * 1024));
-          toast.error(`حجم «${file.name}» بیش از حد مجاز است (حداکثر ${toFa(maxMb)} مگابایت)`);
-          continue;
-        }
-
-        const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
-          '/media/presign',
-          { folder: 'posts', fileName: file.name, contentType, extension },
-        );
-        if (!presign.success || !presign.data) {
-          toast.error('خطا در دریافت لینک آپلود');
-          continue;
-        }
-
-        setUploadProgress(0);
-        const ok = await uploadToS3(presign.data.uploadUrl, file, contentType, setUploadProgress);
-        if (!ok) {
-          toast.error(`آپلود «${file.name}» ناموفق بود`);
-          continue;
-        }
-
-        const confirmRes = await apiClient.post('/media/confirm', { key: presign.data.key });
-        if (!confirmRes.success) {
-          toast.error(confirmRes.error ?? `تأیید «${file.name}» ناموفق بود`);
-          continue;
-        }
-
-        const preview = URL.createObjectURL(file);
-        setMedia((m) => [
-          ...m,
-          {
-            key: presign.data!.key,
-            url: presign.data!.publicUrl,
-            type: isVideo ? 'video' : 'image',
-            preview,
-          },
-        ]);
-      } catch (e) {
-        toast.error(`خطا در آپلود: ${(e as Error).message}`);
-      }
+    const images: File[] = [];
+    const videos: File[] = [];
+    for (const f of Array.from(files)) {
+      const ct = f.type || getContentTypeFromExtension(getFileExtension(f));
+      if (ct.startsWith('video/')) videos.push(f);
+      else images.push(f);
     }
+
+    if (videos.length > 0) {
+      setUploading(true);
+      for (const v of videos) await uploadSingle(v);
+      setUploadProgress(0);
+      setUploading(false);
+    }
+
+    if (images.length > 0) {
+      // Show editor for first image; rest queue up.
+      setEditorFile(images[0]!);
+      setEditorQueue(images.slice(1));
+    }
+  };
+
+  const onEditorApply = async (out: File) => {
+    setEditorFile(null);
+    setUploading(true);
+    await uploadSingle(out);
     setUploadProgress(0);
     setUploading(false);
+    // Dequeue next
+    const next = editorQueue[0] ?? null;
+    setEditorQueue((q) => q.slice(1));
+    if (next) setEditorFile(next);
+  };
+
+  const onEditorCancel = () => {
+    setEditorFile(null);
+    // Drop the rest of the queue too on cancel — user can re-pick.
+    setEditorQueue([]);
   };
 
   const submit = useMutation({
@@ -221,9 +275,10 @@ export default function CreatePage() {
   };
 
   const rootCategories = cats ?? [];
-  const selectedParent = rootCategories.find((c) => c.id === categoryParentId) ?? null;
-  const visibleSubcategories =
-    selectedParent?.children && selectedParent.children.length > 0 ? selectedParent.children : [];
+  const selectedParent = categoryPath[categoryPath.length - 1] ?? null;
+  const visibleCategories = selectedParent?.children?.length
+    ? selectedParent.children
+    : rootCategories;
 
   return (
     <div className="bg-background pb-32">
@@ -257,6 +312,9 @@ export default function CreatePage() {
             <h2 className="text-h3 font-bold tracking-tight">عکس و ویدیو</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               حداکثر {toFa(MAX_MEDIA)} مورد می‌توانید اضافه کنید
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              ابعاد پیشنهادی: پست ۱۰۸۰×۱۰۸۰ پیکسل، استوری ۱۰۸۰×۱۹۲۰ پیکسل
             </p>
             <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               {media.map((m, i) => (
@@ -331,7 +389,8 @@ export default function CreatePage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setCategoryParentId('');
+                    const nextPath = categoryPath.slice(0, -1);
+                    setCategoryPath(nextPath);
                     setCategoryId('');
                     setCategory(null);
                     setAttributes({});
@@ -345,7 +404,7 @@ export default function CreatePage() {
                     <Tag className="size-5" aria-hidden />
                   </span>
                   <div>
-                    <div className="text-xs text-muted-foreground">موضوع اصلی</div>
+                    <div className="text-xs text-muted-foreground">مسیر دسته‌بندی</div>
                     <div className="font-bold">{selectedParent.name}</div>
                   </div>
                 </div>
@@ -353,7 +412,7 @@ export default function CreatePage() {
             ) : null}
 
             <div className="mt-4 space-y-2">
-              {(selectedParent ? visibleSubcategories : rootCategories).map((c) => {
+              {visibleCategories.map((c) => {
                 const hasChildren = !!c.children?.length;
                 const selected = categoryId === c.id && category?.id === c.id;
                 return (
@@ -362,7 +421,7 @@ export default function CreatePage() {
                     type="button"
                     onClick={() => {
                       if (hasChildren) {
-                        setCategoryParentId(c.id);
+                        setCategoryPath((p) => [...p, c]);
                         setCategoryId('');
                         setCategory(null);
                       } else {
@@ -653,6 +712,14 @@ export default function CreatePage() {
           </Button>
         </div>
       </div>
+      {editorFile ? (
+        <ImageEditor
+          file={editorFile}
+          open
+          onCancel={onEditorCancel}
+          onApply={(out) => void onEditorApply(out)}
+        />
+      ) : null}
     </div>
   );
 }

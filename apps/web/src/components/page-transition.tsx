@@ -1,23 +1,19 @@
 'use client';
 
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 
+/**
+ * Lightweight route transition. Previously this used framer-motion's
+ * `AnimatePresence`, which shipped on every route and forced a remount/animate
+ * cycle on each navigation. A keyed wrapper plus a CSS keyframe (`.page-enter`,
+ * defined in globals.css) gives the same fade-up entrance with zero JS runtime
+ * and automatically respects `prefers-reduced-motion`.
+ */
 export function PageTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const reduce = useReducedMotion();
-
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={pathname}
-        initial={reduce ? { opacity: 1 } : { opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={reduce ? { opacity: 1 } : { opacity: 0, y: -8 }}
-        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <div key={pathname} className="page-enter">
+      {children}
+    </div>
   );
 }

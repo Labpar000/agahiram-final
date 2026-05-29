@@ -10,8 +10,11 @@ const filterFields = {
   categoryId: z.string().uuid().optional(),
   cityId: z.string().uuid().optional(),
   provinceId: z.string().uuid().optional(),
+  neighborhoodId: z.string().uuid().optional(),
   minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().min(0).optional(),
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
   sortBy: z
     .enum(['newest', 'cheapest', 'mostExpensive', 'nearest', 'mostViewed', 'relevance'])
     .optional(),
@@ -37,3 +40,18 @@ export const exploreSchema = z.object({
 });
 
 export type ExploreInput = z.infer<typeof exploreSchema>;
+
+export const searchSuggestionsSchema = z.object({
+  q: z.string().min(1).max(100),
+  limit: z.coerce.number().min(1).max(20).default(8),
+});
+
+export type SearchSuggestionsInput = z.infer<typeof searchSuggestionsSchema>;
+
+export const searchAlertCreateSchema = z.object({
+  query: z.string().min(1).max(100).optional(),
+  cityId: z.string().uuid().optional(),
+  filters: z.record(z.string(), z.unknown()).default({}),
+});
+
+export type SearchAlertCreateInput = z.infer<typeof searchAlertCreateSchema>;

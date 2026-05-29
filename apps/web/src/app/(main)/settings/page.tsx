@@ -1,9 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Bell, Languages, LogOut, Palette, Shield, Sparkles, User, Wallet } from 'lucide-react';
-import { formatPersianPrice, PaymentPurpose } from '@agahiram/shared';
+import {
+  Bell,
+  Camera,
+  HelpCircle,
+  Languages,
+  LockKeyhole,
+  LogOut,
+  Palette,
+  Shield,
+  Sparkles,
+  User,
+  Wallet,
+} from 'lucide-react';
+import { formatPersianPrice, PaymentPurpose, usernameSchema } from '@agahiram/shared';
+import { S3_FOLDERS } from '@agahiram/shared/constants';
 import {
   Avatar,
   AvatarFallback,
@@ -22,27 +35,141 @@ import {
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
+interface NotificationPrefs {
+  likesPush: boolean;
+  commentsPush: boolean;
+  followsPush: boolean;
+  messagesPush: boolean;
+  likesEmail: boolean;
+  commentsEmail: boolean;
+  followsEmail: boolean;
+  messagesEmail: boolean;
+}
+
+interface BlockedUser {
+  id: string;
+  username: string | null;
+  name: string | null;
+  avatar: string | null;
+  isVerified: boolean;
+}
+
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, refetch } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
+  const [username, setUsername] = useState(user?.username ?? '');
+  const [debouncedUsername, setDebouncedUsername] = useState(user?.username ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
+  const [isPrivate, setIsPrivate] = useState(user?.isPrivate ?? false);
   const [showHistory, setShowHistory] = useState(false);
   const [topupAmount, setTopupAmount] = useState('100000');
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],
     queryFn: async () =>
-      (await apiClient.get<{ balance: number; currency: string }>('/payments/wallet')).data,
+      (await apiClient.get<{ balance: string | number; currency: string }>('/payments/wallet'))
+        .data,
+  });
+
+  const { data: prefs, refetch: refetchPrefs } = useQuery({
+    queryKey: ['notification-preferences'],
+    queryFn: async () =>
+      (await apiClient.get<NotificationPrefs>('/users/me/notification-preferences')).data,
+  });
+
+  const { data: blocked = [], refetch: refetchBlocked } = useQuery({
+    queryKey: ['blocked-users'],
+    queryFn: async () => (await apiClient.get<BlockedUser[]>('/users/me/blocked')).data ?? [],
+  });
+
+  useEffect(() => {
+    setName(user?.name ?? '');
+    setUsername(user?.username ?? '');
+    setDebouncedUsername(user?.username ?? '');
+    setBio(user?.bio ?? '');
+    setIsPrivate(user?.isPrivate ?? false);
+  }, [user?.bio, user?.isPrivate, user?.name, user?.username]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedUsername(username.trim().toLowerCase()), 350);
+    return () => window.clearTimeout(t);
+  }, [username]);
+
+  const usernameParse = useMemo(() => usernameSchema.safeParse(username), [username]);
+  const usernameChanged = debouncedUsername !== (user?.username ?? '');
+
+  const { data: usernameAvailability, isFetching: checkingUsername } = useQuery({
+    queryKey: ['username-availability', debouncedUsername],
+    queryFn: async () => {
+      const r = await apiClient.get<{ username: string; available: boolean }>(
+        '/users/username/availability',
+        { username: debouncedUsername },
+      );
+      return r.data;
+    },
+    enabled: usernameChanged && usernameParse.success,
+    staleTime: 30_000,
   });
 
   const save = useMutation({
     mutationFn: async () => {
-      const r = await apiClient.patch('/users/me', { name, bio });
+      const parsedUsername = usernameSchema.safeParse(username);
+      if (!parsedUsername.success) throw new Error(parsedUsername.error.issues[0]?.message);
+      if (usernameChanged && usernameAvailability && !usernameAvailability.available) {
+        throw new Error('این نام کاربری قبلاً ثبت شده است');
+      }
+      const r = await apiClient.patch('/users/me', {
+        name,
+        username: parsedUsername.data,
+        bio,
+        isPrivate,
+      });
       if (!r.success) throw new Error(r.error);
     },
-    onSuccess: () => toast.success('پروفایل ذخیره شد'),
+    onSuccess: () => {
+      toast.success('پروفایل ذخیره شد');
+      void refetch();
+    },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const updatePrefs = useMutation({
+    mutationFn: async (patch: Partial<NotificationPrefs>) => {
+      const r = await apiClient.patch('/users/me/notification-preferences', patch);
+      if (!r.success) throw new Error(r.error);
+    },
+    onSuccess: () => void refetchPrefs(),
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const uploadAvatar = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('فقط تصویر برای آواتار مجاز است');
+      return;
+    }
+    setAvatarUploading(true);
+    try {
+      const extension = file.name.split('.').pop()?.toLowerCase() ?? 'jpg';
+      const presign = await apiClient.post<{ uploadUrl: string; key: string }>('/media/presign', {
+        folder: S3_FOLDERS.AVATARS,
+        contentType: file.type,
+        extension,
+      });
+      if (!presign.success || !presign.data) throw new Error(presign.error ?? 'خطا در آپلود');
+      await uploadToS3(presign.data.uploadUrl, file, file.type);
+      const confirm = await apiClient.post('/media/confirm', { key: presign.data.key });
+      if (!confirm.success) throw new Error(confirm.error ?? 'خطا در ثبت آپلود');
+      const saved = await apiClient.patch('/users/me', { avatarKey: presign.data.key });
+      if (!saved.success) throw new Error(saved.error ?? 'خطا در ذخیره آواتار');
+      toast.success('آواتار به‌روزرسانی شد');
+      void refetch();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
 
   const topup = useMutation({
     mutationFn: async () => {
@@ -85,15 +212,34 @@ export default function SettingsPage() {
         <Card>
           <CardContent className="!p-5">
             <div className="flex items-center gap-4">
-              <Avatar size="lg" ring="brand" verified={user?.isVerified ?? false}>
-                {user?.avatar ? <AvatarImage src={user.avatar} alt="" /> : null}
-                <AvatarFallback>{(user?.username ?? '?').slice(0, 2)}</AvatarFallback>
-              </Avatar>
+              <label className="relative cursor-pointer">
+                <Avatar size="lg" ring="brand" verified={user?.isVerified ?? false}>
+                  {user?.avatar ? <AvatarImage src={user.avatar} alt="" /> : null}
+                  <AvatarFallback>{(user?.username ?? '?').slice(0, 2)}</AvatarFallback>
+                </Avatar>
+                <span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full bg-primary text-primary-foreground shadow-md">
+                  <Camera className="size-4" aria-hidden />
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  disabled={avatarUploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void uploadAvatar(file);
+                    e.currentTarget.value = '';
+                  }}
+                />
+              </label>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold">
                   {user?.name ?? user?.username ?? 'مهمان'}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">@{user?.username ?? '—'}</p>
+                {avatarUploading ? (
+                  <p className="mt-1 text-[11px] text-primary">در حال آپلود آواتار…</p>
+                ) : null}
               </div>
             </div>
           </CardContent>
@@ -103,6 +249,36 @@ export default function SettingsPage() {
           <div className="space-y-2">
             <Label htmlFor="name">نام نمایشی</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="username">نام کاربری</Label>
+            <Input
+              id="username"
+              dir="ltr"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="username"
+              aria-invalid={!usernameParse.success}
+            />
+            <p
+              className={
+                !usernameParse.success || usernameAvailability?.available === false
+                  ? 'text-xs text-destructive'
+                  : usernameAvailability?.available
+                    ? 'text-xs text-emerald-600'
+                    : 'text-xs text-muted-foreground'
+              }
+            >
+              {!usernameParse.success
+                ? usernameParse.error.issues[0]?.message
+                : checkingUsername
+                  ? 'در حال بررسی نام کاربری…'
+                  : usernameChanged && usernameAvailability?.available
+                    ? 'این نام کاربری آزاد است.'
+                    : usernameChanged && usernameAvailability?.available === false
+                      ? 'این نام کاربری قبلاً ثبت شده است.'
+                      : '۳ تا ۳۰ کاراکتر؛ فقط حروف انگلیسی، عدد، _ و .'}
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="bio">بیو</Label>
@@ -117,7 +293,16 @@ export default function SettingsPage() {
             />
           </div>
           <div className="flex justify-end">
-            <Button variant="brand" onClick={() => save.mutate()} isLoading={save.isPending}>
+            <Button
+              variant="brand"
+              onClick={() => save.mutate()}
+              isLoading={save.isPending}
+              disabled={
+                !usernameParse.success ||
+                checkingUsername ||
+                (usernameChanged && usernameAvailability?.available === false)
+              }
+            >
               ذخیره تغییرات
             </Button>
           </div>
@@ -191,21 +376,85 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="اعلان‌ها" icon={<Bell className="size-5" aria-hidden />}>
-          <p className="text-xs text-muted-foreground">تنظیمات اعلان به‌زودی فعال می‌شود.</p>
           <Row label="پسندها">
-            <Switch checked disabled aria-label="اعلان پسندها" />
+            <Switch
+              checked={prefs?.likesPush ?? true}
+              onCheckedChange={(v) => updatePrefs.mutate({ likesPush: v })}
+              aria-label="اعلان پسندها"
+            />
           </Row>
           <Row label="نظرات">
-            <Switch checked disabled aria-label="اعلان نظرات" />
+            <Switch
+              checked={prefs?.commentsPush ?? true}
+              onCheckedChange={(v) => updatePrefs.mutate({ commentsPush: v })}
+              aria-label="اعلان نظرات"
+            />
           </Row>
           <Row label="دنبال‌کردن جدید">
-            <Switch checked disabled aria-label="اعلان دنبال‌کردن" />
+            <Switch
+              checked={prefs?.followsPush ?? true}
+              onCheckedChange={(v) => updatePrefs.mutate({ followsPush: v })}
+              aria-label="اعلان دنبال‌کردن"
+            />
+          </Row>
+          <Row label="پیام‌ها">
+            <Switch
+              checked={prefs?.messagesPush ?? true}
+              onCheckedChange={(v) => updatePrefs.mutate({ messagesPush: v })}
+              aria-label="اعلان پیام‌ها"
+            />
           </Row>
         </Section>
 
         <Section title="حریم خصوصی" icon={<Shield className="size-5" aria-hidden />}>
           <Row label="حساب خصوصی" description="فقط دنبال‌کنندگان می‌توانند پست‌ها را ببینند">
-            <Switch checked={false} disabled aria-label="حساب خصوصی" />
+            <Switch checked={isPrivate} onCheckedChange={setIsPrivate} aria-label="حساب خصوصی" />
+          </Row>
+          <div className="rounded-xl bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
+            بعد از تغییر وضعیت حریم خصوصی، دکمه «ذخیره تغییرات» در بخش حساب کاربری را بزنید.
+          </div>
+        </Section>
+
+        <Section title="کاربران مسدودشده" icon={<LockKeyhole className="size-5" aria-hidden />}>
+          {blocked.length === 0 ? (
+            <p className="text-sm text-muted-foreground">هنوز کاربری را مسدود نکرده‌اید.</p>
+          ) : (
+            blocked.map((u) => (
+              <Row
+                key={u.id}
+                label={u.name ?? u.username ?? 'کاربر'}
+                description={`@${u.username ?? '—'}`}
+              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    if (!u.username) return;
+                    const r = await apiClient.delete(`/users/me/blocked/${u.username}`);
+                    if (r.success) {
+                      toast.success('کاربر از مسدودها حذف شد');
+                      void refetchBlocked();
+                    }
+                  }}
+                >
+                  رفع مسدودی
+                </Button>
+              </Row>
+            ))
+          )}
+        </Section>
+
+        <Section title="امنیت و راهنما" icon={<HelpCircle className="size-5" aria-hidden />}>
+          <Row label="ورود امن" description="ورود فقط با کد یک‌بارمصرف پیامکی انجام می‌شود.">
+            <span className="text-sm text-muted-foreground">فعال</span>
+          </Row>
+          <Row
+            label="نیاز به کمک دارید؟"
+            description="برای گزارش مشکل یا درخواست پشتیبانی پیام بدهید."
+          >
+            <Button variant="outline" size="sm" asChild>
+              <a href="mailto:support@agahiram.ir">پشتیبانی</a>
+            </Button>
           </Row>
         </Section>
 
@@ -223,7 +472,9 @@ export default function SettingsPage() {
           fullWidth
           size="lg"
           leftIcon={<LogOut className="size-5" aria-hidden />}
-          onClick={() => void logout()}
+          onClick={() => {
+            if (window.confirm('از حساب خارج می‌شوید؟')) void logout();
+          }}
           className="border-destructive/40 text-destructive hover:bg-destructive/10"
         >
           خروج از حساب
@@ -284,4 +535,18 @@ function Row({
       <Separator className="last:hidden" />
     </>
   );
+}
+
+function uploadToS3(url: string, file: File, contentType: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error('آپلود فایل ناموفق بود'));
+    };
+    xhr.onerror = () => reject(new Error('آپلود فایل ناموفق بود'));
+    xhr.send(file);
+  });
 }

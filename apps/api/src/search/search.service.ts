@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MeiliService } from './meili.service';
-import type { SearchInput } from '@agahiram/shared';
+import {
+  NotificationType,
+  normalizePersianText,
+  type SearchInput,
+  type SearchSuggestionsInput,
+  type SearchAlertCreateInput,
+} from '@agahiram/shared';
 import { PostsService } from '../posts/posts.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SearchService {
@@ -10,16 +18,25 @@ export class SearchService {
     private readonly meili: MeiliService,
     private readonly prisma: PrismaService,
     private readonly posts: PostsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
-  async search(input: SearchInput) {
+  async search(input: SearchInput, viewerId?: string) {
+    const normalizedQ = normalizePersianText(input.q);
+    const q = normalizedQ || input.q;
     const filters: string[] = ['status = "approved"', 'type = "post"'];
+    filters.push('userIsPrivate = false');
     if (input.categoryId) filters.push(`categoryId = "${input.categoryId}"`);
     if (input.cityId) filters.push(`cityId = "${input.cityId}"`);
     if (input.provinceId) filters.push(`provinceId = "${input.provinceId}"`);
+    if (input.neighborhoodId) filters.push(`neighborhoodId = "${input.neighborhoodId}"`);
     if (input.minPrice) filters.push(`price >= ${input.minPrice}`);
     if (input.maxPrice) filters.push(`price <= ${input.maxPrice}`);
-    if (input.onlyPromoted) filters.push('isPromoted = true');
+    if (input.onlyPromoted) {
+      const nowTs = Math.floor(Date.now() / 1000);
+      filters.push('isPromoted = true');
+      filters.push(`boostExpiresAt >= ${nowTs}`);
+    }
 
     let sort: string[] | undefined;
     switch (input.sortBy) {
@@ -35,6 +52,13 @@ export class SearchService {
       case 'mostViewed':
         sort = ['viewCount:desc'];
         break;
+      case 'nearest':
+        if (typeof input.lat === 'number' && typeof input.lng === 'number') {
+          sort = [`_geoPoint(${input.lat}, ${input.lng}):asc`];
+        } else {
+          sort = ['createdAt:desc'];
+        }
+        break;
       default:
         sort = undefined;
     }
@@ -42,7 +66,7 @@ export class SearchService {
     const offset = input.cursor ? parseInt(input.cursor, 10) : 0;
 
     try {
-      const result = await this.meili.postsIndex.search(input.q, {
+      const result = await this.meili.postsIndex.search(q, {
         filter: filters,
         sort,
         limit: input.limit,
@@ -55,6 +79,7 @@ export class SearchService {
       const posts = await this.prisma.post.findMany({
         where: {
           id: { in: ids },
+          user: { isPrivate: false },
           ...(input.onlyImage && { media: { some: { type: 'image' } } }),
           ...(input.onlyVideo && { media: { some: { type: 'video' } } }),
         },
@@ -64,44 +89,193 @@ export class SearchService {
       const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
 
       return {
-        data: ordered.map((p) => this.posts.toSummary(p as never)),
-        nextCursor: result.hits.length === input.limit ? String(offset + input.limit) : null,
+        data: await this.posts.attachViewedByMe(
+          ordered.map((p) => this.posts.toSummary(p as never)),
+          viewerId,
+        ),
+        nextCursor: result.hits.length === input.limit ? String(offset + result.hits.length) : null,
         hasMore: result.hits.length === input.limit,
       };
     } catch {
-      const sortMap: Record<string, Record<string, 'asc' | 'desc'>> = {
-        newest: { createdAt: 'desc' },
-        cheapest: { price: 'asc' },
-        mostExpensive: { price: 'desc' },
-        mostViewed: { viewCount: 'desc' },
-      };
+      const ids = await this.searchFallbackIds(input, q, offset);
+      if (ids.length === 0) return { data: [], nextCursor: null, hasMore: false };
+
       const posts = await this.prisma.post.findMany({
         where: {
-          status: 'approved',
-          type: 'post',
-          OR: [
-            { title: { contains: input.q, mode: 'insensitive' } },
-            { description: { contains: input.q, mode: 'insensitive' } },
-          ],
-          ...(input.categoryId && { categoryId: input.categoryId }),
-          ...(input.cityId && { cityId: input.cityId }),
-          ...(input.provinceId && { city: { provinceId: input.provinceId } }),
-          ...(input.minPrice && { price: { gte: input.minPrice } }),
-          ...(input.maxPrice && { price: { lte: input.maxPrice } }),
-          ...(input.onlyPromoted && { isPromoted: true }),
+          id: { in: ids },
+          user: { isPrivate: false },
           ...(input.onlyImage && { media: { some: { type: 'image' } } }),
           ...(input.onlyVideo && { media: { some: { type: 'video' } } }),
         },
         include: this.posts.fullInclude(),
-        take: input.limit,
-        orderBy: sortMap[input.sortBy ?? 'newest'] ?? { createdAt: 'desc' },
       });
+      const byId = new Map(posts.map((p) => [p.id, p]));
+      const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
       return {
-        data: posts.map((p) => this.posts.toSummary(p)),
-        nextCursor: null,
-        hasMore: false,
+        data: await this.posts.attachViewedByMe(
+          ordered.map((p) => this.posts.toSummary(p as never)),
+          viewerId,
+        ),
+        nextCursor: ids.length === input.limit + 1 ? String(offset + input.limit) : null,
+        hasMore: ids.length === input.limit + 1,
       };
     }
+  }
+
+  private async searchFallbackIds(input: SearchInput, normalizedQ: string, offset: number) {
+    const limit = Math.max(1, Math.min(50, input.limit ?? 20));
+    const searchTerms = normalizedQ.trim().replace(/\s+/g, ' & ');
+    const now = new Date();
+
+    const sortSql = this.fallbackSortSql(input);
+
+    const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT p.id
+      FROM "Post" p
+      LEFT JOIN "Category" c ON c.id = p."categoryId"
+      LEFT JOIN "City" ci ON ci.id = p."cityId"
+      LEFT JOIN "Province" pr ON pr.id = ci."provinceId"
+      LEFT JOIN "Neighborhood" nb ON nb.id = p."neighborhoodId"
+      LEFT JOIN "User" u ON u.id = p."userId"
+      WHERE p.status = 'approved'
+        AND p.type = 'post'
+        AND u."isPrivate" = false
+        AND (
+          to_tsvector(
+            'simple',
+            coalesce(p.title, '') || ' ' ||
+            coalesce(p.description, '') || ' ' ||
+            coalesce(c.name, '') || ' ' ||
+            coalesce(pr.name, '') || ' ' ||
+            coalesce(ci.name, '') || ' ' ||
+            coalesce(nb.name, '') || ' ' ||
+            coalesce(u.username, '')
+          ) @@ plainto_tsquery('simple', ${searchTerms})
+          OR p.title ILIKE ${`%${normalizedQ}%`}
+          OR coalesce(p.description, '') ILIKE ${`%${normalizedQ}%`}
+          OR c.name ILIKE ${`%${normalizedQ}%`}
+          OR pr.name ILIKE ${`%${normalizedQ}%`}
+          OR ci.name ILIKE ${`%${normalizedQ}%`}
+          OR coalesce(nb.name, '') ILIKE ${`%${normalizedQ}%`}
+          OR coalesce(u.username, '') ILIKE ${`%${normalizedQ}%`}
+        )
+        ${input.categoryId ? Prisma.sql`AND p."categoryId" = ${input.categoryId}` : Prisma.empty}
+        ${input.cityId ? Prisma.sql`AND p."cityId" = ${input.cityId}` : Prisma.empty}
+        ${input.provinceId ? Prisma.sql`AND ci."provinceId" = ${input.provinceId}` : Prisma.empty}
+        ${input.neighborhoodId ? Prisma.sql`AND p."neighborhoodId" = ${input.neighborhoodId}` : Prisma.empty}
+        ${typeof input.minPrice === 'number' ? Prisma.sql`AND p.price >= ${input.minPrice}` : Prisma.empty}
+        ${typeof input.maxPrice === 'number' ? Prisma.sql`AND p.price <= ${input.maxPrice}` : Prisma.empty}
+        ${input.onlyPromoted ? Prisma.sql`AND p."isPromoted" = true AND p."boostExpiresAt" > ${now}` : Prisma.empty}
+      ORDER BY ${sortSql}
+      LIMIT ${limit + 1} OFFSET ${offset}
+    `);
+    return rows.map((r) => r.id);
+  }
+
+  private fallbackSortSql(input: SearchInput): Prisma.Sql {
+    switch (input.sortBy) {
+      case 'cheapest':
+        return Prisma.sql`p.price ASC NULLS LAST, p."createdAt" DESC`;
+      case 'mostExpensive':
+        return Prisma.sql`p.price DESC NULLS LAST, p."createdAt" DESC`;
+      case 'mostViewed':
+        return Prisma.sql`p."viewCount" DESC, p."createdAt" DESC`;
+      case 'nearest':
+        if (typeof input.lat === 'number' && typeof input.lng === 'number') {
+          return Prisma.sql`((coalesce(p.lat, 0) - ${input.lat}) * (coalesce(p.lat, 0) - ${input.lat}) + (coalesce(p.lng, 0) - ${input.lng}) * (coalesce(p.lng, 0) - ${input.lng})) ASC, p."createdAt" DESC`;
+        }
+        return Prisma.sql`p."createdAt" DESC`;
+      case 'relevance':
+        return Prisma.sql`p."isPromoted" DESC, p."viewCount" DESC, p."createdAt" DESC`;
+      case 'newest':
+      default:
+        return Prisma.sql`p."createdAt" DESC`;
+    }
+  }
+
+  async suggestions(input: SearchSuggestionsInput) {
+    const q = normalizePersianText(input.q) || input.q;
+    const limit = input.limit ?? 8;
+    try {
+      const result = await this.meili.postsIndex.search(q, {
+        limit,
+        filter: ['status = "approved"', 'type = "post"', 'userIsPrivate = false'],
+        attributesToRetrieve: ['id', 'title', 'categoryName', 'cityName', 'categoryId', 'cityId'],
+      });
+      const seen = new Set<string>();
+      const suggestions: Array<{
+        text: string;
+        postId?: string;
+        categoryId?: string | null;
+        cityId?: string | null;
+      }> = [];
+      for (const hit of result.hits as Array<Record<string, unknown>>) {
+        const title = String(hit.title ?? '').trim();
+        if (title && !seen.has(title)) {
+          seen.add(title);
+          suggestions.push({
+            text: title,
+            postId: String(hit.id ?? ''),
+            categoryId: (hit.categoryId as string | null) ?? null,
+            cityId: (hit.cityId as string | null) ?? null,
+          });
+        }
+        if (suggestions.length >= limit) break;
+      }
+      return { suggestions };
+    } catch {
+      const posts = await this.prisma.post.findMany({
+        where: {
+          status: 'approved',
+          type: 'post',
+          user: { isPrivate: false },
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { description: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true, title: true, categoryId: true, cityId: true },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      });
+      return {
+        suggestions: posts.map((p) => ({
+          text: p.title,
+          postId: p.id,
+          categoryId: p.categoryId,
+          cityId: p.cityId,
+        })),
+      };
+    }
+  }
+
+  async listAlerts(userId: string) {
+    const alerts = await this.prisma.searchAlert.findMany({
+      where: { userId, isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { data: alerts };
+  }
+
+  async createAlert(userId: string, input: SearchAlertCreateInput) {
+    const query = input.query ? normalizePersianText(input.query) : null;
+    const alert = await this.prisma.searchAlert.create({
+      data: {
+        userId,
+        query,
+        cityId: input.cityId,
+        filters: (input.filters ?? {}) as Prisma.InputJsonValue,
+      },
+    });
+    return alert;
+  }
+
+  async deactivateAlert(userId: string, alertId: string) {
+    await this.prisma.searchAlert.updateMany({
+      where: { id: alertId, userId },
+      data: { isActive: false },
+    });
+    return { success: true };
   }
 
   async indexPost(postId: string) {
@@ -111,14 +285,31 @@ export class SearchService {
         user: { select: { username: true } },
         category: { select: { name: true } },
         city: { include: { province: true } },
+        neighborhood: { select: { name: true } },
+        media: { select: { type: true } },
       },
     });
     if (!post) return;
+
+    const normalizedTitle = normalizePersianText(post.title);
+    const normalizedDescription = normalizePersianText(post.description ?? '');
+    const normalizedCategory = normalizePersianText(post.category.name);
+    const normalizedCity = normalizePersianText(post.city?.name ?? '');
+    const normalizedProvince = normalizePersianText(post.city?.province?.name ?? '');
+    const normalizedNeighborhood = normalizePersianText(post.neighborhood?.name ?? '');
+    const normalizedUsername = normalizePersianText(post.user.username ?? '');
 
     await this.meili.indexPost({
       id: post.id,
       title: post.title,
       description: post.description,
+      normalizedTitle,
+      normalizedDescription,
+      normalizedCategory,
+      normalizedCity,
+      normalizedProvince,
+      normalizedNeighborhood,
+      normalizedUsername,
       price: post.price,
       priceType: post.priceType,
       type: post.type,
@@ -128,9 +319,91 @@ export class SearchService {
       cityId: post.cityId,
       cityName: post.city?.name,
       provinceId: post.city?.provinceId,
+      provinceName: post.city?.province?.name,
+      neighborhoodId: post.neighborhoodId,
+      neighborhoodName: post.neighborhood?.name,
       username: post.user.username,
+      isPromoted: post.isPromoted,
+      boostExpiresAt: post.boostExpiresAt ? Math.floor(post.boostExpiresAt.getTime() / 1000) : null,
       viewCount: post.viewCount,
       createdAt: Math.floor(post.createdAt.getTime() / 1000),
+      ...(typeof post.lat === 'number' && typeof post.lng === 'number'
+        ? { _geo: { lat: post.lat, lng: post.lng } }
+        : {}),
     });
+
+    await this.notifyMatchingAlerts(post, {
+      normalizedTitle,
+      normalizedDescription,
+      normalizedCategory,
+      normalizedCity,
+      normalizedProvince,
+      normalizedNeighborhood,
+      normalizedUsername,
+    });
+  }
+
+  private async notifyMatchingAlerts(
+    post: {
+      id: string;
+      title: string;
+      categoryId: string;
+      cityId: string | null;
+      price: bigint | null;
+      isPromoted: boolean;
+      media: Array<{ type: 'image' | 'video' }>;
+    },
+    normalized: {
+      normalizedTitle: string;
+      normalizedDescription: string;
+      normalizedCategory: string;
+      normalizedCity: string;
+      normalizedProvince: string;
+      normalizedNeighborhood: string;
+      normalizedUsername: string;
+    },
+  ) {
+    const cityFilters: Array<{ cityId: string | null }> = [{ cityId: null }];
+    if (post.cityId) cityFilters.push({ cityId: post.cityId });
+    const alerts = await this.prisma.searchAlert.findMany({
+      where: {
+        isActive: true,
+        OR: cityFilters,
+      },
+    });
+    if (alerts.length === 0) return;
+
+    const haystack = [
+      normalized.normalizedTitle,
+      normalized.normalizedDescription,
+      normalized.normalizedCategory,
+      normalized.normalizedCity,
+      normalized.normalizedProvince,
+      normalized.normalizedNeighborhood,
+      normalized.normalizedUsername,
+    ]
+      .join(' ')
+      .trim();
+
+    for (const alert of alerts) {
+      const queryOk = alert.query ? haystack.includes(normalizePersianText(alert.query)) : true;
+      if (!queryOk) continue;
+      const filters = (alert.filters ?? {}) as Record<string, unknown>;
+      if (typeof filters.categoryId === 'string' && filters.categoryId !== post.categoryId)
+        continue;
+      if (typeof filters.minPrice === 'number' && Number(post.price ?? 0n) < filters.minPrice)
+        continue;
+      if (typeof filters.maxPrice === 'number' && Number(post.price ?? 0n) > filters.maxPrice)
+        continue;
+      if (filters.onlyPromoted === true && !post.isPromoted) continue;
+      if (filters.onlyImage === true && !post.media.some((m) => m.type === 'image')) continue;
+      if (filters.onlyVideo === true && !post.media.some((m) => m.type === 'video')) continue;
+
+      await this.notifications.create(alert.userId, NotificationType.SYSTEM_ANNOUNCEMENT, {
+        title: 'آگهی جدید مطابق جستجوی شما',
+        body: post.title,
+        postId: post.id,
+      });
+    }
   }
 }

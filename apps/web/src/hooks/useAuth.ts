@@ -13,7 +13,6 @@ import {
 import type { AuthTokens, UserProfile } from '@agahiram/shared';
 import { apiClient, setAuthCookies } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import { mockUser } from '@/lib/mock-data';
 
 export function useAuth() {
   const { user, isAuthenticated, isLoading, setUser, logout } = useAuthStore();
@@ -28,6 +27,7 @@ export function useAuth() {
         return res.data;
       }
       if (process.env.NODE_ENV === 'development') {
+        const { mockUser } = await import('@/lib/mock-data');
         setUser(mockUser);
         return mockUser;
       }

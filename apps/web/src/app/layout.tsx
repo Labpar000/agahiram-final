@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 import './globals.css';
 import { Providers } from '@/components/providers';
+import { WebVitals } from '@/components/web-vitals';
 
 const vazir = localFont({
   src: '../fonts/Vazirmatn-Variable.woff2',
@@ -10,7 +11,10 @@ const vazir = localFont({
   weight: '100 900',
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agahiram.ir';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'آگهی‌گرام',
     template: '%s | آگهی‌گرام',
@@ -52,6 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           پرش به محتوای اصلی
         </a>
         <Providers>{children}</Providers>
+        <WebVitals />
       </body>
     </html>
   );

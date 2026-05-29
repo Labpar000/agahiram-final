@@ -12,65 +12,56 @@ const prisma = new PrismaClient();
 async function seedCategories() {
   console.log('Seeding categories...');
 
-  for (const rootCat of DIVAR_CATEGORIES) {
-    const parent = await prisma.category.upsert({
-      where: { slug: rootCat.slug },
-      update: { name: rootCat.name, icon: rootCat.icon, order: rootCat.order },
+  const upsertCategory = async (
+    cat: (typeof DIVAR_CATEGORIES)[number],
+    parentId: string | null,
+  ) => {
+    const row = await prisma.category.upsert({
+      where: { slug: cat.slug },
+      update: { name: cat.name, icon: cat.icon, order: cat.order, parentId },
       create: {
-        name: rootCat.name,
-        slug: rootCat.slug,
-        icon: rootCat.icon,
-        order: rootCat.order,
+        name: cat.name,
+        slug: cat.slug,
+        icon: cat.icon,
+        order: cat.order,
+        parentId,
       },
     });
 
-    if (rootCat.children) {
-      for (const child of rootCat.children) {
-        const childCat = await prisma.category.upsert({
-          where: { slug: child.slug },
+    if (cat.attributes) {
+      for (let i = 0; i < cat.attributes.length; i++) {
+        const attr = cat.attributes[i]!;
+        await prisma.categoryAttribute.upsert({
+          where: {
+            categoryId_key: { categoryId: row.id, key: attr.key },
+          },
           update: {
-            name: child.name,
-            icon: child.icon,
-            order: child.order,
-            parentId: parent.id,
+            label: attr.label,
+            type: attr.type,
+            options: attr.options ?? [],
+            required: attr.required ?? false,
+            order: i,
           },
           create: {
-            name: child.name,
-            slug: child.slug,
-            icon: child.icon,
-            order: child.order,
-            parentId: parent.id,
+            categoryId: row.id,
+            key: attr.key,
+            label: attr.label,
+            type: attr.type,
+            options: attr.options ?? [],
+            required: attr.required ?? false,
+            order: i,
           },
         });
-
-        if (child.attributes) {
-          for (let i = 0; i < child.attributes.length; i++) {
-            const attr = child.attributes[i];
-            await prisma.categoryAttribute.upsert({
-              where: {
-                categoryId_key: { categoryId: childCat.id, key: attr.key },
-              },
-              update: {
-                label: attr.label,
-                type: attr.type,
-                options: attr.options ?? [],
-                required: attr.required ?? false,
-                order: i,
-              },
-              create: {
-                categoryId: childCat.id,
-                key: attr.key,
-                label: attr.label,
-                type: attr.type,
-                options: attr.options ?? [],
-                required: attr.required ?? false,
-                order: i,
-              },
-            });
-          }
-        }
       }
     }
+
+    for (const child of cat.children ?? []) {
+      await upsertCategory(child, row.id);
+    }
+  };
+
+  for (const rootCat of DIVAR_CATEGORIES) {
+    await upsertCategory(rootCat, null);
   }
 
   console.log('Categories seeded.');

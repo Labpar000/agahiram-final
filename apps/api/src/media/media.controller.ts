@@ -38,7 +38,14 @@ export class MediaController {
     const body = object.Body;
     if (!body) throw new BadRequestException('فایل یافت نشد');
 
-    res.header('Content-Type', object.ContentType ?? 'application/octet-stream');
+    // Some legacy uploads landed in S3 without a proper Content-Type and come
+    // back as `application/octet-stream`, which makes the Next.js image
+    // optimizer reject them with a 400. Recover the correct MIME from the
+    // file extension so images keep working regardless of how they were
+    // originally uploaded.
+    const contentType = pickContentType(object.ContentType, key);
+
+    res.header('Content-Type', contentType);
     res.header('Cache-Control', 'public, max-age=31536000, immutable');
     res.header('Accept-Ranges', 'bytes');
     if (object.ContentLength != null) res.header('Content-Length', String(object.ContentLength));
@@ -70,4 +77,34 @@ export class MediaController {
   confirm(@CurrentUser() user: JwtPayload, @Body() body: { key: string }) {
     return this.mediaService.confirmUpload(user.sub, body.key);
   }
+}
+
+const EXTENSION_CONTENT_TYPES: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  avif: 'image/avif',
+  svg: 'image/svg+xml',
+  mp4: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  m3u8: 'application/vnd.apple.mpegurl',
+  ts: 'video/mp2t',
+};
+
+/**
+ * S3 returns whatever Content-Type was set at upload time. Some older media
+ * was stored as `application/octet-stream` (or with no Content-Type at all),
+ * which then makes the Next.js image optimizer reject the response. If S3 is
+ * giving us a generic/unknown type, fall back to the extension-derived MIME
+ * so browsers and image optimizers can render the file correctly.
+ */
+function pickContentType(stored: string | undefined, key: string): string {
+  const generic =
+    !stored || stored === 'application/octet-stream' || stored === 'binary/octet-stream';
+  if (!generic && stored) return stored;
+  const ext = key.split('.').pop()?.toLowerCase() ?? '';
+  return EXTENSION_CONTENT_TYPES[ext] ?? stored ?? 'application/octet-stream';
 }

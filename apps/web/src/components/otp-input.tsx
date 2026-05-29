@@ -14,9 +14,12 @@ export interface OtpInputProps {
   inputClassName?: string;
 }
 
+type WebOtpCredential = { code?: string };
+
 /**
- * Accessible OTP input with N separate boxes. Supports paste, backspace navigation,
- * Persian digit auto-conversion, and onComplete callback.
+ * OTP input backed by one real input, with visual boxes on top. Mobile OTP
+ * autofill (iOS one-time-code and Android/WebOTP) works much more reliably on
+ * a single input than on six separate fields.
  */
 export function OtpInput({
   length = 6,
@@ -28,100 +31,85 @@ export function OtpInput({
   className,
   inputClassName,
 }: OtpInputProps) {
-  const refs = React.useRef<Array<HTMLInputElement | null>>([]);
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
   const sanitized = toLatinDigits(value).replace(/\D/g, '').slice(0, length);
   const chars = sanitized.padEnd(length).split('');
 
-  const focusIdx = (i: number) => {
-    refs.current[Math.max(0, Math.min(length - 1, i))]?.focus();
-  };
+  const setValue = React.useCallback(
+    (raw: string) => {
+      const next = toLatinDigits(raw).replace(/\D/g, '').slice(0, length);
+      onChange(next);
+      if (next.length === length) onComplete?.(next);
+    },
+    [length, onChange, onComplete],
+  );
 
-  const setAt = (i: number, ch: string) => {
-    const next = chars.slice();
-    next[i] = ch;
-    const joined = next.join('').trimEnd();
-    onChange(joined);
-    if (joined.length === length) onComplete?.(joined);
-  };
+  React.useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !('OTPCredential' in window) || !navigator.credentials) {
+      return;
+    }
+    const ac = new AbortController();
+    navigator.credentials
+      .get({
+        otp: { transport: ['sms'] },
+        signal: ac.signal,
+      } as CredentialRequestOptions)
+      .then((cred) => {
+        const code = (cred as WebOtpCredential | null)?.code;
+        if (code) setValue(code);
+      })
+      .catch(() => {
+        /* User dismissed the prompt or browser does not support it. */
+      });
+    return () => ac.abort();
+  }, [setValue]);
 
   return (
-    <div
+    <label
       dir="ltr"
-      role="group"
       aria-label="کد تأیید"
-      className={cn('flex justify-center gap-2', className)}
+      className={cn('group relative flex justify-center gap-2', className)}
     >
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        pattern="[0-9]*"
+        maxLength={length}
+        value={sanitized}
+        aria-invalid={invalid || undefined}
+        aria-label="کد تأیید ۶ رقمی"
+        onChange={(e) => setValue(e.target.value)}
+        onPaste={(e) => {
+          e.preventDefault();
+          setValue(e.clipboardData.getData('text'));
+        }}
+        className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"
+      />
       {Array.from({ length }).map((_, i) => {
         const ch = chars[i];
         return (
-          <input
+          <span
             key={i}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={1}
-            autoFocus={autoFocus && i === 0}
-            value={ch?.trim() ? toPersianDigits(ch) : ''}
-            aria-invalid={invalid || undefined}
-            aria-label={`رقم ${i + 1}`}
-            onChange={(e) => {
-              const raw = toLatinDigits(e.target.value).replace(/\D/g, '');
-              if (raw.length === 0) {
-                setAt(i, '');
-                return;
-              }
-              // Take the *first* digit; if user pasted multiple, spread across cells.
-              if (raw.length === 1) {
-                setAt(i, raw);
-                if (i < length - 1) focusIdx(i + 1);
-              } else {
-                // Distribute
-                const next = chars.slice();
-                for (let j = 0; j < raw.length && i + j < length; j++) {
-                  next[i + j] = raw[j]!;
-                }
-                const joined = next.join('').trimEnd();
-                onChange(joined);
-                if (joined.length === length) onComplete?.(joined);
-                focusIdx(Math.min(length - 1, i + raw.length));
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Backspace' && !chars[i]?.trim()) {
-                e.preventDefault();
-                focusIdx(i - 1);
-              } else if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                focusIdx(i - 1);
-              } else if (e.key === 'ArrowRight') {
-                e.preventDefault();
-                focusIdx(i + 1);
-              }
-            }}
-            onPaste={(e) => {
-              e.preventDefault();
-              const text = toLatinDigits(e.clipboardData.getData('text'))
-                .replace(/\D/g, '')
-                .slice(0, length);
-              if (!text) return;
-              onChange(text);
-              if (text.length === length) onComplete?.(text);
-              focusIdx(Math.min(length - 1, text.length));
-            }}
+            aria-hidden
             className={cn(
-              'h-14 w-12 rounded-xl border border-input bg-surface text-center text-2xl font-bold tabular-nums shadow-xs',
+              'grid h-14 w-12 place-items-center rounded-xl border border-input bg-surface text-center text-2xl font-bold tabular-nums shadow-xs',
               'transition-[border-color,box-shadow] duration-[var(--duration-fast)]',
-              'focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30',
+              'group-focus-within:border-ring group-focus-within:ring-2 group-focus-within:ring-ring/30',
               ch?.trim() && 'border-primary',
-              invalid && 'border-destructive focus-visible:ring-destructive/30',
+              invalid && 'border-destructive group-focus-within:ring-destructive/30',
               inputClassName,
             )}
-          />
+          >
+            {ch?.trim() ? toPersianDigits(ch) : ''}
+          </span>
         );
       })}
-    </div>
+    </label>
   );
 }

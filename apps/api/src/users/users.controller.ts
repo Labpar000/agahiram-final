@@ -28,11 +28,58 @@ export class UsersController {
     return this.usersService.searchUsers(q);
   }
 
+  @Public()
+  @Get('username/availability')
+  async usernameAvailability(
+    @Query('username') username: string,
+    @CurrentUser('sub') viewerId?: string,
+  ) {
+    if (!username || username.length < 3) return { username, available: false };
+    return this.usersService.checkUsernameAvailability(username, viewerId);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Patch('me')
   @UsePipes(new ZodValidationPipe(updateProfileSchema))
   async updateMe(@CurrentUser('sub') userId: string, @Body() body: UpdateProfileInput) {
     return this.usersService.updateProfile(userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/notification-preferences')
+  async notificationPreferences(@CurrentUser('sub') userId: string) {
+    return this.usersService.getNotificationPreferences(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/notification-preferences')
+  async updateNotificationPreferences(
+    @CurrentUser('sub') userId: string,
+    @Body()
+    body: Partial<{
+      likesPush: boolean;
+      commentsPush: boolean;
+      followsPush: boolean;
+      messagesPush: boolean;
+      likesEmail: boolean;
+      commentsEmail: boolean;
+      followsEmail: boolean;
+      messagesEmail: boolean;
+    }>,
+  ) {
+    return this.usersService.updateNotificationPreferences(userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/blocked')
+  async blocked(@CurrentUser('sub') userId: string) {
+    return this.usersService.getBlockedUsers(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('me/blocked/:username')
+  async unblock(@CurrentUser('sub') userId: string, @Param('username') username: string) {
+    return this.usersService.unblockUser(userId, username);
   }
 
   @Public()
@@ -57,15 +104,23 @@ export class UsersController {
 
   @Public()
   @Get(':username/followers')
-  async followers(@Param('username') username: string) {
+  async followers(
+    @Param('username') username: string,
+    @CurrentUser('sub') viewerId?: string,
+    @Query('q') q?: string,
+  ) {
     const target = await this.usersService.getProfileByUsername(username);
-    return this.usersService.getFollowers(target.id);
+    return this.usersService.getFollowers(target.id, viewerId, q);
   }
 
   @Public()
   @Get(':username/following')
-  async following(@Param('username') username: string) {
+  async following(
+    @Param('username') username: string,
+    @CurrentUser('sub') viewerId?: string,
+    @Query('q') q?: string,
+  ) {
     const target = await this.usersService.getProfileByUsername(username);
-    return this.usersService.getFollowing(target.id);
+    return this.usersService.getFollowing(target.id, viewerId, q);
   }
 }

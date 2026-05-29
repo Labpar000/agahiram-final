@@ -39,14 +39,60 @@ export class NotificationsService {
     });
     const hasMore = items.length > limit;
     const data = items.slice(0, limit);
+
+    // Collect actor IDs from various payload shapes so we can fetch all the
+    // related users in a single query and enrich each notification's payload
+    // with a `fromUser` object — the frontend expects this shape.
+    const actorIds = new Set<string>();
+    for (const n of data) {
+      const p = (n.payload as Record<string, unknown> | null) ?? {};
+      const candidate =
+        (p.fromUserId as string | undefined) ??
+        (p.likerId as string | undefined) ??
+        (p.commenterId as string | undefined) ??
+        (p.followerId as string | undefined) ??
+        (p.senderId as string | undefined) ??
+        (p.actorId as string | undefined);
+      if (candidate) actorIds.add(candidate);
+    }
+
+    const actors = actorIds.size
+      ? await this.prisma.user.findMany({
+          where: { id: { in: Array.from(actorIds) } },
+          select: { id: true, username: true, avatar: true, isVerified: true },
+        })
+      : [];
+    const byId = new Map(actors.map((u) => [u.id, u]));
+
     return {
-      data: data.map((n) => ({
-        id: n.id,
-        type: n.type,
-        payload: n.payload,
-        isRead: n.isRead,
-        createdAt: n.createdAt.toISOString(),
-      })),
+      data: data.map((n) => {
+        const p = ((n.payload as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
+        const actorId =
+          (p.fromUserId as string | undefined) ??
+          (p.likerId as string | undefined) ??
+          (p.commenterId as string | undefined) ??
+          (p.followerId as string | undefined) ??
+          (p.senderId as string | undefined) ??
+          (p.actorId as string | undefined);
+        const actor = actorId ? byId.get(actorId) : undefined;
+        return {
+          id: n.id,
+          type: n.type,
+          payload: {
+            ...p,
+            fromUser: actor
+              ? {
+                  id: actor.id,
+                  username: actor.username,
+                  avatar: actor.avatar,
+                  isVerified: actor.isVerified,
+                }
+              : undefined,
+          },
+          isRead: n.isRead,
+          createdAt: n.createdAt.toISOString(),
+        };
+      }),
       nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null,
       hasMore,
     };
