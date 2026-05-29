@@ -5,16 +5,32 @@ import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@agahiram/ui';
 
-const WS_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v\d+$/, '') ?? 'http://localhost:4000';
+// Resolve the websocket origin. In production the admin app is served from the
+// same origin as the API behind Caddy, so we let socket.io fall back to the
+// document origin (empty string). In dev we point to the local Nest server.
+function resolveWsUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v\d+\/?$/, '');
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  if (typeof window !== 'undefined') return '';
+  return 'http://localhost:4000';
+}
 
 let socket: Socket | null = null;
 function getSocket() {
   if (!socket) {
-    socket = io(`${WS_URL}/admin`, {
+    socket = io(`${resolveWsUrl()}/admin`, {
+      path: '/socket.io',
       withCredentials: true,
-      transports: ['websocket'],
+      // Allow polling fallback so we don't spam the console when the WS upgrade
+      // fails behind a proxy/CDN — engine.io will negotiate the best transport.
+      transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 30000,
+      randomizationFactor: 0.5,
+      timeout: 20000,
     });
   }
   return socket;

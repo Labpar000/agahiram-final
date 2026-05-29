@@ -55,6 +55,16 @@ export class S3Service {
     return getSignedUrl(this.client, command, { expiresIn });
   }
 
+  async getObject(key: string, range?: string) {
+    return this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Range: range,
+      }),
+    );
+  }
+
   async deleteObject(key: string): Promise<void> {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
@@ -81,6 +91,42 @@ export class S3Service {
   }
 
   getPublicUrl(key: string): string {
-    return `${this.publicUrl}/${key}`;
+    return `/api/v1/media/object?key=${encodeURIComponent(key)}`;
+  }
+
+  getKeyFromUrl(urlOrKey: string | null | undefined): string | null {
+    if (!urlOrKey) return null;
+    if (urlOrKey.includes('/api/v1/media/object')) {
+      try {
+        const url = new URL(urlOrKey, 'http://agahiram.local');
+        return url.searchParams.get('key');
+      } catch {
+        return null;
+      }
+    }
+    if (!urlOrKey.startsWith('http')) return urlOrKey.replace(/^\/+/, '');
+
+    try {
+      const url = new URL(urlOrKey);
+      const publicBase = new URL(this.publicUrl);
+      if (url.hostname === publicBase.hostname) {
+        return decodeURIComponent(url.pathname.replace(/^\/+/, ''));
+      }
+
+      const endpoint = process.env.S3_ENDPOINT ? new URL(process.env.S3_ENDPOINT) : null;
+      if (endpoint && url.hostname === endpoint.hostname) {
+        const parts = url.pathname.replace(/^\/+/, '').split('/');
+        if (parts[0] === this.bucket) return decodeURIComponent(parts.slice(1).join('/'));
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
+  }
+
+  toServedUrl(urlOrKey: string | null | undefined): string | null {
+    const key = this.getKeyFromUrl(urlOrKey);
+    return key ? this.getPublicUrl(key) : (urlOrKey ?? null);
   }
 }

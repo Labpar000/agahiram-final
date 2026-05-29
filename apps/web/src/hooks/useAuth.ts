@@ -34,14 +34,16 @@ export function useAuth() {
       setUser(null);
       return null;
     },
-    enabled: typeof window !== 'undefined',
+    enabled: typeof window !== 'undefined' && isAuthenticated,
     staleTime: 5 * 60 * 1000,
   });
 
   const sendOtp = useMutation({
     mutationFn: async (input: SendOtpInput) => {
       const parsed = sendOtpSchema.parse(input);
-      return apiClient.post<{ message: string }>('/auth/otp/send', parsed);
+      const res = await apiClient.post<{ message: string }>('/auth/otp/send', parsed);
+      if (!res.success) throw new Error(res.error ?? 'خطا در ارسال کد تأیید');
+      return res;
     },
   });
 
@@ -52,25 +54,37 @@ export function useAuth() {
         '/auth/otp/verify',
         parsed,
       );
+      if (!res.success || !res.data) throw new Error(res.error ?? 'کد تأیید نامعتبر است');
       if (res.success && res.data) {
         setAuthCookies(res.data.accessToken, res.data.refreshToken);
         setUser(res.data.user);
+        queryClient.setQueryData(['auth', 'me'], res.data.user);
       }
       return res;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['auth'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['auth'] });
+    },
   });
 
   const completeProfile = useMutation({
     mutationFn: async (input: CompleteProfileInput) => {
       const parsed = completeProfileSchema.parse(input);
       const res = await apiClient.post<UserProfile>('/auth/profile', parsed);
-      if (res.success && res.data) setUser(res.data);
+      if (!res.success) throw new Error(res.error ?? 'خطا در تکمیل پروفایل');
+      if (res.success && res.data) {
+        setUser(res.data);
+        queryClient.setQueryData(['auth', 'me'], res.data);
+      }
       return res;
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['auth'] });
     },
   });
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
+    await apiClient.post('/auth/logout');
     logout();
     queryClient.clear();
   }, [logout, queryClient]);

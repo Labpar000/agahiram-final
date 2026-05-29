@@ -175,7 +175,7 @@ export function LocationPicker({
                 type="button"
                 aria-label="پاک کردن"
                 onClick={clearSearch}
-                className="grid size-5 place-items-center rounded-full text-muted-foreground hover:text-foreground"
+                className="grid size-6 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <X className="size-3.5" aria-hidden />
               </button>
@@ -191,7 +191,7 @@ export function LocationPicker({
                 key={`${r.title}-${i}`}
                 type="button"
                 onClick={() => pickResult(r)}
-                className="flex w-full items-start gap-2 border-b border-border/60 px-3 py-2 text-start hover:bg-muted last:border-0"
+                className="flex w-full items-start gap-2 border-b border-border/60 px-3 py-2.5 text-start hover:bg-muted last:border-0 focus-visible:outline-none focus-visible:bg-muted"
               >
                 <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <div className="min-w-0">
@@ -211,7 +211,7 @@ export function LocationPicker({
           ref={mapRef}
           center={center}
           zoom={value ? 15 : DEFAULT_MAP_ZOOM}
-          className="aspect-[5/4] h-[320px] w-full sm:aspect-[16/9]"
+          className="aspect-[5/4] h-[320px] w-full overflow-hidden rounded-2xl border border-border sm:aspect-[16/9]"
           onReady={handleReady}
         />
         {/* Fixed center pin — this is the "drag the map under the pin"
@@ -239,7 +239,7 @@ export function LocationPicker({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-surface p-3">
+      <div className="rounded-2xl border border-border bg-surface p-3 shadow-xs">
         <div className="flex items-start gap-2">
           <Target className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
           <div className="min-w-0 flex-1">
@@ -264,7 +264,7 @@ export function LocationPicker({
         </div>
 
         {onHideExactChange ? (
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+          <div className="mt-3 flex items-center justify-between gap-4 border-t border-border pt-3">
             <div className="min-w-0">
               <div className="text-sm font-medium">پنهان کردن موقعیت دقیق</div>
               <p className="text-[11px] text-muted-foreground">

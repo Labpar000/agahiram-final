@@ -11,7 +11,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="bg-background">
-      <div className="sticky top-[var(--header-height)] z-20 flex items-center justify-between gap-2 border-b border-border bg-background/90 px-4 py-3 backdrop-blur-md">
+      <div className="sticky top-[var(--header-height)] z-20 flex items-center justify-between gap-2 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-md">
         <h1 className="text-h3 font-bold tracking-tight">اعلان‌ها</h1>
         {unreadCount > 0 ? (
           <button
@@ -20,7 +20,7 @@ export default function NotificationsPage() {
               markAllRead.mutate();
               toast.success('همه اعلان‌ها خوانده شد');
             }}
-            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-accent tap-none"
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-primary transition-colors hover:bg-accent tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <CheckCheck className="size-4" aria-hidden />
             علامت‌گذاری همه به‌عنوان خوانده‌شده
@@ -29,7 +29,7 @@ export default function NotificationsPage() {
       </div>
 
       {isLoading ? (
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-border bg-surface">
           {Array.from({ length: 6 }).map((_, i) => (
             <li key={i} className="flex items-center gap-3 px-4 py-3">
               <Skeleton className="size-10 shrink-0 rounded-full" />
@@ -47,7 +47,7 @@ export default function NotificationsPage() {
           description="اعلان‌های جدید درباره پسندها، نظرات و آگهی‌ها اینجا نمایش داده می‌شوند."
         />
       ) : (
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-border bg-surface">
           {(data ?? []).map((n: Notif) => (
             <li key={n.id}>
               <NotificationItem notif={n} onClick={() => !n.isRead && markRead.mutate(n.id)} />

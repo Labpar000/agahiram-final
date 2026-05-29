@@ -28,15 +28,15 @@ export function StoryBar() {
     <div className="border-b border-border bg-surface">
       <ul
         aria-label="استوری‌ها"
-        className="mx-auto flex max-w-2xl gap-4 overflow-x-auto px-3 py-3 scrollbar-hide"
+        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-3 py-3 scrollbar-hide sm:gap-4"
       >
         <li>
           <Link
-            href="/create"
+            href="/create/story"
             aria-label="افزودن استوری"
-            className="group flex w-16 shrink-0 flex-col items-center gap-1.5 tap-none"
+            className="group flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-xl tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            <span className="relative grid size-16 place-items-center rounded-full bg-muted ring-1 ring-border transition-transform group-hover:scale-105">
+            <span className="relative grid size-16 place-items-center rounded-full bg-muted ring-1 ring-border transition-[background-color,transform] group-hover:scale-105 group-hover:bg-accent">
               <Plus className="size-6 text-muted-foreground" aria-hidden />
             </span>
             <span className="w-full truncate text-center text-[11px] text-muted-foreground">
@@ -66,7 +66,7 @@ function StoryItem({ group }: { group: StoryGroup }) {
     <Link
       href={`/stories/${group.userId}`}
       aria-label={`استوری ${group.user.username ?? ''}${group.hasUnviewed ? ' (دیده‌نشده)' : ''}`}
-      className="group flex w-16 shrink-0 flex-col items-center gap-1.5 tap-none"
+      className="group flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-xl tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
     >
       <span
         className={cn(
@@ -94,7 +94,7 @@ function StoryItem({ group }: { group: StoryGroup }) {
         </span>
       </span>
       <span className="w-full truncate text-center text-[11px] text-foreground">
-        {group.user.username}
+        {group.user.username ?? 'کاربر'}
       </span>
     </Link>
   );

@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Phone, Play, Volume2, VolumeX } from 'lucide-react';
 import type { ReelItem } from '@agahiram/shared';
-import { cn, formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
+import { cn, formatPersianNumber, formatPersianPrice, formatPhoneFa } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -30,7 +30,10 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
   const [liked, setLiked] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [likeCount, setLikeCount] = useState(reel.likesCount);
+  const [contactRevealed, setContactRevealed] = useState(false);
+  const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
 
   /* Try HLS first; fall back to MP4 if hls not supported */
@@ -106,6 +109,59 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
     [liked, reel.id],
   );
 
+  const onSaveToggle = useCallback(async () => {
+    const next = !saved;
+    setSaved(next);
+    const res = next
+      ? await apiClient.post(`/posts/${reel.id}/save`)
+      : await apiClient.delete(`/posts/${reel.id}/save`);
+    if (!res.success) {
+      setSaved(!next);
+      toast.error('برای ذخیره ابتدا وارد شوید');
+    }
+  }, [saved, reel.id]);
+
+  const onShare = useCallback(async () => {
+    const url = `${window.location.origin}/post/${reel.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: reel.title, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        toast.success('لینک کپی شد');
+      }
+    } catch {
+      /* user cancelled */
+    }
+  }, [reel.id, reel.title]);
+
+  const onContact = useCallback(async () => {
+    if (contactRevealed) {
+      if (contactPhone) window.location.href = `tel:${contactPhone}`;
+      return;
+    }
+    const res = await apiClient.post<{
+      contactRevealed: boolean;
+      phone?: string;
+      requiresAuth?: boolean;
+    }>(`/posts/${reel.id}/contact`);
+    if (!res.success) {
+      toast.error(res.error ?? 'خطا در دریافت شماره');
+      return;
+    }
+    if (res.data?.requiresAuth) {
+      toast.error('برای مشاهده شماره ابتدا وارد شوید');
+      return;
+    }
+    const phone = res.data?.phone ?? null;
+    if (!phone) {
+      toast.error('شماره تماس فروشنده در دسترس نیست');
+      return;
+    }
+    setContactPhone(phone);
+    setContactRevealed(true);
+  }, [reel.id, contactRevealed, contactPhone]);
+
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
@@ -139,7 +195,7 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
   return (
     <div
       ref={containerRef}
-      className="relative flex h-[100svh] w-full snap-start items-center justify-center bg-black"
+      className="relative flex h-full min-h-full w-full snap-start items-center justify-center bg-black"
     >
       <video
         ref={videoRef}
@@ -167,7 +223,7 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
         type="button"
         aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
         onClick={() => setMuted((m) => !m)}
-        className="absolute end-4 top-[calc(var(--safe-top)+1rem)] grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        className="absolute end-4 top-4 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       >
         {muted ? (
           <VolumeX className="size-5" aria-hidden />
@@ -177,7 +233,7 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
       </button>
 
       {/* Action rail — end side (right in RTL), like Instagram Reels */}
-      <div className="absolute end-3 bottom-[calc(var(--bottom-nav)+1.5rem)] flex flex-col items-center gap-5 text-white">
+      <div className="absolute end-3 bottom-6 flex flex-col items-center gap-5 text-white">
         <RailButton
           ariaLabel={liked ? 'حذف لایک' : 'لایک'}
           onClick={() => onLikeToggle()}
@@ -202,23 +258,19 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
             <IgComment className="size-8 drop-shadow-md" strokeWidth={2} />
           </Link>
         </RailButton>
-        <RailButton
-          ariaLabel="اشتراک‌گذاری"
-          onClick={() =>
-            navigator
-              .share?.({ title: reel.title, url: location.origin + '/post/' + reel.id })
-              .catch(() => null)
-          }
-        >
+        <RailButton ariaLabel="اشتراک‌گذاری" onClick={() => void onShare()}>
           <IgShare className="size-8 drop-shadow-md" strokeWidth={2} />
         </RailButton>
-        <RailButton ariaLabel="ذخیره">
-          <IgBookmark className="size-8 drop-shadow-md" strokeWidth={2} />
+        <RailButton
+          ariaLabel={saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
+          onClick={() => void onSaveToggle()}
+        >
+          <IgBookmark className="size-8 drop-shadow-md" strokeWidth={2} filled={saved} />
         </RailButton>
       </div>
 
       {/* Bottom meta — start aligned content (right of avatar in RTL feels natural) */}
-      <div className="absolute inset-x-0 bottom-[var(--bottom-nav)] pe-20 ps-4 pb-3 text-white">
+      <div className="absolute inset-x-0 bottom-0 pe-20 ps-4 pb-4 text-white">
         <div
           className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
           aria-hidden
@@ -241,15 +293,25 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
             </Avatar>
             <span className="text-sm font-semibold drop-shadow-md">{reel.user.username}</span>
           </Link>
-          <h3 className="font-bold text-base leading-snug drop-shadow-md">{reel.title}</h3>
+          <h3 className="line-clamp-2 text-base font-bold leading-snug drop-shadow-md">
+            {reel.title}
+          </h3>
           <p className="text-sm font-extrabold drop-shadow-md">{formatPersianPrice(reel.price)}</p>
           <Button
-            variant="brand"
+            variant={contactRevealed ? 'outline' : 'brand'}
             size="sm"
             leftIcon={<Phone className="size-4" />}
             className="w-fit shadow-md"
+            onClick={() => void onContact()}
+            aria-live="polite"
           >
-            تماس با فروشنده
+            {contactRevealed ? (
+              <span dir="ltr" className="font-mono tracking-wide">
+                {formatPhoneFa(contactPhone ?? '')}
+              </span>
+            ) : (
+              'تماس با فروشنده'
+            )}
           </Button>
         </div>
       </div>
@@ -271,7 +333,7 @@ function RailButton({
   asChild?: boolean;
 }) {
   const base =
-    'inline-flex flex-col items-center gap-1 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white rounded-md';
+    'inline-flex flex-col items-center gap-1 rounded-md tap-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white';
   if (asChild && React.isValidElement(children)) {
     return React.cloneElement(children as React.ReactElement<any>, {
       'aria-label': ariaLabel,

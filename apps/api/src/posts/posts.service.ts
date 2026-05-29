@@ -108,8 +108,20 @@ export class PostsService {
       include: this.fullInclude(),
     });
 
-    for (const media of post.media.filter((m) => m.type === 'video')) {
-      await this.mediaQueue.add('transcode', { mediaId: media.id, postId: post.id });
+    for (const media of post.media) {
+      if (media.type === 'video') {
+        await this.mediaQueue.add(
+          'transcode',
+          { mediaId: media.id, postId: post.id },
+          { attempts: 2, removeOnComplete: true, removeOnFail: 50 },
+        );
+      } else {
+        await this.mediaQueue.add(
+          'optimize',
+          { mediaId: media.id, postId: post.id },
+          { attempts: 2, removeOnComplete: true, removeOnFail: 50 },
+        );
+      }
     }
     await this.searchQueue.add('index', { postId: post.id });
 
@@ -204,11 +216,26 @@ export class PostsService {
   }
 
   async logContactImpression(postId: string, viewerId?: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { user: { select: { phone: true } } },
+    });
+    if (!post) throw new NotFoundException();
+
     await this.prisma.post.update({
       where: { id: postId },
       data: { viewCount: { increment: 1 } },
     });
-    return { contactRevealed: true, requiresAuth: !viewerId };
+
+    if (!viewerId) {
+      return { contactRevealed: false, requiresAuth: true };
+    }
+
+    return {
+      contactRevealed: true,
+      requiresAuth: false,
+      phone: post.user.phone,
+    };
   }
 
   async getUserPosts(username: string, viewerId?: string, cursor?: string, limit = 12) {
@@ -234,6 +261,57 @@ export class PostsService {
     return {
       data,
       nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null,
+      hasMore,
+    };
+  }
+
+  async getUserReels(username: string, viewerId?: string, cursor?: string, limit = 12) {
+    const user = await this.prisma.user.findUnique({ where: { username } });
+    if (!user) throw new NotFoundException();
+
+    const isOwner = viewerId === user.id;
+    const posts = await this.prisma.post.findMany({
+      where: {
+        userId: user.id,
+        type: 'reel',
+        status: isOwner ? undefined : 'approved',
+      },
+      include: this.fullInclude(),
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const hasMore = posts.length > limit;
+    const data = posts.slice(0, limit).map((p) => this.toSummary(p));
+    return {
+      data,
+      nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null,
+      hasMore,
+    };
+  }
+
+  async getUserSaved(username: string, viewerId: string, cursor?: string, limit = 12) {
+    const user = await this.prisma.user.findUnique({ where: { username } });
+    if (!user) throw new NotFoundException();
+    if (viewerId !== user.id) throw new ForbiddenException();
+
+    const saves = await this.prisma.savedPost.findMany({
+      where: {
+        userId: user.id,
+        post: { status: 'approved' },
+      },
+      include: { post: { include: this.fullInclude() } },
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const hasMore = saves.length > limit;
+    const data = saves.slice(0, limit).map((save) => this.toSummary(save.post));
+    return {
+      data,
+      nextCursor: hasMore ? (saves[limit - 1]?.id ?? null) : null,
       hasMore,
     };
   }
@@ -278,7 +356,11 @@ export class PostsService {
       user: post.user,
       category: post.category,
       city: post.city,
-      media: post.media,
+      media: post.media.map((media: any) => ({
+        ...media,
+        url: this.s3.toServedUrl(media.url) ?? media.url,
+        thumbnailUrl: this.s3.toServedUrl(media.thumbnailUrl),
+      })),
     };
   }
 }

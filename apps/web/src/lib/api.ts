@@ -5,7 +5,32 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1
 type RequestOptions = RequestInit & {
   params?: Record<string, string | number | boolean | undefined>;
   skipAuth?: boolean;
+  /** When true, do not try refresh/redirect behavior for expected anonymous checks. */
+  silent401?: boolean;
 };
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(buildUrl('/auth/refresh'), {
+          method: 'POST',
+          credentials: 'include',
+        });
+        return res.ok;
+      } catch {
+        return false;
+      } finally {
+        setTimeout(() => {
+          refreshPromise = null;
+        }, 0);
+      }
+    })();
+  }
+  return refreshPromise;
+}
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const url = path.startsWith('http')
@@ -33,7 +58,7 @@ export function clearAuthCookies() {
 }
 
 export async function api<T>(path: string, options: RequestOptions = {}): Promise<ApiResponse<T>> {
-  const { params, skipAuth, headers: customHeaders, ...init } = options;
+  const { params, skipAuth, silent401, headers: customHeaders, ...init } = options;
   const headers = new Headers(customHeaders);
 
   if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
@@ -43,11 +68,23 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   // httpOnly cookies are sent automatically via credentials: 'include'; no Bearer header needed.
   void skipAuth;
 
-  const response = await fetch(buildUrl(path, params), {
-    ...init,
-    headers,
-    credentials: 'include',
-  });
+  const url = buildUrl(path, params);
+  const doFetch = () =>
+    fetch(url, {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+
+  let response = await doFetch();
+  if (response.status === 401 && !silent401) {
+    const refreshed = await tryRefresh();
+    if (refreshed) {
+      response = await doFetch();
+    }
+  }
+
+  const status = response.status;
 
   let json: ApiResponse<T>;
   try {
@@ -55,26 +92,31 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   } catch {
     json = {
       success: false,
-      error: response.ok ? 'پاسخ نامعتبر از سرور' : `خطا: ${response.status}`,
+      error: response.ok ? 'پاسخ نامعتبر از سرور' : `خطا: ${status}`,
     };
   }
 
   if (!response.ok && json.success !== false) {
-    json = { success: false, error: json.message ?? `خطا: ${response.status}` };
+    json = { success: false, error: json.message ?? `خطا: ${status}` };
   }
 
   return json;
 }
 
 export const apiClient = {
-  get: <T>(path: string, params?: RequestOptions['params']) =>
-    api<T>(path, { method: 'GET', params }),
-  post: <T>(path: string, body?: unknown) =>
-    api<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
-  put: <T>(path: string, body?: unknown) =>
-    api<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined }),
-  patch: <T>(path: string, body?: unknown) =>
-    api<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
-  delete: <T>(path: string) => api<T>(path, { method: 'DELETE' }),
-  upload: <T>(path: string, formData: FormData) => api<T>(path, { method: 'POST', body: formData }),
+  get: <T>(
+    path: string,
+    params?: RequestOptions['params'],
+    opts?: Omit<RequestOptions, 'method' | 'params'>,
+  ) => api<T>(path, { method: 'GET', params, ...opts }),
+  post: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
+    api<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined, ...opts }),
+  put: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
+    api<T>(path, { method: 'PUT', body: body ? JSON.stringify(body) : undefined, ...opts }),
+  patch: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
+    api<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined, ...opts }),
+  delete: <T>(path: string, opts?: Omit<RequestOptions, 'method'>) =>
+    api<T>(path, { method: 'DELETE', ...opts }),
+  upload: <T>(path: string, formData: FormData, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
+    api<T>(path, { method: 'POST', body: formData, ...opts }),
 };

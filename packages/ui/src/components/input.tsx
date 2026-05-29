@@ -7,7 +7,7 @@ const inputVariants = cva(
     'flex w-full bg-surface text-foreground placeholder:text-muted-foreground',
     'border border-input rounded-lg shadow-xs',
     'transition-[border-color,box-shadow,background-color] duration-[var(--duration-fast)]',
-    'focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30',
+    'hover:border-border focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30',
     'disabled:cursor-not-allowed disabled:opacity-50',
     'file:bg-transparent file:border-0 file:text-sm file:font-medium file:text-foreground',
     'aria-invalid:border-destructive aria-invalid:focus-visible:ring-destructive/30',
@@ -61,7 +61,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           {trailingIcon ? (
             <span
               aria-hidden
-              className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-muted-foreground"
+              className="absolute inset-y-0 end-3 flex items-center text-muted-foreground"
             >
               {trailingIcon}
             </span>

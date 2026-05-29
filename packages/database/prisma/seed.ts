@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import {
+  ADMIN_PHONES,
   DIVAR_CATEGORIES,
   IRAN_PROVINCES,
   BOOST_PLANS,
@@ -150,21 +151,24 @@ async function seedBoostPlans() {
 }
 
 async function seedAdmin() {
-  console.log('Seeding admin user...');
+  console.log('Seeding admin users...');
 
-  await prisma.user.upsert({
-    where: { phone: '09120000000' },
-    update: {},
-    create: {
-      phone: '09120000000',
-      name: 'مدیر سیستم',
-      username: 'admin',
-      role: 'admin',
-      isVerified: true,
-    },
-  });
+  for (let i = 0; i < ADMIN_PHONES.length; i++) {
+    const phone = ADMIN_PHONES[i]!;
+    await prisma.user.upsert({
+      where: { phone },
+      update: { role: 'admin', isVerified: true },
+      create: {
+        phone,
+        name: 'مدیر سیستم',
+        username: i === 0 ? 'admin' : `admin${i + 1}`,
+        role: 'admin',
+        isVerified: true,
+      },
+    });
+  }
 
-  console.log('Admin user seeded (phone: 09120000000).');
+  console.log(`Admin users seeded (phones: ${ADMIN_PHONES.join(', ')}).`);
 }
 
 async function main() {

@@ -11,6 +11,20 @@ import type { SendMessageInput } from '@agahiram/shared';
 export class MessagesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async getUnreadCount(userId: string) {
+    const count = await this.prisma.message.count({
+      where: {
+        senderId: { not: userId },
+        isRead: false,
+        conversation: {
+          participants: { some: { userId } },
+        },
+      },
+    });
+
+    return { count };
+  }
+
   async listConversations(userId: string) {
     const convos = await this.prisma.conversation.findMany({
       where: { participants: { some: { userId } } },
@@ -94,6 +108,40 @@ export class MessagesService {
       data: messages.slice(0, limit).reverse(),
       nextCursor: hasMore ? (messages[limit - 1]?.id ?? null) : null,
       hasMore,
+      meId: userId,
+    };
+  }
+
+  async getConversationHead(userId: string, conversationId: string) {
+    const participant = await this.prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+      include: {
+        conversation: {
+          include: {
+            participants: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    name: true,
+                    avatar: true,
+                    isVerified: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!participant) throw new ForbiddenException();
+
+    const other = participant.conversation.participants.find((p) => p.userId !== userId);
+    return {
+      id: conversationId,
+      meId: userId,
+      otherUser: other?.user ?? null,
     };
   }
 

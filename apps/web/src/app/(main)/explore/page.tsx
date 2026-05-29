@@ -3,7 +3,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
-import { Compass, Film as FilmIcon, Layers, Search, SlidersHorizontal } from 'lucide-react';
+import {
+  Film as FilmIcon,
+  Layers,
+  PackageOpen,
+  Search,
+  SearchX,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
@@ -59,8 +66,8 @@ export default function ExplorePage() {
 
   return (
     <div className="bg-background">
-      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/90 px-3 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-2">
+      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-3 py-3 backdrop-blur-md">
+        <div className="mx-auto flex max-w-2xl items-center gap-2">
           <div className="flex-1">
             <Input
               type="search"
@@ -92,7 +99,7 @@ export default function ExplorePage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-3 gap-0.5 p-0.5">
+        <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
           ))}
@@ -101,16 +108,17 @@ export default function ExplorePage() {
         <ErrorState onRetry={() => void refetch()} />
       ) : (data ?? []).length === 0 ? (
         <EmptyState
-          icon={<Compass className="size-6" aria-hidden />}
+          icon={debouncedQ ? <SearchX aria-hidden /> : <PackageOpen aria-hidden />}
           title={debouncedQ ? 'نتیجه‌ای یافت نشد' : 'فعلاً آگهی‌ای نیست'}
           description={
             debouncedQ
               ? 'با کلمات دیگری امتحان کنید یا فیلترها را تغییر دهید.'
               : 'به‌زودی آگهی‌های تازه را اینجا می‌بینید.'
           }
+          className="min-h-[calc(100svh-var(--header-height)-var(--bottom-nav)-var(--safe-bottom)-4.5rem)]"
         />
       ) : (
-        <div className="grid grid-cols-3 gap-0.5 p-0.5">
+        <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
           {(data ?? []).map((p) => (
             <ExploreTile key={p.id} post={p} />
           ))}
@@ -134,7 +142,7 @@ function ExploreTile({ post }: { post: PostSummary }) {
     <Link
       href={`/post/${post.id}`}
       aria-label={`${post.title}، ${formatPersianPrice(post.price)}`}
-      className="group relative block aspect-square overflow-hidden bg-muted tap-none"
+      className="group relative block aspect-square overflow-hidden rounded-sm bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:rounded-md"
     >
       {media ? (
         <Image
@@ -145,7 +153,7 @@ function ExploreTile({ post }: { post: PostSummary }) {
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
       ) : (
-        <div className="grid size-full place-items-center text-xs text-muted-foreground">
+        <div className="grid size-full place-items-center bg-surface-muted p-2 text-center text-xs text-muted-foreground">
           بدون رسانه
         </div>
       )}
@@ -167,9 +175,11 @@ function ExploreTile({ post }: { post: PostSummary }) {
       ) : null}
 
       {/* Always-visible overlay on mobile (group-hover only on hover-capable devices) */}
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent p-2 transition-opacity duration-200 opacity-100 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-        <p className="truncate text-[12px] font-bold text-white drop-shadow">{post.title}</p>
-        <p className="text-[11px] text-white/95 drop-shadow">{formatPersianPrice(post.price)}</p>
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2 opacity-100 transition-opacity duration-200 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+        <p className="line-clamp-1 text-[12px] font-bold text-white drop-shadow">{post.title}</p>
+        <p className="truncate text-[11px] text-white/95 drop-shadow">
+          {formatPersianPrice(post.price)}
+        </p>
       </div>
     </Link>
   );

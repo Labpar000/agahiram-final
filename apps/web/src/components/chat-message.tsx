@@ -45,13 +45,13 @@ export function ChatMessage({
         </div>
       )}
 
-      <div className="flex max-w-[78%] flex-col gap-0.5">
+      <div className="flex max-w-[82%] flex-col gap-0.5 sm:max-w-[72%]">
         <div
           className={cn(
             'rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words shadow-xs',
             isMine
               ? 'bg-primary text-primary-foreground rounded-ee-md'
-              : 'bg-muted text-foreground rounded-es-md',
+              : 'bg-surface-elevated text-foreground rounded-es-md',
           )}
         >
           {content}

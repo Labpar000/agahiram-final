@@ -60,7 +60,7 @@ ci: improve deploy pipeline
 
 کارهایی که روی سرور انجام می‌دهد:
 
-1. package کردن سورس از commit فعلی
+1. package کردن سورس از workspace (نه فقط HEAD)
 2. آپلود archive با SSH/SCP روی VPS
 3. extract در `/opt/agahiram` یا مقدار `APP_DIR`
 4. build ایمیج‌های `api`, `web`, `admin`, `worker`
@@ -77,7 +77,7 @@ ci: improve deploy pipeline
 Secretهای لازم:
 
 ```text
-SSH_HOST=37.32.25.153
+SSH_HOST=37.32.26.32
 SSH_USER=ubuntu
 SSH_PORT=22
 SSH_KEY=<private ssh key>
@@ -121,7 +121,14 @@ sudo chown -R ubuntu:ubuntu /opt/agahiram
 powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
 ```
 
-این اسکریپت اول `format:check`، `lint` و `build` را اجرا می‌کند، بعد archive سورس commit فعلی را با `scp` به سرور می‌فرستد و همان‌جا Docker Compose build/migrate/up را انجام می‌دهد.
+این اسکریپت به صورت پیش‌فرض `format:check`، `lint` و `build` را اجرا می‌کند، سپس snapshot واقعی workspace را (شامل فایل‌های untracked مثل icon/image) با `scp` می‌فرستد و روی سرور deploy می‌کند.
+
+بهینه‌سازی‌های bridge:
+
+- فقط سرویس‌های تغییرکرده را build می‌کند (auto scope)
+- اگر `pnpm-lock.yaml` تغییر نکرده باشد، cacheهای آفلاین (`.pnpm-store` و `.pnpm-meta`) دوباره آپلود نمی‌شوند
+- با BuildKit اجرا می‌شود تا cache لایه‌های Docker بهتر استفاده شود
+- build سرویس‌ها به‌صورت ترتیبی (سرویس‌به‌سرویس) انجام می‌شود تا روی VPS با دیسک محدود به خطای `no space left on device` نخورد
 
 از GitHub (فقط وقتی مسیر شبکه runner به VPS باز شود):
 
@@ -130,7 +137,7 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
 از SSH مستقیم روی سرور:
 
 ```bash
-ssh -i .cache/ssh/agahiram_id_ed25519 ubuntu@37.32.25.153
+ssh -i .cache/ssh/agahiram_id_ed25519 ubuntu@37.32.26.32
 cd /opt/agahiram
 bash scripts/update.sh
 ```

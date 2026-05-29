@@ -17,20 +17,21 @@ REPO_URL="${REPO_URL:-git@github.com:Labpar000/agahiram.git}"
 APP_DIR="${APP_DIR:-/opt/agahiram}"
 DOMAIN="${DOMAIN:-}"
 EMAIL="${EMAIL:-}"
+APT_MIRROR="${APT_MIRROR:-http://mirror.iranserver.com/ubuntu}"
+SRC_TARBALL="${SRC_TARBALL:-/tmp/agahiram-src.tar.gz}"
 
 if [[ "$EUID" -ne 0 ]]; then err "این اسکریپت باید با sudo اجرا شود"; fi
 
-log "1/8 نصب Docker و Docker Compose..."
-if ! command -v docker &> /dev/null; then
-  curl -fsSL https://get.docker.com | sh
-  systemctl enable --now docker
+log "1/8 تنظیم mirror داخلی apt + نصب Docker و ابزارها..."
+if [[ -f /etc/apt/sources.list ]]; then
+  cp /etc/apt/sources.list /etc/apt/sources.list.bak.$(date +%Y%m%d%H%M%S)
+  sed -i "s|http://archive.ubuntu.com/ubuntu|$APT_MIRROR|g" /etc/apt/sources.list || true
+  sed -i "s|http://security.ubuntu.com/ubuntu|$APT_MIRROR|g" /etc/apt/sources.list || true
+  sed -i "s|http://ports.ubuntu.com/ubuntu-ports|$APT_MIRROR|g" /etc/apt/sources.list || true
 fi
-if ! docker compose version &> /dev/null; then
-  apt-get update && apt-get install -y docker-compose-plugin
-fi
-
-log "2/8 نصب وابستگی‌ها (git, openssl, curl)..."
-apt-get update && apt-get install -y git openssl curl ufw
+apt-get update
+apt-get install -y git openssl curl ufw docker.io docker-compose-v2
+systemctl enable --now docker
 
 log "3/8 پیکربندی فایروال..."
 ufw allow 22/tcp || true
@@ -39,7 +40,12 @@ ufw allow 443/tcp || true
 echo "y" | ufw enable || true
 
 log "4/8 دریافت/به‌روزرسانی کد پروژه..."
-if [[ -d "$APP_DIR/.git" ]]; then
+mkdir -p "$APP_DIR"
+if [[ -f "$SRC_TARBALL" ]]; then
+  log "استفاده از سورس آفلاین: $SRC_TARBALL"
+  tar -xzf "$SRC_TARBALL" -C "$APP_DIR"
+  cd "$APP_DIR"
+elif [[ -d "$APP_DIR/.git" ]]; then
   cd "$APP_DIR"
   git pull
 else

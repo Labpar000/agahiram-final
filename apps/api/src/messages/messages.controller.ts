@@ -10,9 +10,19 @@ import { MessagesService } from './messages.service';
 export class MessagesController {
   constructor(private readonly service: MessagesService) {}
 
+  @Get('unread-count')
+  unreadCount(@CurrentUser('sub') userId: string) {
+    return this.service.getUnreadCount(userId);
+  }
+
   @Get('conversations')
   conversations(@CurrentUser('sub') userId: string) {
     return this.service.listConversations(userId);
+  }
+
+  @Get('conversations/:id/head')
+  conversationHead(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.service.getConversationHead(userId, id);
   }
 
   @Get('conversations/:id')

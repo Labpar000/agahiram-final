@@ -3,8 +3,26 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Camera, Check, ChevronLeft, MapPin, Tag, Type, Wallet, X } from 'lucide-react';
-import { cn, formatPersianPrice } from '@agahiram/shared';
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  Tag,
+  Type,
+  Wallet,
+  X,
+} from 'lucide-react';
+import {
+  cn,
+  formatPersianPrice,
+  ALLOWED_IMAGE_TYPES,
+  ALLOWED_VIDEO_TYPES,
+  MAX_IMAGE_UPLOAD_BYTES,
+  MAX_VIDEO_UPLOAD_BYTES,
+} from '@agahiram/shared';
 import {
   Button,
   IconButton,
@@ -57,6 +75,8 @@ export default function CreatePage() {
   const [step, setStep] = useState<Step>(0);
   const [media, setMedia] = useState<UploadedMedia[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [categoryParentId, setCategoryParentId] = useState<string>('');
   const [categoryId, setCategoryId] = useState<string>('');
   const [category, setCategory] = useState<Category | null>(null);
   const [attributes, setAttributes] = useState<Record<string, string>>({});
@@ -105,21 +125,45 @@ export default function CreatePage() {
     setUploading(true);
     for (const file of Array.from(files)) {
       try {
+        const extension = getFileExtension(file);
+        const contentType = file.type || getContentTypeFromExtension(extension);
+        const isVideo = contentType.startsWith('video/');
+
+        const allowed = isVideo ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
+        if (!(allowed as readonly string[]).includes(contentType)) {
+          toast.error(`فرمت «${file.name}» پشتیبانی نمی‌شود`);
+          continue;
+        }
+
+        const maxBytes = isVideo ? MAX_VIDEO_UPLOAD_BYTES : MAX_IMAGE_UPLOAD_BYTES;
+        if (file.size > maxBytes) {
+          const maxMb = Math.round(maxBytes / (1024 * 1024));
+          toast.error(`حجم «${file.name}» بیش از حد مجاز است (حداکثر ${toFa(maxMb)} مگابایت)`);
+          continue;
+        }
+
         const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
           '/media/presign',
-          { folder: 'POSTS', fileName: file.name, contentType: file.type },
+          { folder: 'posts', fileName: file.name, contentType, extension },
         );
         if (!presign.success || !presign.data) {
           toast.error('خطا در دریافت لینک آپلود');
           continue;
         }
-        const res = await fetch(presign.data.uploadUrl, {
-          method: 'PUT',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        }).catch(() => null);
 
-        const isVideo = file.type.startsWith('video/');
+        setUploadProgress(0);
+        const ok = await uploadToS3(presign.data.uploadUrl, file, contentType, setUploadProgress);
+        if (!ok) {
+          toast.error(`آپلود «${file.name}» ناموفق بود`);
+          continue;
+        }
+
+        const confirmRes = await apiClient.post('/media/confirm', { key: presign.data.key });
+        if (!confirmRes.success) {
+          toast.error(confirmRes.error ?? `تأیید «${file.name}» ناموفق بود`);
+          continue;
+        }
+
         const preview = URL.createObjectURL(file);
         setMedia((m) => [
           ...m,
@@ -127,13 +171,14 @@ export default function CreatePage() {
             key: presign.data!.key,
             url: presign.data!.publicUrl,
             type: isVideo ? 'video' : 'image',
-            preview: res?.ok ? presign.data!.publicUrl : preview,
+            preview,
           },
         ]);
       } catch (e) {
         toast.error(`خطا در آپلود: ${(e as Error).message}`);
       }
     }
+    setUploadProgress(0);
     setUploading(false);
   };
 
@@ -165,7 +210,7 @@ export default function CreatePage() {
 
   const stepValid = () => {
     if (step === 0) return media.length > 0;
-    if (step === 1) return !!categoryId;
+    if (step === 1) return !!categoryId && !!category;
     if (step === 2)
       return (category?.attributes ?? [])
         .filter((a) => a.required)
@@ -175,13 +220,14 @@ export default function CreatePage() {
     return false;
   };
 
-  const allCats = (cats ?? []).flatMap((c) =>
-    c.children && c.children.length > 0 ? c.children : [c],
-  );
+  const rootCategories = cats ?? [];
+  const selectedParent = rootCategories.find((c) => c.id === categoryParentId) ?? null;
+  const visibleSubcategories =
+    selectedParent?.children && selectedParent.children.length > 0 ? selectedParent.children : [];
 
   return (
     <div className="bg-background pb-32">
-      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/90 px-3 py-2 backdrop-blur-md">
+      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-md">
         <div className="flex items-center gap-2">
           <IconButton
             aria-label={step === 0 ? 'انصراف' : 'مرحله قبل'}
@@ -205,16 +251,19 @@ export default function CreatePage() {
         </div>
       </div>
 
-      <div className="space-y-5 p-4">
+      <div className="mx-auto max-w-2xl space-y-5 p-4">
         {step === 0 && (
-          <section>
+          <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="text-h3 font-bold tracking-tight">عکس و ویدیو</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               حداکثر {toFa(MAX_MEDIA)} مورد می‌توانید اضافه کنید
             </p>
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
               {media.map((m, i) => (
-                <div key={i} className="relative aspect-square overflow-hidden rounded-xl bg-muted">
+                <div
+                  key={i}
+                  className="relative aspect-square overflow-hidden rounded-xl bg-muted ring-1 ring-border"
+                >
                   {m.type === 'video' ? (
                     <video src={m.preview} className="size-full object-cover" muted playsInline />
                   ) : (
@@ -225,7 +274,7 @@ export default function CreatePage() {
                     type="button"
                     aria-label="حذف"
                     onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))}
-                    className="absolute end-1 top-1 grid size-7 place-items-center rounded-full bg-black/60 text-white tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    className="absolute end-1 top-1 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <X className="size-4" aria-hidden />
                   </button>
@@ -234,10 +283,10 @@ export default function CreatePage() {
               {media.length < MAX_MEDIA && (
                 <label
                   className={cn(
-                    'group/upload relative grid aspect-square cursor-pointer place-items-center rounded-xl border-2 border-dashed text-center transition-colors',
+                    'group/upload relative grid aspect-square cursor-pointer place-items-center rounded-xl border-2 border-dashed text-center transition-[background-color,border-color,transform] focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-surface',
                     uploading
                       ? 'border-primary bg-accent/40'
-                      : 'border-border hover:border-primary',
+                      : 'border-border hover:border-primary hover:bg-accent/30 active:scale-[0.98]',
                   )}
                 >
                   <input
@@ -257,7 +306,11 @@ export default function CreatePage() {
                     />
                   )}
                   <span className="absolute bottom-2 text-[11px] text-muted-foreground">
-                    {uploading ? 'در حال آپلود' : 'افزودن'}
+                    {uploading
+                      ? uploadProgress > 0
+                        ? `در حال آپلود ${toFa(uploadProgress)}٪`
+                        : 'در حال آپلود'
+                      : 'افزودن'}
                   </span>
                 </label>
               )}
@@ -266,45 +319,92 @@ export default function CreatePage() {
         )}
 
         {step === 1 && (
-          <section>
+          <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
               <Tag className="size-5" aria-hidden /> دسته‌بندی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              دسته‌ای که بیشتر به آگهی شما مرتبط است
+              اول موضوع اصلی را انتخاب کنید، بعد زیرموضوع دقیق را مثل دیوار مشخص کنید.
             </p>
-            <div className="mt-4 grid grid-cols-1 gap-2">
-              {allCats.map((c) => (
+            {selectedParent ? (
+              <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3">
                 <button
-                  key={c.id}
                   type="button"
                   onClick={() => {
-                    setCategoryId(c.id);
-                    setCategory(c as Category);
+                    setCategoryParentId('');
+                    setCategoryId('');
+                    setCategory(null);
+                    setAttributes({});
                   }}
-                  className={cn(
-                    'flex h-14 items-center gap-3 rounded-xl border px-3 text-start tap-none',
-                    'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    categoryId === c.id
-                      ? 'border-primary bg-accent'
-                      : 'border-input hover:bg-muted',
-                  )}
+                  className="mb-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <span className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                  <ChevronRight className="size-3.5" aria-hidden /> تغییر موضوع اصلی
+                </button>
+                <div className="flex items-center gap-3">
+                  <span className="grid size-11 place-items-center rounded-xl bg-accent text-primary">
                     <Tag className="size-5" aria-hidden />
                   </span>
-                  <span className="flex-1 font-medium">{c.name}</span>
-                  {categoryId === c.id ? (
-                    <Check className="size-5 text-primary" aria-hidden />
-                  ) : null}
-                </button>
-              ))}
+                  <div>
+                    <div className="text-xs text-muted-foreground">موضوع اصلی</div>
+                    <div className="font-bold">{selectedParent.name}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 space-y-2">
+              {(selectedParent ? visibleSubcategories : rootCategories).map((c) => {
+                const hasChildren = !!c.children?.length;
+                const selected = categoryId === c.id && category?.id === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      if (hasChildren) {
+                        setCategoryParentId(c.id);
+                        setCategoryId('');
+                        setCategory(null);
+                      } else {
+                        setCategoryId(c.id);
+                        setCategory(c);
+                      }
+                      setAttributes({});
+                    }}
+                    className={cn(
+                      'flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-start shadow-xs tap-none',
+                      'transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                      selected ? 'border-primary bg-accent' : 'border-input hover:bg-muted',
+                    )}
+                  >
+                    <span className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                      <Tag className="size-5" aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{c.name}</span>
+                      {hasChildren ? (
+                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                          {toFa(c.children!.length)} زیرموضوع
+                        </span>
+                      ) : null}
+                    </span>
+                    {hasChildren ? (
+                      <ChevronLeft
+                        className="size-5 text-muted-foreground rtl:rotate-180"
+                        aria-hidden
+                      />
+                    ) : selected ? (
+                      <Check className="size-5 text-primary" aria-hidden />
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
           </section>
         )}
 
         {step === 2 && (
-          <section>
+          <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="text-h3 font-bold tracking-tight">مشخصات</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {category?.attributes?.length
@@ -341,7 +441,7 @@ export default function CreatePage() {
                           type="button"
                           onClick={() => setAttributes({ ...attributes, [a.key]: v })}
                           className={cn(
-                            'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                            'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                             attributes[a.key] === v
                               ? 'border-primary bg-accent text-accent-foreground'
                               : 'border-input hover:bg-muted',
@@ -367,7 +467,7 @@ export default function CreatePage() {
         )}
 
         {step === 3 && (
-          <section>
+          <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
               <Type className="size-5" aria-hidden /> عنوان و قیمت
             </h2>
@@ -414,7 +514,7 @@ export default function CreatePage() {
                       type="button"
                       onClick={() => setPriceType(o.v)}
                       className={cn(
-                        'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                        'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
                         priceType === o.v
                           ? 'border-primary bg-accent text-accent-foreground'
                           : 'border-input hover:bg-muted',
@@ -450,7 +550,7 @@ export default function CreatePage() {
         )}
 
         {step === 4 && (
-          <section>
+          <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
               <MapPin className="size-5" aria-hidden /> موقعیت مکانی
             </h2>
@@ -516,7 +616,7 @@ export default function CreatePage() {
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-border bg-surface p-4 shadow-card">
+              <div className="rounded-2xl border border-border bg-muted/40 p-4">
                 <h3 className="text-sm font-semibold">پیش‌نمایش</h3>
                 <p className="mt-1 text-sm">{title || '—'}</p>
                 <p className="text-sm font-bold gradient-text-brand">
@@ -534,7 +634,7 @@ export default function CreatePage() {
       </div>
 
       <div
-        className="fixed inset-x-0 z-30 border-t border-border bg-surface/95 backdrop-blur-md px-3 py-3"
+        className="fixed inset-x-0 z-30 border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
         style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
       >
         <div className="mx-auto max-w-2xl">
@@ -555,6 +655,46 @@ export default function CreatePage() {
       </div>
     </div>
   );
+}
+
+function uploadToS3(
+  url: string,
+  file: File,
+  contentType: string,
+  onProgress: (pct: number) => void,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url, true);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+    xhr.onerror = () => resolve(false);
+    xhr.onabort = () => resolve(false);
+    xhr.send(file);
+  });
+}
+
+function getFileExtension(file: File) {
+  const fromName = file.name.split('.').pop()?.toLowerCase();
+  if (fromName) return fromName;
+  return file.type.split('/').pop()?.toLowerCase() ?? 'bin';
+}
+
+function getContentTypeFromExtension(extension: string) {
+  const types: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    gif: 'image/gif',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    quicktime: 'video/quicktime',
+  };
+  return types[extension] ?? 'application/octet-stream';
 }
 
 function toFa(n: number) {

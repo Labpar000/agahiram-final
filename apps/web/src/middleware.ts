@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-const PROTECTED = ['/create', '/messages', '/notifications', '/settings'];
+const PROTECTED = ['/create', '/messages', '/notifications', '/profile', '/settings'];
 const PUBLIC_AUTH = ['/login', '/onboarding'];
 
 export function middleware(req: NextRequest) {

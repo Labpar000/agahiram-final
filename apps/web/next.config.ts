@@ -6,8 +6,24 @@ const withPWA = withPWAInit({
   dest: 'public',
   register: true,
   skipWaiting: true,
+  clientsClaim: true,
+  cleanupOutdatedCaches: true,
   disable: process.env.NODE_ENV === 'development',
+  // Never cache auth/login flows or HTML pages that could lock users into a
+  // stale build. We only cache static images + non-auth API GETs.
+  buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [
+    {
+      urlPattern: /\/api\/v1\/auth\/.*/i,
+      handler: 'NetworkOnly',
+      options: { cacheName: 'auth-no-cache' },
+    },
+    {
+      urlPattern: ({ request, url }: { request: Request; url: URL }) =>
+        request.mode === 'navigate' &&
+        (url.pathname === '/login' || url.pathname.startsWith('/onboarding')),
+      handler: 'NetworkOnly',
+    },
     {
       urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
       handler: 'CacheFirst',
@@ -32,6 +48,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@agahiram/shared', '@agahiram/ui'],
   images: {
+    unoptimized: true,
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
       { protocol: 'http', hostname: 'localhost' },

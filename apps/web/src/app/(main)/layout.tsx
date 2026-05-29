@@ -9,7 +9,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
       style={{ paddingBottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
     >
       <TopBar />
-      <main id="main" className="mx-auto max-w-2xl">
+      <main
+        id="main"
+        className="mx-auto max-w-2xl"
+        style={{
+          minHeight: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
+        }}
+      >
         <PageTransition>{children}</PageTransition>
       </main>
       <BottomNav />

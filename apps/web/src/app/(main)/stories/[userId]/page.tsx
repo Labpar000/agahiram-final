@@ -81,9 +81,9 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
       role="dialog"
       aria-label={`استوری ${group.user.username}`}
     >
-      <div className="relative aspect-[9/16] w-full max-w-md bg-neutral-900">
+      <div className="relative h-full max-h-svh w-full max-w-md bg-neutral-900 sm:aspect-[9/16] sm:h-auto sm:overflow-hidden sm:rounded-3xl">
         {/* Progress bars */}
-        <div className="absolute inset-x-2 top-2 z-10 flex gap-1">
+        <div className="absolute inset-x-2 top-[calc(var(--safe-top)+0.5rem)] z-10 flex gap-1">
           {stories.map((_, i) => (
             <div key={i} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
               <div
@@ -98,10 +98,10 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
         </div>
 
         {/* Header */}
-        <div className="absolute inset-x-3 top-5 z-10 mt-2 flex items-center justify-between">
+        <div className="absolute inset-x-3 top-[calc(var(--safe-top)+1.5rem)] z-10 flex items-center justify-between">
           <Link
             href={`/profile/${group.user.username}`}
-            className="flex items-center gap-2 text-white tap-none"
+            className="flex min-w-0 items-center gap-2 rounded-full text-white tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <Avatar size="sm" className="ring-2 ring-white/40">
               {group.user.avatar ? <AvatarImage src={group.user.avatar} alt="" /> : null}
@@ -109,13 +109,15 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                 {(group.user.username ?? '?').slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            <span className="text-sm font-semibold drop-shadow-md">{group.user.username}</span>
+            <span className="truncate text-sm font-semibold drop-shadow-md">
+              {group.user.username}
+            </span>
           </Link>
           <button
             type="button"
             aria-label="بستن"
             onClick={() => router.back()}
-            className="grid size-9 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm tap-none"
+            className="grid size-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <X className="size-5" aria-hidden />
           </button>
@@ -144,7 +146,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
         {current.linkedPostId ? (
           <Link
             href={`/post/${current.linkedPostId}`}
-            className="absolute inset-x-0 bottom-6 z-10 mx-auto inline-flex w-fit items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur-md tap-none hover:scale-[1.03]"
+            className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+1.5rem)] z-10 mx-auto inline-flex min-h-10 w-fit items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur-md tap-none transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <ExternalLink className="size-4" aria-hidden /> مشاهده آگهی
           </Link>

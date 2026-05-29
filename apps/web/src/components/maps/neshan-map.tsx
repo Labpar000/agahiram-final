@@ -6,7 +6,6 @@ import { cn } from '@agahiram/shared';
 import {
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
-  NESHAN_MAP_KEY,
   NESHAN_STYLES,
   type NeshanStyleKey,
   transformRequest,
@@ -76,11 +75,6 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
   useEffect(() => {
     let cancelled = false;
     let map: maplibregl.Map | null = null;
-
-    if (!NESHAN_MAP_KEY) {
-      setError('کلید نقشه Neshan تنظیم نشده است.');
-      return;
-    }
 
     /* MapLibre touches `window`/`document` at import time, so we import it
      * dynamically. This also lets us tree-shake the library out of any SSR
@@ -163,6 +157,16 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
       )}
     >
       <div ref={containerRef} className="absolute inset-0" aria-label="نقشه" role="application" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-45"
+        style={{
+          backgroundImage:
+            'linear-gradient(30deg, transparent 47%, rgba(225,29,138,.18) 48%, rgba(225,29,138,.18) 52%, transparent 53%), linear-gradient(130deg, transparent 46%, rgba(59,130,246,.16) 47%, rgba(59,130,246,.16) 51%, transparent 52%), linear-gradient(0deg, rgba(148,163,184,.16) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.16) 1px, transparent 1px)',
+          backgroundSize: '180px 180px, 220px 220px, 42px 42px, 42px 42px',
+          backgroundPosition: '15px 20px, 80px 30px, 0 0, 0 0',
+        }}
+      />
       {error ? (
         <div className="absolute inset-0 grid place-items-center bg-background/80 backdrop-blur-sm">
           <div className="max-w-[80%] rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">

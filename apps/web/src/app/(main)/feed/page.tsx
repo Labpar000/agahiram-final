@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Compass } from 'lucide-react';
+import { Newspaper } from 'lucide-react';
 import Link from 'next/link';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
@@ -45,7 +45,7 @@ export default function FeedPage() {
   const posts = data?.pages.flatMap((p) => p.data) ?? [];
 
   return (
-    <div>
+    <div className="bg-background">
       <StoryBar />
 
       {isLoading ? (
@@ -54,9 +54,10 @@ export default function FeedPage() {
         <ErrorState onRetry={() => void refetch()} />
       ) : posts.length === 0 ? (
         <EmptyState
-          icon={<Compass className="size-6" aria-hidden />}
+          icon={<Newspaper aria-hidden />}
           title="فعلاً پستی نیست"
           description="با دنبال‌کردن کاربران، پست‌های آن‌ها در این صفحه نمایش داده می‌شود."
+          className="min-h-[calc(100svh-var(--header-height)-var(--bottom-nav)-var(--safe-bottom)-5rem)]"
           action={
             <Button asChild variant="brand" size="md">
               <Link href="/explore">گردش در آگهی‌ها</Link>
@@ -64,13 +65,13 @@ export default function FeedPage() {
           }
         />
       ) : (
-        <div className="pt-1">
+        <div className="pt-1 sm:px-3 sm:pb-3">
           {posts.map((p) => (
             <PostCard key={p.id} post={p as never} />
           ))}
           <div
             ref={loaderRef}
-            className="flex h-16 items-center justify-center text-sm text-muted-foreground"
+            className="flex h-20 items-center justify-center px-4 text-center text-sm text-muted-foreground"
             aria-live="polite"
           >
             {isFetchingNextPage ? (
@@ -93,7 +94,7 @@ function FeedSkeleton() {
       {[0, 1].map((i) => (
         <article
           key={i}
-          className="mb-3 border-b border-border bg-surface sm:my-3 sm:rounded-2xl sm:border sm:shadow-card"
+          className="border-b border-border bg-surface sm:my-3 sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card"
         >
           <header className="flex items-center gap-3 p-3">
             <Skeleton className="size-10 rounded-full" />

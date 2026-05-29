@@ -9,7 +9,7 @@ const buttonVariants = cva(
     'group/btn relative inline-flex items-center justify-center gap-2 whitespace-nowrap select-none tap-none',
     'font-medium leading-none transition-[background,color,box-shadow,transform] duration-[var(--duration-fast)]',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-    'disabled:pointer-events-none disabled:opacity-50',
+    'disabled:pointer-events-none disabled:opacity-55',
     'active:scale-[0.98]',
   ].join(' '),
   {
@@ -18,8 +18,8 @@ const buttonVariants = cva(
         primary:
           'bg-primary text-primary-foreground shadow-sm hover:brightness-110 active:brightness-95',
         brand: 'gradient-brand text-white shadow-sm hover:brightness-110 active:brightness-95',
-        secondary: 'bg-secondary text-secondary-foreground hover:bg-muted',
-        outline: 'border border-border bg-surface text-foreground hover:bg-muted',
+        secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-muted',
+        outline: 'border border-border bg-surface text-foreground shadow-xs hover:bg-muted',
         ghost: 'bg-transparent text-foreground hover:bg-muted',
         destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',
         link: 'text-primary underline-offset-4 hover:underline px-0 h-auto',

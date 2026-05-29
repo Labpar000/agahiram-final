@@ -114,15 +114,15 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[92svh]">
-        <DrawerHeader className="flex items-center justify-between gap-3 border-b border-border">
+      <DrawerContent className="max-h-[92svh] overflow-hidden">
+        <DrawerHeader className="flex items-center justify-between gap-3 border-b border-border bg-surface/95 backdrop-blur">
           <DrawerTitle className="inline-flex items-center gap-2">
             {step !== 'main' ? (
               <button
                 type="button"
                 onClick={() => setStep('main')}
                 aria-label="بازگشت"
-                className="-ms-2 grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none"
+                className="-ms-2 grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <ArrowRight className="size-5 rtl:scale-x-[-1]" aria-hidden />
               </button>
@@ -140,7 +140,7 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
             type="button"
             onClick={() => onOpenChange(false)}
             aria-label="بستن"
-            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none"
+            className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <X className="size-5" aria-hidden />
           </button>
@@ -216,7 +216,7 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
         </DrawerBody>
 
         {step === 'main' ? (
-          <DrawerFooter className="border-t border-border">
+          <DrawerFooter className="border-t border-border bg-surface/95 backdrop-blur">
             <div className="flex gap-2">
               <Button variant="outline" size="lg" fullWidth onClick={handleClear}>
                 پاک کردن همه
@@ -291,6 +291,7 @@ function MainStep({
           <Label>بازه قیمت (تومان)</Label>
           <div className="grid grid-cols-2 gap-2.5">
             <Input
+              aria-label="حداقل قیمت"
               type="number"
               inputMode="numeric"
               value={local.minPrice ?? ''}
@@ -303,6 +304,7 @@ function MainStep({
               placeholder="حداقل"
             />
             <Input
+              aria-label="حداکثر قیمت"
               type="number"
               inputMode="numeric"
               value={local.maxPrice ?? ''}
@@ -776,10 +778,10 @@ function PickerRow({
           type="button"
           onClick={onClick}
           className={cn(
-            'flex flex-1 items-center justify-between gap-2 rounded-xl border bg-surface px-3.5 py-3 text-start text-sm transition-colors tap-none',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            'flex flex-1 items-center justify-between gap-2 rounded-xl border bg-surface px-3.5 py-3 text-start text-sm shadow-xs transition-[background-color,border-color,box-shadow] tap-none',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
             isActive
-              ? 'border-primary text-foreground'
+              ? 'border-primary bg-accent/50 text-foreground'
               : 'border-input text-muted-foreground hover:bg-muted',
           )}
         >
@@ -799,7 +801,7 @@ function PickerRow({
             type="button"
             onClick={onClear}
             aria-label={`حذف ${label}`}
-            className="grid w-11 place-items-center rounded-xl border border-input text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive tap-none"
+            className="grid w-11 place-items-center rounded-xl border border-input text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             <X className="size-4" aria-hidden />
           </button>
@@ -823,8 +825,8 @@ function ToggleChip({
       type="button"
       onClick={onClick}
       className={cn(
-        'h-11 rounded-xl border px-3 text-sm font-medium transition-colors tap-none',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        'h-11 rounded-xl border px-3 text-sm font-medium shadow-xs transition-[background-color,border-color,color] tap-none',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
         active
           ? 'border-primary bg-accent text-accent-foreground'
           : 'border-input text-foreground hover:bg-muted',
@@ -850,7 +852,7 @@ function PriceChips({ onPick }: { onPick: (min?: number, max?: number) => void }
           key={c.l}
           type="button"
           onClick={() => onPick(c.min, c.max)}
-          className="rounded-full border border-input px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground tap-none"
+          className="rounded-full border border-input px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           {c.l}
         </button>
@@ -876,7 +878,7 @@ function ProvinceRow({
         type="button"
         onClick={onWholeProvince}
         className={cn(
-          'flex-1 rounded-xl px-3 py-3 text-start text-sm font-medium transition-colors hover:bg-muted tap-none',
+          'flex-1 rounded-xl px-3 py-3 text-start text-sm font-medium transition-colors hover:bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isCurrent && 'bg-accent text-accent-foreground',
         )}
       >
@@ -889,7 +891,7 @@ function ProvinceRow({
         type="button"
         onClick={onOpen}
         aria-label={`مشاهده شهرهای ${province.name}`}
-        className="grid w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none"
+        className="grid w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronLeft className="size-4 rtl:scale-x-[-1]" aria-hidden />
       </button>

@@ -17,10 +17,19 @@ export const NESHAN_MAP_KEY = process.env.NEXT_PUBLIC_NESHAN_MAP_KEY ?? '';
 export const NESHAN_API_BASE = 'https://api.neshan.org';
 
 export const NESHAN_STYLES = {
-  /** Daytime road-map style, the default used by most ride-hailing apps. */
-  standardDay: `${NESHAN_API_BASE}/v4/styles/standard-day/style.json`,
-  /** Night/dark style. */
-  standardNight: `${NESHAN_API_BASE}/v4/styles/standard-night/style.json`,
+  standardDay: buildRasterStyle([
+    'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+    'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  ]),
+  standardNight: buildRasterStyle([
+    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+  ]),
 } as const;
 
 export type NeshanStyleKey = keyof typeof NESHAN_STYLES;
@@ -142,12 +151,34 @@ export function neshanStaticUrl(opts: {
   const { lat, lng, zoom = 14, width = 600, height = 300, marker = true } = opts;
   const params = new URLSearchParams({
     key: NESHAN_MAP_KEY,
-    type: 'neshan',
+    style: 'light',
     zoom: String(zoom),
-    center: `${lat},${lng}`,
+    latitude: String(lat),
+    longitude: String(lng),
     width: String(width),
     height: String(height),
   });
-  if (marker) params.set('marker', `color:red|${lat},${lng}`);
-  return `${NESHAN_API_BASE}/v1/static?${params.toString()}`;
+  if (marker) params.set('marker', 'red');
+  return `${NESHAN_API_BASE}/v5/static?${params.toString()}`;
+}
+
+function buildRasterStyle(tileUrls: string[]): maplibregl.StyleSpecification {
+  return {
+    version: 8,
+    sources: {
+      osm: {
+        type: 'raster',
+        tiles: tileUrls,
+        tileSize: 256,
+        attribution: '© OpenStreetMap contributors',
+      },
+    },
+    layers: [
+      {
+        id: 'osm',
+        type: 'raster',
+        source: 'osm',
+      },
+    ],
+  };
 }

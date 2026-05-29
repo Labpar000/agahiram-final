@@ -52,6 +52,26 @@ export class PostsController {
   }
 
   @Public()
+  @Get('user/:username/reels')
+  userReels(
+    @Param('username') username: string,
+    @Query('cursor') cursor?: string,
+    @CurrentUser('sub') viewerId?: string,
+  ) {
+    return this.postsService.getUserReels(username, viewerId, cursor);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('user/:username/saved')
+  userSaved(
+    @CurrentUser('sub') userId: string,
+    @Param('username') username: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.postsService.getUserSaved(username, userId, cursor);
+  }
+
+  @Public()
   @Get('user/:username')
   userPosts(
     @Param('username') username: string,

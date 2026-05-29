@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import type { UserProfile } from '@agahiram/shared';
+import { isAdminPhone, type UserProfile } from '@agahiram/shared';
 import { Spinner, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useAdminSocket } from '@/lib/use-admin-socket';
@@ -36,7 +36,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<UserProfile | null>(null);
   const [isLoading, setLoading] = useState(true);
 
-  const isPublic = pathname === '/login' || pathname.startsWith('/login/');
+  const isPublic =
+    pathname === '/login' ||
+    pathname.startsWith('/login/') ||
+    pathname === '/admin/login' ||
+    pathname.startsWith('/admin/login/');
 
   const refetch = async () => {
     setLoading(true);
@@ -44,7 +48,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
     if (r.success && r.data) {
       const role = r.data.role as string;
-      if (role !== 'admin' && role !== 'moderator') {
+      const isElevated = role === 'admin' || role === 'moderator';
+      if (!isElevated || !isAdminPhone(r.data.phone)) {
         toast.error('این حساب اجازه‌ی ورود به پنل ادمین را ندارد.');
         await apiClient.post('/auth/logout');
         router.replace('/login');

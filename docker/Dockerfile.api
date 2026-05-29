@@ -30,7 +30,11 @@ RUN pnpm config set store-dir /pnpm-store \
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY package.json pnpm-workspace.yaml turbo.json ./
+COPY apps/api ./apps/api
+COPY packages/config ./packages/config
+COPY packages/shared ./packages/shared
+COPY packages/database ./packages/database
 RUN pnpm --filter @agahiram/database generate
 RUN pnpm --filter @agahiram/shared build
 RUN pnpm --filter @agahiram/database build

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Film, Loader2 } from 'lucide-react';
+import { Clapperboard, Loader2 } from 'lucide-react';
 import type { PaginatedResponse, ReelItem } from '@agahiram/shared';
 import { EmptyState } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -48,7 +48,7 @@ export default function ReelsPage() {
 
   return (
     <div
-      className="-mx-0 bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll"
+      className="bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll"
       style={{
         height: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
       }}
@@ -60,10 +60,10 @@ export default function ReelsPage() {
       ) : reels.length === 0 ? (
         <div className="grid h-full place-items-center text-white">
           <EmptyState
-            icon={<Film className="size-7" aria-hidden />}
+            icon={<Clapperboard aria-hidden />}
             title="فعلاً ریلی نیست"
             description="به‌زودی ویدیوهای تازه را اینجا می‌بینید."
-            className="text-white [&_*]:text-white"
+            className="text-white [&_[data-empty-copy]_*]:text-white [&_[data-empty-visual]]:border-white/10 [&_[data-empty-visual]]:from-white/10 [&_[data-empty-visual]]:via-white/5 [&_[data-empty-visual]]:to-white/10 [&_[data-empty-visual]>span]:bg-white/10 [&_[data-empty-visual]>span]:text-white [&_[data-empty-visual]>span]:ring-white/10"
           />
         </div>
       ) : (

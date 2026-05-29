@@ -33,8 +33,8 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
   });
 
   return (
-    <div>
-      <div className="sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border bg-background/90 px-3 py-2 backdrop-blur-md">
+    <div className="bg-background">
+      <div className="sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-md">
         <IconButton
           aria-label="بازگشت"
           icon={<ArrowRight className="size-5 rtl:rotate-180" aria-hidden />}
@@ -61,16 +61,16 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           <PostCard post={data as never} initialLiked={data.isLiked} initialSaved={data.isSaved} />
 
           {data.attributes && data.attributes.length > 0 ? (
-            <section className="border-b border-border bg-surface px-4 py-4">
+            <section className="border-b border-border bg-surface px-4 py-5 sm:my-3 sm:rounded-2xl sm:border sm:shadow-card">
               <h3 className="mb-3 text-sm font-semibold">مشخصات</h3>
-              <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
+              <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
                 {data.attributes.map((a) => (
                   <div
                     key={a.key}
-                    className="flex items-baseline justify-between gap-2 border-b border-border/60 py-2 last:border-0"
+                    className="flex items-baseline justify-between gap-3 rounded-xl bg-muted/60 px-3 py-2.5"
                   >
                     <dt className="text-muted-foreground">{a.label}</dt>
-                    <dd className="font-medium text-foreground">{a.value}</dd>
+                    <dd className="min-w-0 text-start font-medium text-foreground">{a.value}</dd>
                   </div>
                 ))}
               </dl>
@@ -78,7 +78,7 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
           ) : null}
 
           {typeof data.lat === 'number' && typeof data.lng === 'number' ? (
-            <section className="border-b border-border bg-surface px-4 py-4">
+            <section className="border-b border-border bg-surface px-4 py-5 sm:my-3 sm:rounded-2xl sm:border sm:shadow-card">
               <LocationView
                 lat={data.lat}
                 lng={data.lng}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, AtSign, Check, UserRound } from 'lucide-react';
 import { formatPersianNumber } from '@agahiram/shared';
@@ -9,10 +9,16 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { completeProfile } = useAuth();
+  const { user, isLoading, completeProfile } = useAuth();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
+
+  useEffect(() => {
+    if (!isLoading && user?.username) {
+      router.replace(`/profile/${user.username}`);
+    }
+  }, [user, isLoading, router]);
 
   const usernameValid = /^[a-z0-9_.]{3,20}$/.test(username);
   const nameValid = name.trim().length >= 2;
@@ -39,7 +45,9 @@ export default function OnboardingPage() {
       <CardContent className="!p-7 sm:!p-8 space-y-6">
         <div>
           <h1 className="text-h2 font-extrabold tracking-tight">تکمیل پروفایل</h1>
-          <p className="mt-1 text-sm text-muted-foreground">برای شروع، اطلاعات زیر را پر کنید.</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+            برای شروع، اطلاعات زیر را پر کنید.
+          </p>
         </div>
 
         <form onSubmit={submit} className="space-y-5" noValidate>
@@ -89,7 +97,7 @@ export default function OnboardingPage() {
               invalid={username.length >= 3 && !usernameValid}
               required
             />
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
               ۳ تا ۲۰ کاراکتر — فقط حروف انگلیسی، اعداد، نقطه و زیرخط.
             </p>
           </div>

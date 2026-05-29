@@ -10,7 +10,8 @@ import { apiClient } from '@/lib/api';
 function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get('next') ?? '/';
+  const rawNext = search.get('next') ?? '/';
+  const next = rawNext.startsWith('/admin') ? rawNext.slice('/admin'.length) || '/' : rawNext;
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');

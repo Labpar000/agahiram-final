@@ -22,7 +22,7 @@ export default function PaymentCallbackPage() {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative grid min-h-svh place-items-center bg-background p-6">
+    <div className="relative grid min-h-svh place-items-center bg-background px-4 py-8 sm:p-6">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -end-32 -top-32 size-[28rem] rounded-full bg-[var(--brand-300)] opacity-20 blur-3xl" />
       </div>
@@ -59,6 +59,10 @@ function Inner() {
           setStatus('failed');
           setMessage(r.data?.message ?? r.error ?? 'پرداخت ناموفق');
         }
+      })
+      .catch(() => {
+        setStatus('failed');
+        setMessage('ارتباط با سرویس پرداخت برقرار نشد');
       });
   }, [params]);
 
@@ -72,7 +76,9 @@ function Inner() {
                 <Spinner size="xl" />
               </div>
               <h1 className="text-h3 font-bold">در حال بررسی پرداخت…</h1>
-              <p className="text-sm text-muted-foreground">لطفاً چند لحظه صبر کنید.</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                لطفاً چند لحظه صبر کنید.
+              </p>
             </>
           )}
           {status === 'success' && (
@@ -82,7 +88,10 @@ function Inner() {
               </div>
               <h1 className="text-h3 font-bold text-success">پرداخت موفق</h1>
               {refId ? (
-                <p className="text-sm text-muted-foreground" dir="ltr">
+                <p
+                  className="rounded-xl bg-muted px-3 py-2 text-sm text-muted-foreground"
+                  dir="ltr"
+                >
                   کد پیگیری: <span className="font-mono">{refId}</span>
                 </p>
               ) : null}
@@ -97,7 +106,7 @@ function Inner() {
                 <X className="size-8" strokeWidth={3} aria-hidden />
               </div>
               <h1 className="text-h3 font-bold text-destructive">پرداخت ناموفق</h1>
-              <p className="text-sm text-muted-foreground">{message}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">{message}</p>
               <div className="flex gap-2">
                 <Button variant="outline" size="lg" fullWidth onClick={() => router.back()}>
                   تلاش مجدد

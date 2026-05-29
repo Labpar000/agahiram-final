@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageSquare, Send } from 'lucide-react';
-import { formatRelativeTimeFa } from '@agahiram/shared';
+import { formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import { Avatar, AvatarFallback, AvatarImage, EmptyState, Skeleton, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 
@@ -43,11 +43,19 @@ export function CommentSection({ postId }: { postId: string }) {
   });
 
   return (
-    <section className="border-b border-border bg-surface" aria-label="نظرات">
+    <section
+      className="border-b border-border bg-surface sm:my-3 sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card"
+      aria-label="نظرات"
+    >
       <div className="space-y-4 p-4">
-        <h3 className="text-base font-semibold leading-tight">
-          نظرات {data?.length ? `(${data.length})` : ''}
-        </h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-semibold leading-tight">نظرات</h3>
+          {data?.length ? (
+            <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+              {formatPersianNumber(data.length)} نظر
+            </span>
+          ) : null}
+        </div>
 
         {isLoading ? (
           <div className="space-y-3">
@@ -79,7 +87,7 @@ export function CommentSection({ postId }: { postId: string }) {
           />
         ) : (
           (data ?? []).map((c) => (
-            <article key={c.id} className="flex gap-3">
+            <article key={c.id} className="flex gap-3 rounded-2xl py-1">
               <Avatar size="sm" className="shrink-0">
                 {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
                 <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
@@ -121,13 +129,13 @@ export function CommentSection({ postId }: { postId: string }) {
           onChange={(e) => setText(e.target.value)}
           placeholder="نظر خود را بنویسید…"
           aria-label="نوشتن نظر"
-          className="h-11 flex-1 rounded-full bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-11 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
         />
         <button
           type="submit"
           aria-label="ارسال نظر"
           disabled={!text.trim() || send.isPending}
-          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground transition disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <Send className="size-5 swap-x" aria-hidden />
         </button>

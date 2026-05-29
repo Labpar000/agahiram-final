@@ -45,17 +45,21 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
 
   return (
     <section className={cn('space-y-3', className)}>
-      <h3 className="flex items-center gap-2 text-sm font-semibold">
-        <MapPin className="size-4 text-primary" aria-hidden />
-        موقعیت آگهی
-      </h3>
-      {address ? <p className="text-sm text-muted-foreground">{address}</p> : null}
+      <div className="space-y-1">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <MapPin className="size-4 text-primary" aria-hidden />
+          موقعیت آگهی
+        </h3>
+        {address ? (
+          <p className="text-sm leading-relaxed text-muted-foreground">{address}</p>
+        ) : null}
+      </div>
 
       <NeshanMap
         ref={mapRef}
         center={[lng, lat]}
         zoom={zoom}
-        className="aspect-[16/9] h-[260px] w-full"
+        className="aspect-[16/9] h-[260px] w-full overflow-hidden rounded-2xl border border-border"
         onReady={handleReady}
       />
 
@@ -64,7 +68,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
           href={directionsUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-90"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <Navigation className="size-4" aria-hidden />
           مسیریابی
@@ -73,7 +77,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
           href={neshanUrl}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <ExternalLink className="size-4" aria-hidden />
           باز کردن در نشان

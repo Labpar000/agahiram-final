@@ -5,15 +5,33 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function MyProfilePage() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refetch } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading) {
-      if (user?.username) router.replace(`/profile/${user.username}`);
-      else router.replace('/login');
+    if (isLoading) return;
+
+    if (user?.username) {
+      router.replace(`/profile/${user.username}`);
+      return;
     }
-  }, [user, isLoading, router]);
+
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+
+    let cancelled = false;
+    void refetch().then(({ data }) => {
+      if (cancelled) return;
+      if (data?.username) router.replace(`/profile/${data.username}`);
+      else router.replace('/onboarding');
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isLoading, router, refetch]);
 
   return <div className="p-8 text-center text-muted-foreground">در حال انتقال…</div>;
 }

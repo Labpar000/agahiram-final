@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Bell, Languages, LogOut, Palette, Shield, Sparkles, User, Wallet } from 'lucide-react';
-import { formatPersianPrice } from '@agahiram/shared';
+import { formatPersianPrice, PaymentPurpose } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -26,10 +26,8 @@ export default function SettingsPage() {
   const { user, logout } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
-  const [notifLikes, setNotifLikes] = useState(true);
-  const [notifComments, setNotifComments] = useState(true);
-  const [notifFollows, setNotifFollows] = useState(true);
-  const [privateAccount, setPrivateAccount] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [topupAmount, setTopupAmount] = useState('100000');
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],
@@ -46,9 +44,40 @@ export default function SettingsPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const topup = useMutation({
+    mutationFn: async () => {
+      const amount = Number(topupAmount.replace(/\D/g, ''));
+      if (!amount || amount < 10000) throw new Error('حداقل مبلغ شارژ ۱۰٬۰۰۰ تومان است');
+      const r = await apiClient.post<{ paymentUrl: string }>('/payments/initiate', {
+        purpose: PaymentPurpose.WALLET_TOPUP,
+        amount,
+      });
+      if (!r.success || !r.data?.paymentUrl) throw new Error(r.error ?? 'خطا در شروع پرداخت');
+      window.location.href = r.data.paymentUrl;
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const { data: history, isLoading: historyLoading } = useQuery({
+    queryKey: ['payment-history'],
+    queryFn: async () =>
+      (
+        await apiClient.get<
+          Array<{
+            id: string;
+            amount: string | number | bigint;
+            purpose: string;
+            status: string;
+            createdAt: string;
+          }>
+        >('/payments/history')
+      ).data ?? [],
+    enabled: showHistory,
+  });
+
   return (
     <div className="bg-background pb-12">
-      <div className="border-b border-border px-4 py-4">
+      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-md">
         <h1 className="text-h2 font-bold tracking-tight">تنظیمات</h1>
       </div>
 
@@ -60,7 +89,7 @@ export default function SettingsPage() {
                 {user?.avatar ? <AvatarImage src={user.avatar} alt="" /> : null}
                 <AvatarFallback>{(user?.username ?? '?').slice(0, 2)}</AvatarFallback>
               </Avatar>
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="truncate text-base font-semibold">
                   {user?.name ?? user?.username ?? 'مهمان'}
                 </p>
@@ -95,18 +124,62 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="کیف پول" icon={<Wallet className="size-5" aria-hidden />}>
-          <div className="overflow-hidden rounded-2xl border border-border bg-surface p-5">
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface-muted p-5">
             <p className="text-xs text-muted-foreground">موجودی</p>
             <p className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight gradient-text-brand">
               {formatPersianPrice(wallet?.balance ?? 0)}
             </p>
-            <div className="mt-4 flex gap-2">
-              <Button variant="primary" size="sm">
-                شارژ حساب
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex gap-2">
+                <Input
+                  inputMode="numeric"
+                  value={topupAmount}
+                  onChange={(e) => setTopupAmount(e.target.value)}
+                  placeholder="مبلغ (تومان)"
+                  aria-label="مبلغ شارژ"
+                  className="flex-1"
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => topup.mutate()}
+                  isLoading={topup.isPending}
+                >
+                  شارژ حساب
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => setShowHistory((v) => !v)}
+              >
+                {showHistory ? 'بستن تاریخچه' : 'تاریخچه'}
               </Button>
-              <Button variant="outline" size="sm">
-                تاریخچه
-              </Button>
+              {showHistory ? (
+                <div className="space-y-2 rounded-xl border border-border bg-surface p-3">
+                  {historyLoading ? (
+                    <p className="text-xs text-muted-foreground">در حال بارگذاری…</p>
+                  ) : (history ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">تراکنشی ثبت نشده است.</p>
+                  ) : (
+                    (history ?? []).map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="text-muted-foreground">
+                          {new Date(item.createdAt).toLocaleDateString('fa-IR')}
+                        </span>
+                        <span className="font-medium">
+                          {formatPersianPrice(Number(item.amount))}
+                        </span>
+                        <span className="text-muted-foreground">{item.status}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : null}
             </div>
           </div>
         </Section>
@@ -118,36 +191,21 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="اعلان‌ها" icon={<Bell className="size-5" aria-hidden />}>
+          <p className="text-xs text-muted-foreground">تنظیمات اعلان به‌زودی فعال می‌شود.</p>
           <Row label="پسندها">
-            <Switch
-              checked={notifLikes}
-              onCheckedChange={setNotifLikes}
-              aria-label="اعلان پسندها"
-            />
+            <Switch checked disabled aria-label="اعلان پسندها" />
           </Row>
           <Row label="نظرات">
-            <Switch
-              checked={notifComments}
-              onCheckedChange={setNotifComments}
-              aria-label="اعلان نظرات"
-            />
+            <Switch checked disabled aria-label="اعلان نظرات" />
           </Row>
           <Row label="دنبال‌کردن جدید">
-            <Switch
-              checked={notifFollows}
-              onCheckedChange={setNotifFollows}
-              aria-label="اعلان دنبال‌کردن"
-            />
+            <Switch checked disabled aria-label="اعلان دنبال‌کردن" />
           </Row>
         </Section>
 
         <Section title="حریم خصوصی" icon={<Shield className="size-5" aria-hidden />}>
           <Row label="حساب خصوصی" description="فقط دنبال‌کنندگان می‌توانند پست‌ها را ببینند">
-            <Switch
-              checked={privateAccount}
-              onCheckedChange={setPrivateAccount}
-              aria-label="حساب خصوصی"
-            />
+            <Switch checked={false} disabled aria-label="حساب خصوصی" />
           </Row>
         </Section>
 
@@ -209,14 +267,16 @@ function Row({
 }) {
   return (
     <>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex min-h-11 items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 text-sm font-medium">
             {icon ? <span aria-hidden>{icon}</span> : null}
             {label}
           </div>
           {description ? (
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{description}</p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
+              {description}
+            </p>
           ) : null}
         </div>
         <div className="shrink-0">{children}</div>

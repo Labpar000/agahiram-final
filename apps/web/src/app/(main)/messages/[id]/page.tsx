@@ -11,6 +11,7 @@ import {
   EmptyState,
   IconButton,
   Skeleton,
+  toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { ChatMessage } from '@/components/chat-message';
@@ -99,6 +100,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     });
     if (r.success && r.data) {
       setMessages((m) => m.map((x) => (x.id === tempId ? r.data!.message : x)));
+    } else {
+      setMessages((m) => m.filter((x) => x.id !== tempId));
+      setText(tmp);
+      toast.error(r.error ?? 'ارسال پیام ناموفق بود');
     }
   };
 
@@ -109,7 +114,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         height: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
       }}
     >
-      <div className="flex items-center gap-3 border-b border-border bg-surface/95 px-3 py-2 backdrop-blur-md">
+      <div className="flex items-center gap-3 border-b border-border bg-surface/95 px-3 py-2 shadow-xs backdrop-blur-md">
         <IconButton
           aria-label="بازگشت"
           icon={<ArrowRight className="size-5 rtl:rotate-180" aria-hidden />}
@@ -120,20 +125,20 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         {head?.otherUser ? (
           <Link
             href={`/profile/${head.otherUser.username}`}
-            className="flex items-center gap-2 tap-none"
+            className="flex min-w-0 items-center gap-2 rounded-full tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <Avatar size="sm" verified={head.otherUser.isVerified}>
               {head.otherUser.avatar ? <AvatarImage src={head.otherUser.avatar} alt="" /> : null}
               <AvatarFallback>{(head.otherUser.username ?? '?').slice(0, 2)}</AvatarFallback>
             </Avatar>
-            <span className="text-sm font-semibold">{head.otherUser.username}</span>
+            <span className="truncate text-sm font-semibold">{head.otherUser.username}</span>
           </Link>
         ) : (
           <span className="text-sm font-semibold">گفتگو</span>
         )}
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
         {isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -171,20 +176,20 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           e.preventDefault();
           void send();
         }}
-        className="flex items-center gap-2 border-t border-border bg-surface px-3 py-3"
+        className="flex items-center gap-2 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur-md"
       >
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="پیام بنویسید…"
           aria-label="نوشتن پیام"
-          className="h-11 flex-1 rounded-full bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-11 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
         />
         <button
           type="submit"
           aria-label="ارسال"
           disabled={!text.trim()}
-          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground transition disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <Send className="size-5 swap-x" aria-hidden />
         </button>

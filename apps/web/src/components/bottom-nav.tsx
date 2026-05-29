@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Compass, Film, Home, MessageCircle, PlusSquare, User } from 'lucide-react';
 import { cn, formatPersianNumber } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 
 const items = [
   { href: '/feed', icon: Home, label: 'خانه' },
@@ -24,6 +25,7 @@ const items = [
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const { data: msgUnread = 0 } = useQuery({
     queryKey: ['messages', 'unread'],
@@ -31,12 +33,13 @@ export function BottomNav() {
       const r = await apiClient.get<{ count: number }>('/messages/unread-count');
       return r.data?.count ?? 0;
     },
+    enabled: isAuthenticated,
     refetchInterval: 30_000,
   });
 
   return (
     <nav aria-label="ناوبری اصلی" className="fixed inset-x-0 bottom-0 z-40 glass border-t pb-safe">
-      <ul className="mx-auto grid h-bottom-nav max-w-2xl grid-cols-6 items-stretch">
+      <ul className="mx-auto grid h-bottom-nav max-w-2xl grid-cols-6 items-stretch px-1">
         {items.map(({ href, icon: Icon, label, ...rest }) => {
           const active =
             href === '/feed'
@@ -50,9 +53,9 @@ export function BottomNav() {
                 aria-current={active ? 'page' : undefined}
                 aria-label={label}
                 className={cn(
-                  'group relative flex flex-col items-center justify-center gap-1 px-1 pt-2 pb-2 tap-none',
+                  'group relative flex flex-col items-center justify-center gap-1 rounded-2xl px-1 pt-2 pb-2 tap-none',
                   'min-h-11 text-[10px] font-medium leading-none',
-                  'transition-colors duration-[var(--duration-fast)]',
+                  'transition-[background-color,color,transform] duration-[var(--duration-fast)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                   active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -60,7 +63,7 @@ export function BottomNav() {
                   <motion.span
                     layoutId="bottom-nav-pill"
                     aria-hidden
-                    className="absolute inset-x-3 top-1 h-1 rounded-full bg-foreground"
+                    className="absolute inset-x-4 top-1 h-1 rounded-full bg-foreground"
                     transition={{ type: 'spring', stiffness: 480, damping: 36 }}
                   />
                 ) : null}
@@ -69,7 +72,7 @@ export function BottomNav() {
                   {badge > 0 ? (
                     <span
                       aria-label={`${formatPersianNumber(badge)} مورد جدید`}
-                      className="absolute -end-1.5 -top-1 grid min-w-4 h-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground ring-2 ring-surface"
+                      className="absolute -end-1.5 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground ring-2 ring-surface"
                     >
                       {badge > 9 ? '۹+' : formatPersianNumber(badge)}
                     </span>

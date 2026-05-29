@@ -69,14 +69,13 @@ export class AuthController {
   }
 
   private setAuthCookies(res: FastifyReply, accessToken: string, refreshToken: string) {
-    const isProd = process.env.NODE_ENV === 'production';
     /* `lax` works for same-site / sub-domain flows; in true cross-origin admin
      * deployments (admin.example.com → api.example.com), set
      * COOKIE_SAMESITE=none + COOKIE_SECURE=true. Secure is required when
      * SameSite=None per RFC 6265bis. */
     const sameSite =
       (process.env.COOKIE_SAMESITE as 'lax' | 'none' | 'strict' | undefined) ?? 'lax';
-    const secure = process.env.COOKIE_SECURE === 'true' || isProd || sameSite === 'none';
+    const secure = process.env.COOKIE_SECURE === 'true' || sameSite === 'none';
 
     res.setCookie('accessToken', accessToken, {
       httpOnly: true,

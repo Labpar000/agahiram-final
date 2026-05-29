@@ -22,12 +22,12 @@ export default function MessagesPage() {
 
   return (
     <div className="bg-background">
-      <div className="border-b border-border px-4 py-4">
+      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-md">
         <h1 className="text-h2 font-bold tracking-tight">پیام‌ها</h1>
       </div>
 
       {isLoading ? (
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-border bg-surface">
           {Array.from({ length: 5 }).map((_, i) => (
             <li key={i} className="flex items-center gap-3 px-4 py-3">
               <Skeleton className="size-12 shrink-0 rounded-full" />
@@ -45,13 +45,13 @@ export default function MessagesPage() {
           description="از پروفایل کاربران، گفتگوی جدیدی شروع کنید."
         />
       ) : (
-        <ul className="divide-y divide-border">
+        <ul className="divide-y divide-border bg-surface">
           {(data ?? []).map((c) => (
             <li key={c.id}>
               <Link
                 href={`/messages/${c.id}`}
                 aria-label={`گفتگو با ${c.otherUser?.username}${c.unreadCount > 0 ? ` (${formatPersianNumber(c.unreadCount)} پیام جدید)` : ''}`}
-                className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none tap-none"
+                className="flex min-h-18 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none tap-none"
               >
                 <Avatar size="lg">
                   {c.otherUser?.avatar ? <AvatarImage src={c.otherUser.avatar} alt="" /> : null}
@@ -61,7 +61,7 @@ export default function MessagesPage() {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-sm font-semibold">{c.otherUser?.username}</span>
                     {c.lastMessage ? (
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                      <span className="shrink-0 text-[11px] text-muted-foreground tabular-nums">
                         {formatRelativeTimeFa(c.lastMessage.createdAt)}
                       </span>
                     ) : null}

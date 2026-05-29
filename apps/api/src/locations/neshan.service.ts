@@ -66,15 +66,28 @@ export class NeshanService {
    */
   async reverse(lat: number, lng: number) {
     const url = `${NESHAN_REVERSE_GEOCODE_URL}?lat=${lat}&lng=${lng}`;
-    return this.fetchJson<{
-      status?: string;
-      formatted_address?: string;
-      neighbourhood?: string | null;
-      city?: string | null;
-      state?: string | null;
-      route_name?: string | null;
-      place?: string | null;
-    }>(url);
+    try {
+      return await this.fetchJson<{
+        status?: string;
+        formatted_address?: string;
+        neighbourhood?: string | null;
+        city?: string | null;
+        state?: string | null;
+        route_name?: string | null;
+        place?: string | null;
+      }>(url);
+    } catch (error) {
+      this.logger.warn(`Reverse geocode fallback for ${lat},${lng}: ${(error as Error).message}`);
+      return {
+        status: 'FALLBACK',
+        formatted_address: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        neighbourhood: null,
+        city: null,
+        state: null,
+        route_name: null,
+        place: null,
+      };
+    }
   }
 
   /**
@@ -103,17 +116,22 @@ export class NeshanService {
       lng: String(lng ?? 51.337),
     });
     const url = `https://api.neshan.org/v1/search?${params.toString()}`;
-    return this.fetchJson<{
-      count?: number;
-      items?: Array<{
-        title: string;
-        address?: string;
-        category?: string;
-        type?: string;
-        region?: string;
-        neighbourhood?: string;
-        location: { x: number; y: number };
-      }>;
-    }>(url);
+    try {
+      return await this.fetchJson<{
+        count?: number;
+        items?: Array<{
+          title: string;
+          address?: string;
+          category?: string;
+          type?: string;
+          region?: string;
+          neighbourhood?: string;
+          location: { x: number; y: number };
+        }>;
+      }>(url);
+    } catch (error) {
+      this.logger.warn(`Place search fallback for "${term}": ${(error as Error).message}`);
+      return { count: 0, items: [] };
+    }
   }
 }

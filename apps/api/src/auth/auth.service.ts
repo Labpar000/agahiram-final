@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import {
+  isAdminPhone,
   OTP_EXPIRY_MINUTES,
   OTP_MAX_ATTEMPTS,
   OTP_RATE_LIMIT,
@@ -98,6 +99,23 @@ export class AuthService {
 
     if (user.isBanned) {
       throw new ForbiddenException('حساب شما مسدود شده است');
+    }
+
+    // Enforce the admin allowlist as the single source of truth: only ADMIN_PHONES
+    // may hold an elevated role. Allowlisted phones are auto-promoted to admin;
+    // any other account that somehow holds an elevated role is demoted to user.
+    const allowlisted = isAdminPhone(user.phone);
+    const isElevated = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
+    if (allowlisted && user.role !== UserRole.ADMIN) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { role: UserRole.ADMIN as never },
+      });
+    } else if (!allowlisted && isElevated) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { role: UserRole.USER as never },
+      });
     }
 
     const tokens = await this.generateTokens({

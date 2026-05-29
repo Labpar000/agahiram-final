@@ -6,10 +6,14 @@ export class ZodValidationPipe<T> implements PipeTransform {
   constructor(private readonly schema: ZodSchema<T>) {}
 
   transform(value: unknown, metadata: ArgumentMetadata): T {
-    /* `@UsePipes()` at method level runs against every decorated param. Skip
-     * non-body params (e.g. `@Param('id')`, `@Query()`, `@Req()`) so a single
-     * pipe declaration only validates the request body. */
-    if (metadata.type && metadata.type !== 'body') {
+    /* `@UsePipes()` at method level runs against every decorated param. Validate
+     * request bodies and whole-query objects, but skip single params/custom
+     * decorators such as `@Param('id')` and `@CurrentUser()`. */
+    if (
+      metadata.type &&
+      metadata.type !== 'body' &&
+      !(metadata.type === 'query' && metadata.data === undefined)
+    ) {
       return value as T;
     }
     try {

@@ -2,7 +2,7 @@ param(
   [string]$RepoName = "agahiram",
   [string]$Description = "Agahiram classified ads platform",
   [string]$DefaultBranch = "main",
-  [string]$SshHost = "37.32.25.153",
+  [string]$SshHost = "37.32.26.32",
   [string]$SshUser = "ubuntu",
   [string]$SshPort = "22",
   [string]$SshKeyPath = ".cache/ssh/agahiram_id_ed25519",

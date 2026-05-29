@@ -24,7 +24,9 @@ interface Props {
 }
 
 interface Payload {
-  fromUser?: { username?: string; avatar?: string | null };
+  fromUser?: { id?: string; username?: string; avatar?: string | null };
+  fromUserId?: string;
+  userId?: string;
   postId?: string;
   postTitle?: string;
   conversationId?: string;
@@ -65,8 +67,10 @@ function buildHref(notif: Notif): string | null {
       return p.fromUser?.username ? `/profile/${p.fromUser.username}` : null;
     case NotificationType.MESSAGE:
       return p.conversationId ? `/messages/${p.conversationId}` : '/messages';
-    case NotificationType.STORY_MENTION:
-      return p.fromUser?.username ? `/stories/${p.fromUser.username}` : null;
+    case NotificationType.STORY_MENTION: {
+      const storyUserId = p.fromUserId ?? p.fromUser?.id ?? p.userId;
+      return storyUserId ? `/stories/${storyUserId}` : null;
+    }
     default:
       return null;
   }
@@ -112,12 +116,12 @@ export function NotificationItem({ notif, onClick }: Props) {
   const body = (
     <div
       className={cn(
-        'group/notif flex items-start gap-3 px-4 py-3 transition-colors tap-none',
+        'group/notif flex min-h-16 items-start gap-3 px-4 py-3 transition-colors tap-none',
         'hover:bg-muted focus-visible:bg-muted focus-visible:outline-none',
-        !notif.isRead && 'bg-accent/40',
+        !notif.isRead && 'bg-accent/45',
       )}
     >
-      <div className="relative">
+      <div className="relative shrink-0">
         <Avatar size="md">
           {p.fromUser?.avatar ? <AvatarImage src={p.fromUser.avatar} alt="" /> : null}
           <AvatarFallback>{(p.fromUser?.username ?? '?').slice(0, 2)}</AvatarFallback>
@@ -133,8 +137,8 @@ export function NotificationItem({ notif, onClick }: Props) {
         </span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm leading-snug text-foreground">{message}</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">
+        <p className="text-sm leading-relaxed text-foreground">{message}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
           {formatRelativeTimeFa(notif.createdAt)}
         </p>
       </div>
@@ -145,11 +149,20 @@ export function NotificationItem({ notif, onClick }: Props) {
   );
 
   return href ? (
-    <Link href={href} onClick={onClick} aria-label={message} className="block">
+    <Link
+      href={href}
+      onClick={onClick}
+      aria-label={message}
+      className="block focus-visible:outline-none"
+    >
       {body}
     </Link>
   ) : (
-    <button type="button" onClick={onClick} className="block w-full text-start">
+    <button
+      type="button"
+      onClick={onClick}
+      className="block w-full text-start focus-visible:outline-none"
+    >
       {body}
     </button>
   );

@@ -2,8 +2,13 @@
     auto_https off
 }
 
-http://{$DOMAIN:localhost}, :80 {
+(app_routes) {
     encode gzip zstd
+
+    handle_path /.well-known/acme-challenge/* {
+        root * /srv/acme-challenges
+        file_server
+    }
 
     handle /api/* {
         reverse_proxy api:4000
@@ -13,16 +18,36 @@ http://{$DOMAIN:localhost}, :80 {
         reverse_proxy api:4000
     }
 
-    handle /admin* {
+    handle_path /admin* {
         reverse_proxy admin:3001
     }
 
     handle {
         reverse_proxy web:5173
     }
+}
+
+http://{$DOMAIN:agahiram.ir}, http://www.{$DOMAIN:agahiram.ir}, :80 {
+    @domain host {$DOMAIN:agahiram.ir} www.{$DOMAIN:agahiram.ir}
+    redir @domain https://{host}{uri} permanent
+
+    import app_routes
 
     header {
         Strict-Transport-Security "max-age=0"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+}
+
+https://{$DOMAIN:agahiram.ir}, https://www.{$DOMAIN:agahiram.ir} {
+    tls /etc/caddy/certs/alooche.com/fullchain.pem /etc/caddy/certs/alooche.com/key.pem
+
+    import app_routes
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
         X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "strict-origin-when-cross-origin"

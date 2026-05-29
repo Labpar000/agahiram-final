@@ -42,7 +42,17 @@ jobs:
 
       - name: Package source
         run: |
-          git archive --format=tar.gz --output=/tmp/agahiram-src.tar.gz HEAD
+          tar \
+            --exclude-vcs \
+            --exclude=".cursor" \
+            --exclude="node_modules" \
+            --exclude="**/node_modules" \
+            --exclude=".turbo" \
+            --exclude="tmp" \
+            --exclude=".cache" \
+            --exclude="**/.next" \
+            --exclude="**/dist" \
+            -czf /tmp/agahiram-src.tar.gz .
 
       - name: Deploy over SSH
         run: |
@@ -56,7 +66,12 @@ jobs:
           cd "$APP_DIR"
 
           cd docker
-          docker compose -f docker-compose.prod.yml build api web admin worker
+          export DOCKER_BUILDKIT=1
+          export COMPOSE_DOCKER_CLI_BUILD=1
+          docker builder prune -af >/dev/null 2>&1 || true
+          for svc in api web admin worker; do
+            docker compose -f docker-compose.prod.yml build "$svc"
+          done
           docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch
           docker compose -f docker-compose.prod.yml run --rm --workdir /app api sh -lc '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
           docker compose -f docker-compose.prod.yml up -d --force-recreate api web admin worker caddy

@@ -4,7 +4,16 @@ import { use, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import { Film, Grid3X3, LogOut, MessageSquare, Settings } from 'lucide-react';
+import {
+  BookmarkCheck,
+  Clapperboard,
+  Film,
+  Grid3X3,
+  Images,
+  LogOut,
+  MessageSquare,
+  Settings,
+} from 'lucide-react';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { cn, formatPersianNumber } from '@agahiram/shared';
 import {
@@ -105,7 +114,7 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
 
   return (
     <div className="bg-background">
-      <header className="space-y-4 px-4 py-5">
+      <header className="space-y-4 bg-surface px-4 py-5 sm:my-3 sm:rounded-2xl sm:border sm:border-border sm:shadow-card">
         <div className="flex items-start gap-4">
           <Avatar size="xl" ring="brand" verified={profile.isVerified}>
             {profile.avatar ? <AvatarImage src={profile.avatar} alt="" /> : null}
@@ -120,7 +129,7 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
 
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-base font-bold leading-tight">
+            <h1 className="min-w-0 truncate text-base font-bold leading-tight">
               {profile.name ?? profile.username}
             </h1>
             {profile.isBusiness ? (
@@ -131,7 +140,9 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
           </div>
           <div className="text-xs text-muted-foreground">@{profile.username}</div>
           {profile.bio ? (
-            <p className="whitespace-pre-line text-sm text-foreground/90">{profile.bio}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+              {profile.bio}
+            </p>
           ) : null}
         </div>
 
@@ -181,7 +192,7 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as typeof tab)}
-        className="border-t border-border"
+        className="border-t border-border bg-surface"
       >
         <TabsList variant="underline" className="w-full">
           <TabsTrigger variant="underline" value="posts" className="flex-1">
@@ -225,7 +236,7 @@ function PostsGrid({
 }) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-3 gap-0.5 p-0.5">
+      <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
         {Array.from({ length: 9 }).map((_, i) => (
           <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
         ))}
@@ -242,25 +253,26 @@ function PostsGrid({
       <EmptyState
         icon={
           tab === 'reels' ? (
-            <Film className="size-7" aria-hidden />
+            <Clapperboard aria-hidden />
           ) : tab === 'saved' ? (
-            <IgBookmark className="size-7" strokeWidth={2} />
+            <BookmarkCheck aria-hidden />
           ) : (
-            <Grid3X3 className="size-7" aria-hidden />
+            <Images aria-hidden />
           )
         }
         title={messages[tab]}
+        className="min-h-[18rem]"
       />
     );
   }
   return (
-    <div className="grid grid-cols-3 gap-0.5 p-0.5">
+    <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
       {posts.map((p) => (
         <Link
           key={p.id}
           href={`/post/${p.id}`}
           aria-label={p.title}
-          className="relative aspect-square overflow-hidden bg-muted tap-none"
+          className="relative aspect-square overflow-hidden rounded-sm bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:rounded-md"
         >
           {p.media[0] ? (
             <Image

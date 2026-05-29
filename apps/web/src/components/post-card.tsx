@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -21,6 +21,10 @@ import {
   AvatarImage,
   Badge,
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   HeartBurst,
   IconButton,
   IgBookmark,
@@ -91,19 +95,32 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
   }, [saved, post.id]);
 
   const onContact = useCallback(async () => {
-    if (contactRevealed) return;
+    if (contactRevealed) {
+      const phone = contactPhone ?? post.user.phone;
+      if (phone) window.location.href = `tel:${phone}`;
+      return;
+    }
     const res = await apiClient.post<{
       contactRevealed: boolean;
       phone?: string;
       requiresAuth?: boolean;
     }>(`/posts/${post.id}/contact`);
+    if (!res.success) {
+      toast.error(res.error ?? 'خطا در دریافت شماره');
+      return;
+    }
     if (res.data?.requiresAuth) {
       toast.error('برای مشاهده شماره ابتدا وارد شوید');
       return;
     }
-    setContactPhone(res.data?.phone ?? post.user.phone ?? null);
+    const phone = res.data?.phone ?? post.user.phone ?? null;
+    if (!phone) {
+      toast.error('شماره تماس فروشنده در دسترس نیست');
+      return;
+    }
+    setContactPhone(phone);
     setContactRevealed(true);
-  }, [post.id, post.user.phone, contactRevealed]);
+  }, [post.id, post.user.phone, contactRevealed, contactPhone]);
 
   const onDoubleTap = useCallback(() => {
     const now = Date.now();
@@ -131,9 +148,9 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
   }, [post.id, post.title]);
 
   return (
-    <article className="border-b border-border bg-surface sm:my-3 sm:rounded-2xl sm:border sm:shadow-card">
+    <article className="border-b border-border bg-surface sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card">
       {/* Header */}
-      <header className="flex items-center gap-2.5 px-3 py-3">
+      <header className="flex items-center gap-2.5 px-3.5 py-3">
         <Link
           href={`/profile/${post.user.username}`}
           aria-label={`پروفایل ${post.user.username}`}
@@ -144,7 +161,10 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
             <AvatarFallback>{(post.user.username ?? '?').slice(0, 2)}</AvatarFallback>
           </Avatar>
         </Link>
-        <Link href={`/profile/${post.user.username}`} className="min-w-0 flex-1 tap-none">
+        <Link
+          href={`/profile/${post.user.username}`}
+          className="min-w-0 flex-1 rounded-md tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+        >
           <div className="flex items-center gap-1.5">
             <span className="truncate text-sm font-semibold leading-tight">
               {post.user.username}
@@ -167,12 +187,30 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
             نردبان
           </Badge>
         ) : null}
-        <IconButton
-          aria-label="گزینه‌های بیشتر"
-          size="sm"
-          variant="ghost"
-          icon={<IgMore className="size-5" />}
-        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              aria-label="گزینه‌های بیشتر"
+              size="sm"
+              variant="ghost"
+              icon={<IgMore className="size-5" />}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[11rem]">
+            <DropdownMenuItem onClick={() => void onShare()}>اشتراک‌گذاری</DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                void navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+                toast.success('لینک کپی شد');
+              }}
+            >
+              کپی لینک
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.success('گزارش شما ثبت شد و بررسی می‌شود')}>
+              گزارش آگهی
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
 
       {/* Media carousel */}
@@ -184,8 +222,8 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
         >
           <div className="flex h-full">
             {post.media.length === 0 ? (
-              <div className="grid size-full place-items-center text-sm text-muted-foreground">
-                بدون رسانه
+              <div className="grid size-full place-items-center bg-surface-muted p-6 text-center text-sm text-muted-foreground">
+                این آگهی رسانه‌ای ندارد
               </div>
             ) : (
               post.media.map((m, i) =>
@@ -204,7 +242,7 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
                   <Link
                     key={m.id ?? i}
                     href={`/post/${post.id}`}
-                    className="relative h-full min-w-full"
+                    className="relative h-full min-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     onClick={(e: MouseEvent<HTMLAnchorElement>) => {
                       // allow double-tap on the carousel; first tap navigates only after delay
                       if (Date.now() - lastTapRef.current < 320) e.preventDefault();
@@ -234,7 +272,7 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
               aria-label="رسانه قبلی"
               onClick={() => embla?.scrollPrev()}
               disabled={!embla?.canScrollPrev()}
-              className="absolute start-2 top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-surface/80 text-foreground shadow-md transition disabled:opacity-30 sm:grid"
+              className="absolute start-2 top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-surface/85 text-foreground shadow-md backdrop-blur transition hover:bg-surface disabled:opacity-30 sm:grid"
             >
               <ChevronRight className="size-5 rtl:rotate-180" aria-hidden />
             </button>
@@ -243,7 +281,7 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
               aria-label="رسانه بعدی"
               onClick={() => embla?.scrollNext()}
               disabled={!embla?.canScrollNext()}
-              className="absolute end-2 top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-surface/80 text-foreground shadow-md transition disabled:opacity-30 sm:grid"
+              className="absolute end-2 top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-surface/85 text-foreground shadow-md backdrop-blur transition hover:bg-surface disabled:opacity-30 sm:grid"
             >
               <ChevronLeft className="size-5 rtl:rotate-180" aria-hidden />
             </button>
@@ -258,8 +296,8 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
                 key={i}
                 aria-hidden
                 className={cn(
-                  'size-1.5 rounded-full transition-all',
-                  i === activeIndex ? 'w-4 bg-white' : 'bg-white/60',
+                  'h-1.5 rounded-full transition-all',
+                  i === activeIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/60',
                 )}
               />
             ))}
@@ -268,7 +306,7 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
       </div>
 
       {/* Actions */}
-      <div className="space-y-2 px-3 pb-3 pt-2">
+      <div className="space-y-2.5 px-3.5 pb-3.5 pt-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center -ms-2">
             <ActionButton
@@ -321,12 +359,14 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
         </AnimatePresence>
 
         <div>
-          <h3 className="text-base font-bold leading-tight">{post.title}</h3>
+          <h3 className="line-clamp-2 text-base font-bold leading-snug">{post.title}</h3>
           <div className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="text-lg font-extrabold tracking-tight gradient-text-brand">
+            <span className="min-w-0 text-lg font-extrabold tracking-tight gradient-text-brand">
               {formatPersianPrice(post.price)}
             </span>
-            <span className="truncate text-[11px] text-muted-foreground">{post.category.name}</span>
+            <span className="shrink-0 truncate rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+              {post.category.name}
+            </span>
           </div>
           {post.description ? (
             <p className="mt-1 line-clamp-2 text-sm text-muted-foreground leading-relaxed">
@@ -338,7 +378,7 @@ export function PostCard({ post, initialLiked = false, initialSaved = false }: P
         {post.commentsCount > 0 ? (
           <Link
             href={`/post/${post.id}`}
-            className="block text-xs text-muted-foreground tap-none hover:text-foreground"
+            className="block w-fit rounded-md text-xs text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
             مشاهده {formatPersianNumber(post.commentsCount)} نظر
           </Link>
@@ -385,17 +425,18 @@ function ActionButton({
   filledClass?: string;
 }) {
   const className = cn(
-    'inline-grid size-11 place-items-center rounded-full transition-colors tap-none',
+    'inline-grid size-11 place-items-center rounded-full transition-[background-color,color,transform] tap-none active:scale-[0.96]',
     'text-foreground hover:bg-muted',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
     filled && filledClass,
   );
   if (asChild) {
-    return (
-      <span aria-label={ariaLabel} className={className} role="presentation">
-        {children}
-      </span>
-    );
+    return isValidElement<{ className?: string; 'aria-label'?: string }>(children)
+      ? cloneElement(children, {
+          'aria-label': ariaLabel,
+          className: cn(className, children.props.className),
+        })
+      : null;
   }
   return (
     <button
