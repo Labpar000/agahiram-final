@@ -1,15 +1,16 @@
 param(
-  # Production server — see docs/SERVER.md
   [string]$HostName = "45.144.18.86",
   [string]$User = "root",
   [string]$Password = "amirhosein",
   [string]$Port = "22",
-  # Optional SSH key; if missing, OpenSSH prompts for $Password
   [string]$KeyPath = ".cache/ssh/agahiram_id_ed25519",
   [string]$AppDir = "/opt/agahiram",
+  [string]$Domain = "alooche.com",
+  [string]$ImageRegistry = "ghcr.io/labpar000/agahiram",
+  [string]$GhcrToken = "",
   [switch]$SkipLocalChecks = $false,
   [switch]$ForceFullBuild = $false,
-  [switch]$ForceOfflineCacheSync = $false
+  [switch]$BuildOnServer = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -21,120 +22,16 @@ function Step($Message) {
 
 function Invoke-Native {
   param(
-    [Parameter(Mandatory = $true)]
-    [string]$FilePath,
-
+    [Parameter(Mandatory = $true)][string]$FilePath,
     [string[]]$Arguments = @()
   )
-
   & $FilePath @Arguments
   if ($LASTEXITCODE -ne 0) {
-    throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
+    throw "Command failed (${LASTEXITCODE}): $FilePath $($Arguments -join ' ')"
   }
-}
-
-function Invoke-NativeCapture {
-  param(
-    [Parameter(Mandatory = $true)]
-    [string]$FilePath,
-
-    [string[]]$Arguments = @()
-  )
-
-  $Output = & $FilePath @Arguments
-  if ($LASTEXITCODE -ne 0) {
-    throw "Command failed with exit code ${LASTEXITCODE}: $FilePath $($Arguments -join ' ')"
-  }
-  return $Output
-}
-
-function Get-ChangedServices {
-  param(
-    [string]$RootPath,
-    [switch]$ForceAll
-  )
-
-  $allServices = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-  foreach ($svc in @("api", "web", "admin", "worker")) {
-    [void]$allServices.Add($svc)
-  }
-
-  if ($ForceAll) {
-    return @($allServices)
-  }
-
-  $changed = & git -C $RootPath status --porcelain
-  if ($LASTEXITCODE -ne 0 -or -not $changed) {
-    return @($allServices)
-  }
-
-  $services = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-  $fullRebuild = $false
-
-  foreach ($line in $changed) {
-    if ([string]::IsNullOrWhiteSpace($line)) {
-      continue
-    }
-
-    $path = $line.Substring([Math]::Min(3, $line.Length)).Trim()
-    if ($path -like "*->*") {
-      $path = ($path -split "->")[-1].Trim()
-    }
-
-    if (
-      $path.StartsWith("package.json") -or
-      $path.StartsWith("pnpm-lock.yaml") -or
-      $path.StartsWith("pnpm-workspace.yaml") -or
-      $path.StartsWith(".npmrc") -or
-      $path.StartsWith("turbo.json") -or
-      $path.StartsWith("packages/shared/") -or
-      $path.StartsWith("packages/config/") -or
-      $path.StartsWith(".pnpm-store/") -or
-      $path.StartsWith(".pnpm-meta/")
-    ) {
-      $fullRebuild = $true
-      break
-    }
-
-    if ($path.StartsWith("apps/api/") -or $path.StartsWith("packages/database/")) {
-      [void]$services.Add("api")
-    }
-    if ($path.StartsWith("workers/media-processor/") -or $path.StartsWith("packages/database/")) {
-      [void]$services.Add("worker")
-    }
-    if ($path.StartsWith("apps/web/") -or $path.StartsWith("packages/ui/")) {
-      [void]$services.Add("web")
-    }
-    if ($path.StartsWith("apps/admin/") -or $path.StartsWith("packages/ui/")) {
-      [void]$services.Add("admin")
-    }
-    if ($path.StartsWith("docker/Dockerfile.api")) {
-      [void]$services.Add("api")
-    }
-    if ($path.StartsWith("docker/Dockerfile.web")) {
-      [void]$services.Add("web")
-    }
-    if ($path.StartsWith("docker/Dockerfile.admin")) {
-      [void]$services.Add("admin")
-    }
-    if ($path.StartsWith("docker/Dockerfile.worker")) {
-      [void]$services.Add("worker")
-    }
-    if ($path.StartsWith("docker/docker-compose.prod.yml")) {
-      $fullRebuild = $true
-      break
-    }
-  }
-
-  if ($fullRebuild -or $services.Count -eq 0) {
-    return @($allServices)
-  }
-
-  return @($services)
 }
 
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$Archive = Join-Path $env:TEMP "agahiram-src.tar.gz"
 Set-Location $Root
 
 if (-not $SkipLocalChecks) {
@@ -144,105 +41,103 @@ if (-not $SkipLocalChecks) {
   Invoke-Native -FilePath pnpm -Arguments @("build")
 }
 
-$Services = Get-ChangedServices -RootPath $Root -ForceAll:$ForceFullBuild
-$BuildServices = ($Services | Sort-Object)
-$BuildServicesArg = ($BuildServices -join " ")
-Step "Build scope: $BuildServicesArg"
+$ImageTag = (git rev-parse HEAD).Trim()
+if ($ForceFullBuild) {
+  $BuildServices = "api worker web admin"
+  $ConfigOnly = ""
+} else {
+  $ScopeLines = & bash scripts/detect-build-services.sh --env HEAD~1 HEAD
+  $BuildServices = ""
+  $ConfigOnly = ""
+  foreach ($line in $ScopeLines) {
+    if ($line -match '^BUILD_SERVICES="(.*)"$') { $BuildServices = $Matches[1] }
+    if ($line -match '^CONFIG_ONLY="(.*)"$') { $ConfigOnly = $Matches[1] }
+  }
+}
 
-$LockHash = (Get-FileHash -Path (Join-Path $Root "pnpm-lock.yaml") -Algorithm SHA256).Hash.ToLowerInvariant()
-$SshCommon = @(
+$DeployMode = if ($BuildOnServer) { "build" } else { "pull" }
+Step "Deploy mode: $DeployMode | services: $BuildServices | config: $ConfigOnly | tag: $ImageTag"
+
+$SshOpts = @(
   "-p", $Port,
-  "-o", "StrictHostKeyChecking=no"
+  "-o", "StrictHostKeyChecking=no",
+  "-o", "ServerAliveInterval=30",
+  "-o", "ServerAliveCountMax=120"
 )
 if (Test-Path $KeyPath) {
-  $SshCommon = @("-i", $KeyPath) + $SshCommon
+  $SshOpts = @("-i", $KeyPath) + $SshOpts
 } else {
-  Write-Host "SSH key not found at $KeyPath — will prompt for password ($Password)" -ForegroundColor Yellow
+  Write-Host "SSH key not found at $KeyPath — using password auth" -ForegroundColor Yellow
 }
-$RemoteCacheHash = Invoke-NativeCapture -FilePath ssh -Arguments (
-  $SshCommon + @(
-    "${User}@${HostName}",
-    "if [ -f '$AppDir/.offline-cache-lock.sha256' ] && [ -d '$AppDir/.pnpm-store' ] && [ -d '$AppDir/.pnpm-meta' ]; then cat '$AppDir/.offline-cache-lock.sha256'; fi"
+
+$ConfigArchive = Join-Path $env:TEMP "agahiram-config.tar.gz"
+$ConfigShaFile = Join-Path $env:TEMP "agahiram-config.sha256"
+
+if ($DeployMode -eq "pull") {
+  Step "Packaging config"
+  Invoke-Native -FilePath bash -Arguments @("scripts/package-config.sh", $ConfigArchive)
+  $ConfigSha = (Get-FileHash -Path $ConfigArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+  Set-Content -Path $ConfigShaFile -Value $ConfigSha -NoNewline
+
+  Step "Uploading config to VPS"
+  $ScpOpts = @("-P", $Port, "-o", "StrictHostKeyChecking=no")
+  if (Test-Path $KeyPath) { $ScpOpts = @("-i", $KeyPath) + $ScpOpts }
+  Invoke-Native -FilePath scp -Arguments ($ScpOpts + @($ConfigArchive, "${User}@${HostName}:/tmp/agahiram-config.tar.gz.tmp"))
+  Invoke-Native -FilePath scp -Arguments ($ScpOpts + @($ConfigShaFile, "${User}@${HostName}:/tmp/agahiram-config.sha256"))
+  Invoke-Native -FilePath ssh -Arguments ($SshOpts + @("${User}@${HostName}", "mv /tmp/agahiram-config.tar.gz.tmp /tmp/agahiram-config.tar.gz"))
+
+  Step "Pull-mode deploy on VPS"
+  $GhcrTokenArg = if ($GhcrToken) { $GhcrToken } else { "" }
+  $RemoteEnv = @(
+    "APP_DIR='$AppDir'",
+    "DOMAIN='$Domain'",
+    "DEPLOY_MODE=pull",
+    "IMAGE_REGISTRY='$ImageRegistry'",
+    "IMAGE_TAG='$ImageTag'",
+    "BUILD_SERVICES='$BuildServices'",
+    "CONFIG_ONLY='$ConfigOnly'",
+    "CONFIG_TARBALL='/tmp/agahiram-config.tar.gz'",
+    "CONFIG_SHA256='$ConfigSha'",
+    "GHCR_TOKEN='$GhcrTokenArg'",
+    "GHCR_USER='Labpar000'"
+  ) -join " "
+
+  Get-Content (Join-Path $Root "scripts/remote-deploy.sh") -Raw |
+    ssh @($SshOpts + @("${User}@${HostName}", "${RemoteEnv} bash -s"))
+} else {
+  Step "Creating full source archive (build fallback)"
+  $Archive = Join-Path $env:TEMP "agahiram-src.tar.gz"
+  if (Test-Path $Archive) { Remove-Item $Archive -Force }
+  $TarArgs = @(
+    "-czf", $Archive,
+    "--exclude=.git", "--exclude=.cursor", "--exclude=node_modules",
+    "--exclude=**/node_modules", "--exclude=.turbo", "--exclude=tmp",
+    "--exclude=.cache", "--exclude=**/.next", "--exclude=**/dist",
+    "-C", "$Root", "."
   )
-)
-$RemoteCacheHashString = ($RemoteCacheHash | Out-String).Trim().ToLowerInvariant()
-$NeedOfflineCacheSync = $ForceOfflineCacheSync -or [string]::IsNullOrWhiteSpace($RemoteCacheHashString)
-$CacheReason = if ($ForceOfflineCacheSync) {
-  "forced"
-} elseif ($NeedOfflineCacheSync) {
-  "remote cache missing"
-} elseif ($RemoteCacheHashString -ne $LockHash) {
-  "skipped (stale remote cache; set -ForceOfflineCacheSync to refresh)"
-} else {
-  "skipped (cache unchanged)"
+  Invoke-Native -FilePath tar -Arguments $TarArgs
+
+  Step "Uploading source to VPS"
+  $ScpOpts = @("-P", $Port, "-o", "StrictHostKeyChecking=no")
+  if (Test-Path $KeyPath) { $ScpOpts = @("-i", $KeyPath) + $ScpOpts }
+  Invoke-Native -FilePath scp -Arguments ($ScpOpts + @($Archive, "${User}@${HostName}:/tmp/agahiram-src.tar.gz.tmp"))
+  Invoke-Native -FilePath ssh -Arguments ($SshOpts + @("${User}@${HostName}", "mv /tmp/agahiram-src.tar.gz.tmp /tmp/agahiram-src.tar.gz"))
+
+  if (-not $BuildServices) { $BuildServices = "api worker web admin" }
+  $RemoteEnv = @(
+    "APP_DIR='$AppDir'",
+    "DOMAIN='$Domain'",
+    "DEPLOY_MODE=build",
+    "BUILD_SERVICES='$BuildServices'",
+    "SRC_TARBALL='/tmp/agahiram-src.tar.gz'"
+  ) -join " "
+
+  Get-Content (Join-Path $Root "scripts/remote-deploy.sh") -Raw |
+    ssh @($SshOpts + @("${User}@${HostName}", "${RemoteEnv} bash -s"))
 }
-Step ("Offline cache sync: $CacheReason")
 
-Step "Creating source archive"
-if (Test-Path $Archive) {
-  Remove-Item $Archive -Force
-}
-$TarExcludes = @(
-  "--exclude=.git",
-  "--exclude=.cursor",
-  "--exclude=node_modules",
-  "--exclude=.turbo",
-  "--exclude=tmp",
-  "--exclude=.cache",
-  "--exclude=**/node_modules",
-  "--exclude=**/.next",
-  "--exclude=**/dist"
-)
-if (-not $NeedOfflineCacheSync) {
-  $TarExcludes += @("--exclude=.pnpm-store", "--exclude=.pnpm-meta")
-}
-$TarArgs = @("-czf", $Archive) + $TarExcludes + @("-C", "$Root", ".")
-Invoke-Native -FilePath tar -Arguments $TarArgs
-
-Step "Uploading archive to VPS"
-$ScpArgs = @("-P", $Port, "-o", "StrictHostKeyChecking=no", $Archive, "${User}@${HostName}:/tmp/agahiram-src.tar.gz")
-if (Test-Path $KeyPath) { $ScpArgs = @("-i", $KeyPath) + $ScpArgs }
-Invoke-Native -FilePath scp -Arguments $ScpArgs
-
-Step "Deploying on VPS"
-$RemoteScript = @'
-set -euo pipefail
-
-mkdir -p "$APP_DIR"
-tar -xzf /tmp/agahiram-src.tar.gz -C "$APP_DIR"
-cd "$APP_DIR/docker"
-
-export DOCKER_BUILDKIT=1
-export COMPOSE_DOCKER_CLI_BUILD=1
-# cache build عمداً پاک نمی‌شود تا rebuildها سریع بمانند؛
-# مدیریت دیسک با BuildKit GC در /etc/docker/daemon.json انجام می‌شود.
-
-docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch minio
-docker compose -f docker-compose.prod.yml up -d createbuckets
-if [[ "$NEED_CACHE_SYNC" = "1" ]]; then
-  echo "$LOCK_HASH" > "$APP_DIR/.offline-cache-lock.sha256"
-fi
-
-if [[ -n "${BUILD_SERVICES:-}" ]]; then
-  for svc in $BUILD_SERVICES; do
-    docker compose -f docker-compose.prod.yml build "$svc"
-  done
-fi
-
-if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
-  docker compose -f docker-compose.prod.yml run --rm --workdir /app api sh -lc '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
-fi
-
-docker compose -f docker-compose.prod.yml up -d --force-recreate $BUILD_SERVICES caddy
-docker image prune -f
-docker compose -f docker-compose.prod.yml ps
-'@
-
-$NeedOfflineCacheSyncInt = if ($NeedOfflineCacheSync) { "1" } else { "0" }
-$RemoteScript | ssh @($SshCommon + @("${User}@${HostName}", "APP_DIR='$AppDir' BUILD_SERVICES='$BuildServicesArg' NEED_CACHE_SYNC='$NeedOfflineCacheSyncInt' LOCK_HASH='$LockHash' bash -s"))
 if ($LASTEXITCODE -ne 0) {
   throw "Remote deploy failed with exit code ${LASTEXITCODE}"
 }
 
 Step "Done"
-

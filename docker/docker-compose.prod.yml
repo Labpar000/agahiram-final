@@ -83,9 +83,7 @@ services:
       - agahiram
 
   api:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.api
+    image: ${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}/api:${IMAGE_TAG:-latest}
     container_name: agahiram-api
     restart: always
     env_file: .env
@@ -102,18 +100,7 @@ services:
       - agahiram
 
   web:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.web
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-/}
-        NEXT_PUBLIC_SOCKET_URL: ${NEXT_PUBLIC_SOCKET_URL:-${NEXT_PUBLIC_APP_URL:-/}}
-        # `next build` bakes rewrites() into routes-manifest.json, so the
-        # upstream URL must be known at build time. The runtime env below
-        # is kept as a safety net but is NOT what serves requests.
-        API_UPSTREAM_URL: ${API_UPSTREAM_URL:-http://api:4000}
+    image: ${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}/web:${IMAGE_TAG:-latest}
     container_name: agahiram-web
     restart: always
     env_file: .env
@@ -131,13 +118,7 @@ services:
       - agahiram
 
   admin:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.admin
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-/api/v1}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-/}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-/}
+    image: ${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}/admin:${IMAGE_TAG:-latest}
     container_name: agahiram-admin
     restart: always
     env_file: .env
@@ -147,9 +128,7 @@ services:
       - agahiram
 
   worker:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.worker
+    image: ${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}/worker:${IMAGE_TAG:-latest}
     container_name: agahiram-worker
     restart: always
     env_file: .env
