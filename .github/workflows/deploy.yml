@@ -6,6 +6,11 @@ on:
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      force_services:
+        description: 'Force rebuild these services (space-separated, empty = auto-detect)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -20,6 +25,7 @@ env:
   SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
   PRODUCTION_DOMAIN: ${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
   IMAGE_REGISTRY: ghcr.io/labpar000/agahiram
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
   scope:
@@ -44,7 +50,13 @@ jobs:
       - name: Detect scope
         id: detect
         run: |
-          eval "$(bash scripts/detect-build-services.sh --env HEAD~1 HEAD)"
+          if [[ -n "${{ inputs.force_services }}" ]]; then
+            BUILD_SERVICES="${{ inputs.force_services }}"
+            CONFIG_ONLY=""
+            NEED_CONFIG_SYNC=1
+          else
+            eval "$(bash scripts/detect-build-services.sh --env HEAD~1 HEAD)"
+          fi
           echo "build_services=$BUILD_SERVICES" >> "$GITHUB_OUTPUT"
           echo "config_only=$CONFIG_ONLY" >> "$GITHUB_OUTPUT"
 
@@ -57,7 +69,7 @@ jobs:
           fi
           echo "services_json=$SERVICES_JSON" >> "$GITHUB_OUTPUT"
 
-          if [[ -n "${BUILD_SERVICES// /}" || -n "$CONFIG_ONLY" ]]; then
+          if [[ -n "${BUILD_SERVICES// /}" || -n "$CONFIG_ONLY" || "$NEED_CONFIG_SYNC" == "1" ]]; then
             echo "need_deploy=true" >> "$GITHUB_OUTPUT"
           else
             echo "need_deploy=false" >> "$GITHUB_OUTPUT"
@@ -71,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: scope
     if: needs.scope.outputs.need_build == 'true'
-    timeout-minutes: 45
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -99,8 +111,9 @@ jobs:
           context: .
           file: docker/Dockerfile.api
           push: true
+          load: true
           tags: |
-            ${{ env.IMAGE_REGISTRY }}/api:${{ github.event.workflow_run.head_sha || github.sha }}
+            ${{ env.IMAGE_REGISTRY }}/api:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/api:latest
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
@@ -112,8 +125,9 @@ jobs:
           context: .
           file: docker/Dockerfile.worker
           push: true
+          load: true
           tags: |
-            ${{ env.IMAGE_REGISTRY }}/worker:${{ github.event.workflow_run.head_sha || github.sha }}
+            ${{ env.IMAGE_REGISTRY }}/worker:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/worker:latest
           cache-from: type=gha,scope=worker
           cache-to: type=gha,mode=max,scope=worker
@@ -125,8 +139,9 @@ jobs:
           context: .
           file: docker/Dockerfile.web
           push: true
+          load: true
           tags: |
-            ${{ env.IMAGE_REGISTRY }}/web:${{ github.event.workflow_run.head_sha || github.sha }}
+            ${{ env.IMAGE_REGISTRY }}/web:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/web:latest
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
@@ -144,8 +159,9 @@ jobs:
           context: .
           file: docker/Dockerfile.admin
           push: true
+          load: true
           tags: |
-            ${{ env.IMAGE_REGISTRY }}/admin:${{ github.event.workflow_run.head_sha || github.sha }}
+            ${{ env.IMAGE_REGISTRY }}/admin:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/admin:latest
           cache-from: type=gha,scope=admin
           cache-to: type=gha,mode=max,scope=admin
@@ -153,6 +169,22 @@ jobs:
             NEXT_PUBLIC_API_URL=/api/v1
             NEXT_PUBLIC_WS_URL=/
             NEXT_PUBLIC_APP_URL=/
+
+      - name: Export image tarball
+        run: |
+          ref="${{ env.IMAGE_REGISTRY }}/${{ matrix.service }}:${{ env.IMAGE_TAG }}"
+          out="/tmp/${{ matrix.service }}.tar.gz"
+          docker save "$ref" | gzip -1 > "$out"
+          bytes="$(wc -c < "$out" | tr -d ' ')"
+          echo "Exported $ref -> $out ($bytes bytes)"
+          test "$bytes" -gt 5000000
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}
+          path: /tmp/${{ matrix.service }}.tar.gz
+          retention-days: 1
 
   deploy:
     name: Deploy to VPS
@@ -162,7 +194,7 @@ jobs:
       always() &&
       needs.scope.outputs.need_deploy == 'true' &&
       (needs.scope.outputs.need_build != 'true' || needs.build.result == 'success')
-    timeout-minutes: 60
+    timeout-minutes: 15
     environment:
       name: production
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
@@ -185,25 +217,13 @@ jobs:
           printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/agahiram_deploy_key
           chmod 600 ~/.ssh/agahiram_deploy_key
 
-      - name: Log in to GHCR
+      - name: Download image artifacts
         if: needs.scope.outputs.need_build == 'true'
-        uses: docker/login-action@v3
+        uses: actions/download-artifact@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Export built images
-        if: needs.scope.outputs.need_build == 'true'
-        env:
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
-          BUILD_SERVICES: ${{ needs.scope.outputs.build_services }}
-        run: |
-          chmod +x scripts/export-images.sh
-          read -r -a services <<< "$BUILD_SERVICES"
-          bash scripts/export-images.sh "$IMAGE_REGISTRY" "$IMAGE_TAG" /tmp/agahiram-images.tar.gz "${services[@]}"
-          sha256sum /tmp/agahiram-images.tar.gz | awk '{print $1}' > /tmp/agahiram-images.sha256
-          ls -lh /tmp/agahiram-images.tar.gz
+          pattern: image-*
+          merge-multiple: true
+          path: /tmp/images
 
       - name: Package config
         run: |
@@ -212,28 +232,38 @@ jobs:
 
       - name: Upload and deploy (transfer mode)
         env:
-          SSH_COMMON_OPTS: -i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=120
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+          SSH_COMMON_OPTS: -i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=60 -o Compression=yes
           BUILD_SERVICES: ${{ needs.scope.outputs.build_services }}
           CONFIG_ONLY: ${{ needs.scope.outputs.config_only }}
           NEED_BUILD: ${{ needs.scope.outputs.need_build }}
         run: |
-          scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-config.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-config.tar.gz"
-          scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-config.sha256 "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-config.sha256"
-          scp $SSH_COMMON_OPTS -P "$SSH_PORT" scripts/remote-deploy.sh "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/remote-deploy.sh"
-          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "chmod +x /tmp/remote-deploy.sh"
+          set -euo pipefail
+          HOST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
+
+          scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-config.tar.gz "$HOST:/tmp/agahiram-config.tar.gz"
+          scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-config.sha256 "$HOST:/tmp/agahiram-config.sha256"
+          scp $SSH_COMMON_OPTS -P "$SSH_PORT" scripts/remote-deploy.sh "$HOST:/tmp/remote-deploy.sh"
+          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" "chmod +x /tmp/remote-deploy.sh"
 
           if [[ "$NEED_BUILD" == "true" ]]; then
-            scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-images.tar.gz.tmp"
-            scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.sha256 "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-images.sha256"
-            ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
-              "mv /tmp/agahiram-images.tar.gz.tmp /tmp/agahiram-images.tar.gz"
-            IMAGES_ENV="IMAGES_TARBALL='/tmp/agahiram-images.tar.gz' IMAGES_SHA256='$(cat /tmp/agahiram-images.sha256)'"
+            read -r -a services <<< "$BUILD_SERVICES"
+            pids=()
+            for svc in "${services[@]}"; do
+              src="/tmp/images/${svc}.tar.gz"
+              test -f "$src" || { echo "missing artifact: $src"; exit 1; }
+              scp $SSH_COMMON_OPTS -P "$SSH_PORT" "$src" "$HOST:/tmp/image-${svc}.tar.gz.tmp" &
+              pids+=($!)
+            done
+            for pid in "${pids[@]}"; do wait "$pid"; done
+            ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
+              "for f in /tmp/image-*.tar.gz.tmp; do mv \"\$f\" \"\${f%.tmp}\"; done"
+            IMAGE_LIST="$(printf '%s ' "${services[@]}")"
+            IMAGES_ENV="IMAGE_SERVICES='${IMAGE_LIST}'"
           else
             IMAGES_ENV=""
           fi
 
-          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
             "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=transfer \
              IMAGE_REGISTRY='$IMAGE_REGISTRY' IMAGE_TAG='$IMAGE_TAG' \
              BUILD_SERVICES='$BUILD_SERVICES' CONFIG_ONLY='$CONFIG_ONLY' \

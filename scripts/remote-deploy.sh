@@ -110,7 +110,21 @@ deploy_transfer() {
 
   migrate_minio_env
 
-  if [[ -n "${IMAGES_TARBALL:-}" ]]; then
+  if [[ -n "${IMAGE_SERVICES:-}" ]]; then
+    read -r -a image_services <<< "$IMAGE_SERVICES"
+    log "loading ${#image_services[@]} image(s) in parallel"
+    pids=()
+    for svc in "${image_services[@]}"; do
+      tarball="/tmp/image-${svc}.tar.gz"
+      if [[ ! -f "$tarball" ]]; then
+        log "missing image tarball: $tarball"
+        exit 1
+      fi
+      ( gunzip -c "$tarball" | docker load ) &
+      pids+=($!)
+    done
+    for pid in "${pids[@]}"; do wait "$pid"; done
+  elif [[ -n "${IMAGES_TARBALL:-}" ]]; then
     verify_checksum "$IMAGES_TARBALL" "${IMAGES_SHA256:-}"
     log "loading images from $IMAGES_TARBALL"
     gunzip -c "$IMAGES_TARBALL" | docker load
@@ -123,9 +137,13 @@ deploy_transfer() {
   docker compose $COMPOSE up -d postgres redis meilisearch minio
   docker compose $COMPOSE up -d createbuckets
 
-  if [[ -n "$CONFIG_ONLY" && -z "${BUILD_SERVICES// /}" && -z "${IMAGES_TARBALL:-}" ]]; then
-    log "config-only deploy: recreating $CONFIG_ONLY"
-    docker compose $COMPOSE up -d --force-recreate "$CONFIG_ONLY"
+  if [[ -z "${BUILD_SERVICES// /}" && -z "${IMAGE_SERVICES:-}" && -z "${IMAGES_TARBALL:-}" ]]; then
+    if [[ -n "$CONFIG_ONLY" ]]; then
+      log "config-only deploy: recreating $CONFIG_ONLY"
+      docker compose $COMPOSE up -d --force-recreate "$CONFIG_ONLY"
+    else
+      log "config sync only (no image changes)"
+    fi
     docker compose $COMPOSE ps
     return 0
   fi

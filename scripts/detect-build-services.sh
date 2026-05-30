@@ -61,7 +61,7 @@ else
           apply_full_rebuild
           need_config_sync=1
           ;;
-        scripts/remote-deploy.sh|scripts/detect-build-services.sh|scripts/package-config.sh)
+        scripts/remote-deploy.sh|scripts/detect-build-services.sh|scripts/package-config.sh|scripts/export-images.sh|scripts/deploy-bridge.ps1|.github/workflows/*)
           need_config_sync=1
           ;;
         apps/api/*|packages/database/*)
@@ -110,7 +110,6 @@ services=()
 if ((${#services[@]} == 0)) && [[ "$config_caddy" == 1 ]]; then
   config_only="caddy"
 elif ((${#services[@]} == 0)); then
-  services=("web")
   config_only=""
 else
   config_only=""
