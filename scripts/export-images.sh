@@ -24,4 +24,9 @@ done
 
 echo "[export-images] saving ${#IMAGES[@]} images -> $OUTPUT"
 docker save "${IMAGES[@]}" | gzip -1 > "$OUTPUT"
+bytes="$(wc -c < "$OUTPUT" | tr -d ' ')"
+if [[ "$bytes" -lt 1000000 ]]; then
+  echo "[export-images] tarball too small (${bytes} bytes) — export likely failed" >&2
+  exit 1
+fi
 sha256sum "$OUTPUT" | awk '{print $1}'

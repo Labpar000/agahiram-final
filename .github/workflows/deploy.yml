@@ -162,7 +162,7 @@ jobs:
       always() &&
       needs.scope.outputs.need_deploy == 'true' &&
       (needs.scope.outputs.need_build != 'true' || needs.build.result == 'success')
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment:
       name: production
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
@@ -224,8 +224,10 @@ jobs:
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "chmod +x /tmp/remote-deploy.sh"
 
           if [[ "$NEED_BUILD" == "true" ]]; then
-            scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-images.tar.gz"
+            scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-images.tar.gz.tmp"
             scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.sha256 "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-images.sha256"
+            ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+              "mv /tmp/agahiram-images.tar.gz.tmp /tmp/agahiram-images.tar.gz"
             IMAGES_ENV="IMAGES_TARBALL='/tmp/agahiram-images.tar.gz' IMAGES_SHA256='$(cat /tmp/agahiram-images.sha256)'"
           else
             IMAGES_ENV=""
