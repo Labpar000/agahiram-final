@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
@@ -12,9 +13,11 @@ import {
 } from '@nestjs/common';
 import {
   createPostSchema,
+  createReelSchema,
   exploreSchema,
   updatePostSchema,
   type CreatePostInput,
+  type CreateReelInput,
   type ExploreInput,
   type UpdatePostInput,
 } from '@agahiram/shared';
@@ -82,6 +85,13 @@ export class PostsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('reels')
+  @UsePipes(new ZodValidationPipe(createReelSchema))
+  createReel(@CurrentUser('sub') userId: string, @Body() body: CreateReelInput) {
+    return this.postsService.createReel(userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post()
   @UsePipes(new ZodValidationPipe(createPostSchema))
   create(@CurrentUser('sub') userId: string, @Body() body: CreatePostInput) {
@@ -101,8 +111,12 @@ export class PostsController {
 
   @Public()
   @Get(':id')
-  getOne(@Param('id') id: string, @CurrentUser('sub') viewerId?: string) {
-    return this.postsService.getById(id, viewerId);
+  getOne(
+    @Param('id') id: string,
+    @CurrentUser('sub') viewerId?: string,
+    @Headers('x-viewer-hash') viewerHash?: string,
+  ) {
+    return this.postsService.getById(id, viewerId, viewerHash);
   }
 
   @UseGuards(JwtAuthGuard)

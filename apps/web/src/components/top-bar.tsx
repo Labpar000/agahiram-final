@@ -23,7 +23,7 @@ export function TopBar() {
   const [recent, setRecent] = useState<string[]>([]);
 
   useEffect(() => {
-    const t = setTimeout(() => setDebounced(searchText.trim()), 180);
+    const t = setTimeout(() => setDebounced(searchText.trim()), 300);
     return () => clearTimeout(t);
   }, [searchText]);
 
@@ -33,7 +33,7 @@ export function TopBar() {
       if (!raw) return;
       const parsed = JSON.parse(raw) as unknown;
       if (Array.isArray(parsed)) {
-        setRecent(parsed.filter((v): v is string => typeof v === 'string').slice(0, 8));
+        setRecent(parsed.filter((v): v is string => typeof v === 'string').slice(0, 10));
       }
     } catch {
       setRecent([]);

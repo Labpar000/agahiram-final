@@ -29,10 +29,12 @@ interface Payload {
   fromUserId?: string;
   userId?: string;
   postId?: string;
+  commentId?: string;
   postTitle?: string;
   conversationId?: string;
   reason?: string;
   message?: string;
+  mentioned?: boolean;
 }
 
 type IconCmp = React.ComponentType<{ className?: string; filled?: boolean; strokeWidth?: number }>;
@@ -62,8 +64,11 @@ function buildHref(notif: Notif): string | null {
     case NotificationType.AD_APPROVED:
     case NotificationType.AD_REJECTED:
     case NotificationType.BOOST_EXPIRING:
-    case NotificationType.PRICE_DROP:
-      return p.postId ? `/post/${p.postId}` : null;
+    case NotificationType.PRICE_DROP: {
+      if (!p.postId) return null;
+      const q = p.commentId ? `?highlightComment=${p.commentId}` : '';
+      return `/post/${p.postId}${q}`;
+    }
     case NotificationType.FOLLOW:
       return p.fromUser?.username ? `/profile/${p.fromUser.username}` : null;
     case NotificationType.MESSAGE:
@@ -83,8 +88,12 @@ function buildMessage(notif: Notif): string {
   switch (notif.type) {
     case NotificationType.LIKE:
       return `${u} پست شما را پسندید`;
-    case NotificationType.COMMENT:
-      return `${u} نظر گذاشت${p.message ? `: «${p.message.slice(0, 60)}»` : ''}`;
+    case NotificationType.COMMENT: {
+      const snippet = (p.message ?? (p as { content?: string }).content) as string | undefined;
+      return p.mentioned
+        ? `${u} شما را در نظر منشن کرد${snippet ? `: «${snippet.slice(0, 60)}»` : ''}`
+        : `${u} نظر گذاشت${snippet ? `: «${snippet.slice(0, 60)}»` : ''}`;
+    }
     case NotificationType.FOLLOW:
       return `${u} شما را دنبال کرد`;
     case NotificationType.MESSAGE:

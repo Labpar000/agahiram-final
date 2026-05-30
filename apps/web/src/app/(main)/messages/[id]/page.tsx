@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, MessageSquare, Send } from 'lucide-react';
+import { ArrowRight, Camera, MessageSquare, Mic, Send } from 'lucide-react';
 import {
   Avatar,
   AvatarFallback,
@@ -14,6 +14,7 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { useUploadManager } from '@/lib/upload-manager';
 import { ChatMessage } from '@/components/chat-message';
 
 interface Message {
@@ -32,6 +33,7 @@ interface ConvHead {
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { uploadFile } = useUploadManager();
   const [text, setText] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [meId, setMeId] = useState<string | null>(null);
@@ -77,34 +79,113 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     });
   }, [messages, meId]);
 
-  const send = async () => {
-    if (!text.trim()) return;
+  const sendMessage = async (content: string, type: 'text' | 'image' | 'voice' = 'text') => {
     const tempId = 'temp-' + Date.now();
-    const tmp = text;
     setMessages((m) => [
       ...m,
       {
         id: tempId,
-        content: tmp,
-        type: 'text',
+        content,
+        type,
         senderId: 'me',
         createdAt: new Date().toISOString(),
         sender: { id: 'me', username: null, avatar: null },
       },
     ]);
-    setText('');
     const r = await apiClient.post<{ message: Message }>('/messages', {
       conversationId: id,
-      content: tmp,
-      type: 'text',
+      content,
+      type,
     });
     if (r.success && r.data) {
       setMessages((m) => m.map((x) => (x.id === tempId ? r.data!.message : x)));
     } else {
       setMessages((m) => m.filter((x) => x.id !== tempId));
-      setText(tmp);
       toast.error(r.error ?? 'ارسال پیام ناموفق بود');
     }
+  };
+
+  const send = async () => {
+    if (!text.trim()) return;
+    const tmp = text;
+    setText('');
+    await sendMessage(tmp, 'text');
+  };
+
+  const sendImage = async (file: File) => {
+    const ext = file.name.split('.').pop() ?? 'jpg';
+    const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
+      '/media/presign',
+      { folder: 'messages', fileName: file.name, contentType: file.type, extension: ext },
+    );
+    if (!presign.success || !presign.data) {
+      toast.error('خطا در آپلود تصویر');
+      return;
+    }
+    const ok = await uploadFile({
+      label: 'ارسال تصویر',
+      url: presign.data.uploadUrl,
+      file,
+      contentType: file.type,
+    });
+    if (!ok) return;
+    await apiClient.post('/media/confirm', { key: presign.data.key });
+    await sendMessage(presign.data.publicUrl, 'image');
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const voiceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [recording, setRecording] = useState(false);
+
+  const startVoice = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      const chunks: BlobPart[] = [];
+      rec.ondataavailable = (e) => chunks.push(e.data);
+      rec.onstop = async () => {
+        if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+        const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
+          '/media/presign',
+          { folder: 'messages', fileName: file.name, contentType: file.type, extension: 'webm' },
+        );
+        if (!presign.success || !presign.data) {
+          toast.error('خطا در آپلود صدا');
+          return;
+        }
+        const ok = await uploadFile({
+          label: 'ارسال پیام صوتی',
+          url: presign.data.uploadUrl,
+          file,
+          contentType: file.type,
+        });
+        if (!ok) return;
+        await apiClient.post('/media/confirm', { key: presign.data.key });
+        await sendMessage(presign.data.publicUrl, 'voice');
+      };
+      mediaRecorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+      voiceTimerRef.current = setTimeout(
+        () => {
+          toast.error('حداکثر زمان ضبط ۵ دقیقه است');
+          stopVoice();
+        },
+        5 * 60 * 1000,
+      );
+    } catch {
+      toast.error('دسترسی به میکروفون ممکن نیست');
+    }
+  };
+
+  const stopVoice = () => {
+    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
   };
 
   return (
@@ -160,6 +241,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               key={m.id}
               id={m.id}
               content={m.content}
+              type={m.type}
               isMine={m.isMine}
               createdAt={m.createdAt}
               sender={m.sender ?? undefined}
@@ -178,6 +260,36 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         }}
         className="flex items-center gap-2 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur-md"
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void sendImage(f);
+            e.target.value = '';
+          }}
+        />
+        <button
+          type="button"
+          aria-label="ارسال تصویر"
+          className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Camera className="size-5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={recording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
+          className={`grid size-10 place-items-center rounded-full ${recording ? 'bg-destructive text-destructive-foreground' : 'text-muted-foreground hover:bg-muted'}`}
+          onMouseDown={() => void startVoice()}
+          onMouseUp={stopVoice}
+          onTouchStart={() => void startVoice()}
+          onTouchEnd={stopVoice}
+        >
+          <Mic className="size-5" aria-hidden />
+        </button>
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}

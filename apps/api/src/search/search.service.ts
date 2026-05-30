@@ -24,6 +24,17 @@ export class SearchService {
   async search(input: SearchInput, viewerId?: string) {
     const normalizedQ = normalizePersianText(input.q);
     const q = normalizedQ || input.q;
+    const [posts, users, categories] = await Promise.all([
+      this.searchPosts(input, viewerId),
+      this.searchUsers(q),
+      this.searchCategories(q),
+    ]);
+    return { posts, users, categories };
+  }
+
+  private async searchPosts(input: SearchInput, viewerId?: string) {
+    const normalizedQ = normalizePersianText(input.q);
+    const q = normalizedQ || input.q;
     const filters: string[] = ['status = "approved"', 'type = "post"'];
     filters.push('userIsPrivate = false');
     if (input.categoryId) filters.push(`categoryId = "${input.categoryId}"`);
@@ -74,52 +85,62 @@ export class SearchService {
       });
 
       const ids = result.hits.map((h) => h.id as string);
-      if (ids.length === 0) return { data: [], nextCursor: null, hasMore: false };
-
-      const posts = await this.prisma.post.findMany({
-        where: {
-          id: { in: ids },
-          user: { isPrivate: false },
-          ...(input.onlyImage && { media: { some: { type: 'image' } } }),
-          ...(input.onlyVideo && { media: { some: { type: 'video' } } }),
-        },
-        include: this.posts.fullInclude(),
-      });
-      const byId = new Map(posts.map((p) => [p.id, p]));
-      const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
-
-      return {
-        data: await this.posts.attachViewedByMe(
-          ordered.map((p) => this.posts.toSummary(p as never)),
+      if (ids.length > 0) {
+        return this.hydratePostIds(
+          ids,
+          input,
+          offset,
           viewerId,
-        ),
-        nextCursor: result.hits.length === input.limit ? String(offset + result.hits.length) : null,
-        hasMore: result.hits.length === input.limit,
-      };
+          result.hits.length === input.limit,
+        );
+      }
     } catch {
-      const ids = await this.searchFallbackIds(input, q, offset);
-      if (ids.length === 0) return { data: [], nextCursor: null, hasMore: false };
-
-      const posts = await this.prisma.post.findMany({
-        where: {
-          id: { in: ids },
-          user: { isPrivate: false },
-          ...(input.onlyImage && { media: { some: { type: 'image' } } }),
-          ...(input.onlyVideo && { media: { some: { type: 'video' } } }),
-        },
-        include: this.posts.fullInclude(),
-      });
-      const byId = new Map(posts.map((p) => [p.id, p]));
-      const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
-      return {
-        data: await this.posts.attachViewedByMe(
-          ordered.map((p) => this.posts.toSummary(p as never)),
-          viewerId,
-        ),
-        nextCursor: ids.length === input.limit + 1 ? String(offset + input.limit) : null,
-        hasMore: ids.length === input.limit + 1,
-      };
+      /* Meili unavailable — fall through to Postgres. */
     }
+
+    return this.searchPostsFallback(input, q, offset, viewerId);
+  }
+
+  private async hydratePostIds(
+    ids: string[],
+    input: SearchInput,
+    offset: number,
+    viewerId: string | undefined,
+    hasMore: boolean,
+  ) {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        id: { in: ids },
+        user: { isPrivate: false },
+        ...(input.onlyImage && { media: { some: { type: 'image' } } }),
+        ...(input.onlyVideo && { media: { some: { type: 'video' } } }),
+      },
+      include: this.posts.fullInclude(),
+    });
+    const byId = new Map(posts.map((p) => [p.id, p]));
+    const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
+    return {
+      data: await this.posts.attachViewerState(
+        ordered.map((p) => this.posts.toSummary(p as never)),
+        viewerId,
+      ),
+      nextCursor: hasMore ? String(offset + ids.length) : null,
+      hasMore,
+    };
+  }
+
+  private async searchPostsFallback(
+    input: SearchInput,
+    q: string,
+    offset: number,
+    viewerId?: string,
+  ) {
+    const ids = await this.searchFallbackIds(input, q, offset);
+    if (ids.length === 0) return { data: [], nextCursor: null, hasMore: false };
+    const limit = Math.max(1, Math.min(50, input.limit ?? 20));
+    const hasMore = ids.length > limit;
+    const pageIds = hasMore ? ids.slice(0, limit) : ids;
+    return this.hydratePostIds(pageIds, input, offset, viewerId, hasMore);
   }
 
   private async searchFallbackIds(input: SearchInput, normalizedQ: string, offset: number) {
@@ -127,7 +148,7 @@ export class SearchService {
     const searchTerms = normalizedQ.trim().replace(/\s+/g, ' & ');
     const now = new Date();
 
-    const sortSql = this.fallbackSortSql(input);
+    const sortSql = this.fallbackSortSql(input, normalizedQ);
 
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT p.id
@@ -158,6 +179,7 @@ export class SearchService {
           OR ci.name ILIKE ${`%${normalizedQ}%`}
           OR coalesce(nb.name, '') ILIKE ${`%${normalizedQ}%`}
           OR coalesce(u.username, '') ILIKE ${`%${normalizedQ}%`}
+          OR coalesce(u.name, '') ILIKE ${`%${normalizedQ}%`}
         )
         ${input.categoryId ? Prisma.sql`AND p."categoryId" = ${input.categoryId}` : Prisma.empty}
         ${input.cityId ? Prisma.sql`AND p."cityId" = ${input.cityId}` : Prisma.empty}
@@ -172,7 +194,41 @@ export class SearchService {
     return rows.map((r) => r.id);
   }
 
-  private fallbackSortSql(input: SearchInput): Prisma.Sql {
+  private async searchUsers(q: string, limit = 8) {
+    const nq = normalizePersianText(q) || q;
+    return this.prisma.user.findMany({
+      where: {
+        isPrivate: false,
+        OR: [
+          { username: { contains: nq, mode: 'insensitive' } },
+          { name: { contains: nq, mode: 'insensitive' } },
+        ],
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        avatar: true,
+        isVerified: true,
+        isBusiness: true,
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  private async searchCategories(q: string, limit = 8) {
+    const nq = normalizePersianText(q) || q;
+    return this.prisma.category.findMany({
+      where: { name: { contains: nq, mode: 'insensitive' } },
+      select: { id: true, name: true, slug: true },
+      take: limit,
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  private fallbackSortSql(input: SearchInput, q?: string): Prisma.Sql {
+    const like = q ? `%${q}%` : null;
     switch (input.sortBy) {
       case 'cheapest':
         return Prisma.sql`p.price ASC NULLS LAST, p."createdAt" DESC`;
@@ -186,10 +242,19 @@ export class SearchService {
         }
         return Prisma.sql`p."createdAt" DESC`;
       case 'relevance':
-        return Prisma.sql`p."isPromoted" DESC, p."viewCount" DESC, p."createdAt" DESC`;
       case 'newest':
       default:
-        return Prisma.sql`p."createdAt" DESC`;
+        if (like) {
+          return Prisma.sql`(
+            (CASE WHEN p.title ILIKE ${like} THEN 4 ELSE 0 END) +
+            (CASE WHEN coalesce(p.description, '') ILIKE ${like} THEN 3 ELSE 0 END) +
+            (CASE WHEN c.name ILIKE ${like} THEN 2 ELSE 0 END) +
+            (CASE WHEN coalesce(ci.name, '') ILIKE ${like} OR coalesce(pr.name, '') ILIKE ${like} THEN 2 ELSE 0 END) +
+            (CASE WHEN coalesce(u.username, '') ILIKE ${like} OR coalesce(u.name, '') ILIKE ${like} THEN 2 ELSE 0 END) +
+            (CASE WHEN coalesce(nb.name, '') ILIKE ${like} THEN 1 ELSE 0 END)
+          ) DESC, p."isPromoted" DESC, p."viewCount" DESC, p."createdAt" DESC`;
+        }
+        return Prisma.sql`p."isPromoted" DESC, p."viewCount" DESC, p."createdAt" DESC`;
     }
   }
 

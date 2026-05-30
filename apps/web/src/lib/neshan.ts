@@ -22,25 +22,14 @@ export const NESHAN_MAP_KEY = process.env.NEXT_PUBLIC_NESHAN_MAP_KEY ?? '';
 export const NESHAN_API_BASE = 'https://api.neshan.org';
 
 export const NESHAN_STYLES = {
-  standardDay: buildRasterStyle([
-    'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-    'https://a.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    'https://b.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    'https://c.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  ]),
-  standardNight: buildRasterStyle([
-    'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-    'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-    'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
-  ]),
+  standardDay: `${NESHAN_API_BASE}/web/v1/styles/neshan/style.json`,
+  standardNight: `${NESHAN_API_BASE}/web/v1/styles/neshan/style.json`,
 } as const;
 
 export type NeshanStyleKey = keyof typeof NESHAN_STYLES;
 
-/** Tehran's Azadi Square — sensible default center for an Iranian app. */
-export const DEFAULT_MAP_CENTER: [number, number] = [51.337, 35.6997];
+/** Tehran center — Azadi Square area. */
+export const DEFAULT_MAP_CENTER: [number, number] = [51.389, 35.6892];
 export const DEFAULT_MAP_ZOOM = 12;
 
 /**

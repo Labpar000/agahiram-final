@@ -63,14 +63,8 @@ export class SmsService {
     }
 
     if (this.smsIrTemplateId) {
-      try {
-        await this.smsIrVerify(phone, code);
-        return;
-      } catch (err) {
-        this.logger.warn(
-          `sms.ir verify failed (${(err as Error).message}); trying bulk send fallback`,
-        );
-      }
+      await this.smsIrVerify(phone, code);
+      return;
     }
 
     if (!this.smsIrLine) {
@@ -86,26 +80,35 @@ export class SmsService {
       templateId: this.smsIrTemplateId,
       parameters: [{ name: this.smsIrParamName, value: code }],
     };
-    const response = await fetch('https://api.sms.ir/v1/send/verify', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'x-api-key': this.smsIrKey,
-      },
-      body: JSON.stringify(payload),
-    });
-    const text = await response.text();
-    let body: { status?: number; message?: string } = {};
     try {
-      body = JSON.parse(text);
-    } catch {
-      body = { message: text };
+      const response = await fetch('https://api.sms.ir/v1/send/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'x-api-key': this.smsIrKey,
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await response.text();
+      let body: { status?: number; message?: string } = {};
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { message: text };
+      }
+      if (!response.ok || body.status !== 1) {
+        this.logger.error(
+          `sms.ir verify error (${response.status}): ${body.message ?? 'unknown'} | template=${this.smsIrTemplateId} param=${this.smsIrParamName} | raw=${text.slice(0, 200)}`,
+        );
+        throw new ServiceUnavailableException(body.message ?? 'خطا در ارسال پیامک');
+      }
+      this.logger.log(`OTP sent to ${phone} via sms.ir verify (template ${this.smsIrTemplateId})`);
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error;
+      this.logger.error(`Failed to send OTP via sms.ir verify to ${phone}`, error as Error);
+      throw new ServiceUnavailableException('خطا در ارسال پیامک');
     }
-    if (!response.ok || body.status !== 1) {
-      throw new Error(body.message ?? `sms.ir verify HTTP ${response.status}`);
-    }
-    this.logger.log(`OTP sent to ${phone} via sms.ir verify`);
   }
 
   private async smsIrBulk(phone: string, code: string): Promise<void> {

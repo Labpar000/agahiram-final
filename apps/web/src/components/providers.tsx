@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ThemeProvider, Toaster, TooltipProvider } from '@agahiram/ui';
 import { AuthSessionProvider } from './auth-session-provider';
+import { UploadManagerProvider } from '@/lib/upload-manager';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -23,7 +24,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={client}>
         <AuthSessionProvider>
-          <TooltipProvider>{children}</TooltipProvider>
+          <UploadManagerProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+          </UploadManagerProvider>
         </AuthSessionProvider>
         <Toaster />
       </QueryClientProvider>

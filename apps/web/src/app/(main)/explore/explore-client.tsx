@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   Film as FilmIcon,
+  Eye,
   Layers,
   PackageOpen,
   BellPlus,
@@ -16,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
+import { formatPersianNumber, formatPersianCompact, formatPersianPrice } from '@agahiram/shared';
 import { EmptyState, ErrorState, IconButton, Input, Skeleton, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import type { Filters } from '@/components/search-filters';
@@ -31,6 +32,21 @@ const SearchFiltersSheet = dynamic(
     ),
   },
 );
+
+type SearchUser = {
+  id: string;
+  username: string | null;
+  name: string | null;
+  avatar: string | null;
+  isVerified: boolean;
+};
+
+type SearchCategory = { id: string; name: string; slug: string };
+
+type ExplorePage = PaginatedResponse<PostSummary> & {
+  users?: SearchUser[];
+  categories?: SearchCategory[];
+};
 
 export function ExploreClient({
   initialQ = '',
@@ -69,14 +85,22 @@ export function ExploreClient({
     queryKey: ['explore', debouncedQ, filters],
     queryFn: async ({ pageParam }) => {
       if (debouncedQ) {
-        const r = await apiClient.get<PaginatedResponse<PostSummary>>('/search', {
+        const r = await apiClient.get<{
+          posts: PaginatedResponse<PostSummary>;
+          users: SearchUser[];
+          categories: SearchCategory[];
+        }>('/search', {
           q: debouncedQ,
           ...filters,
           cursor: pageParam as string | undefined,
           limit: 24,
         });
-        if (r.success && r.data) return r.data;
-        return { data: [], nextCursor: null, hasMore: false } as PaginatedResponse<PostSummary>;
+        if (!r.success || !r.data) throw new Error(r.error ?? 'خطا در جستجو');
+        return {
+          ...r.data.posts,
+          users: pageParam ? undefined : r.data.users,
+          categories: pageParam ? undefined : r.data.categories,
+        } satisfies ExplorePage;
       }
       const r = await apiClient.get<PaginatedResponse<PostSummary>>('/posts/explore', {
         ...(filters as Record<string, string | number | boolean | undefined>),
@@ -119,6 +143,9 @@ export function ExploreClient({
   }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
   const posts = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
+  const searchUsers = (data?.pages[0] as ExplorePage | undefined)?.users ?? [];
+  const searchCategories = (data?.pages[0] as ExplorePage | undefined)?.categories ?? [];
+  const hasSearchExtras = debouncedQ && (searchUsers.length > 0 || searchCategories.length > 0);
   const activeFilterCount = useMemo(
     () =>
       [
@@ -183,7 +210,7 @@ export function ExploreClient({
         </div>
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
-      ) : posts.length === 0 ? (
+      ) : posts.length === 0 && !hasSearchExtras ? (
         <EmptyState
           icon={debouncedQ ? <SearchX aria-hidden /> : <PackageOpen aria-hidden />}
           title={debouncedQ ? 'نتیجه‌ای یافت نشد' : 'فعلاً آگهی‌ای نیست'}
@@ -196,11 +223,52 @@ export function ExploreClient({
         />
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-0.5">
-            {posts.map((p) => (
-              <ExploreTile key={p.id} post={p} />
-            ))}
-          </div>
+          {debouncedQ && searchUsers.length > 0 ? (
+            <section className="border-b border-border px-3 py-3">
+              <h2 className="mb-2 text-sm font-semibold">کاربران</h2>
+              <ul className="space-y-2">
+                {searchUsers.map((u) => (
+                  <li key={u.id}>
+                    <Link
+                      href={`/profile/${u.username ?? u.id}`}
+                      className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-muted"
+                    >
+                      <span className="font-medium">{u.username ?? u.name}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {debouncedQ && searchCategories.length > 0 ? (
+            <section className="border-b border-border px-3 py-3">
+              <h2 className="mb-2 text-sm font-semibold">دسته‌بندی‌ها</h2>
+              <ul className="flex flex-wrap gap-2">
+                {searchCategories.map((c) => (
+                  <li key={c.id}>
+                    <Link
+                      href={`/explore?categoryId=${c.id}`}
+                      className="rounded-full bg-muted px-3 py-1 text-xs font-medium"
+                    >
+                      {c.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {posts.length > 0 ? (
+            <>
+              {debouncedQ ? (
+                <h2 className="border-b border-border px-3 py-2 text-sm font-semibold">آگهی‌ها</h2>
+              ) : null}
+              <div className="grid grid-cols-3 gap-0.5">
+                {posts.map((p) => (
+                  <ExploreTile key={p.id} post={p} />
+                ))}
+              </div>
+            </>
+          ) : null}
           <div
             ref={loaderRef}
             className="flex h-20 items-center justify-center px-4 text-sm text-muted-foreground"
@@ -265,7 +333,17 @@ function ExploreTile({ post }: { post: PostSummary }) {
         </span>
       ) : null}
 
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2 opacity-100 transition-opacity duration-200 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+      {post.viewCount > 0 ? (
+        <span
+          aria-label={`${formatPersianNumber(post.viewCount)} بازدید`}
+          className="absolute bottom-1.5 start-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
+        >
+          <Eye className="size-3" aria-hidden />
+          {formatPersianCompact(post.viewCount)}
+        </span>
+      ) : null}
+
+      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2 pt-6 opacity-100 transition-opacity duration-200 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
         <p className="line-clamp-1 text-[12px] font-bold text-white drop-shadow">{post.title}</p>
         <p className="truncate text-[11px] text-white/95 drop-shadow">
           {formatPersianPrice(post.price)}

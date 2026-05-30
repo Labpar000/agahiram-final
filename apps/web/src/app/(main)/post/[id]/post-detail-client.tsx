@@ -3,10 +3,12 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, BarChart3 } from 'lucide-react';
+import { ArrowRight, BarChart3, Pencil } from 'lucide-react';
 import { EmptyState, IconButton, LoadingState } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { markPostViewedLocally } from '@/lib/viewer-hash';
 import { PostCard } from '@/components/post-card';
 import { CommentSection } from '@/components/comment-section';
 import { useAuthStore } from '@/lib/auth-store';
@@ -23,6 +25,9 @@ const LocationView = dynamic(
 
 export interface PostDetail {
   id: string;
+  title?: string;
+  description?: string | null;
+  price?: number | null;
   isLiked?: boolean;
   isSaved?: boolean;
   commentsEnabled?: boolean;
@@ -37,28 +42,21 @@ export interface PostDetail {
 
 export function PostDetailClient({ id }: { id: string }) {
   const me = useAuthStore((s) => s.user);
+  const searchParams = useSearchParams();
+  const highlightCommentId = searchParams.get('highlightComment');
   const { data, isLoading } = useQuery({
     queryKey: ['post', id],
     queryFn: async () => {
       const r = await apiClient.get<PostDetail>(`/posts/${id}`);
       return r.data;
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const isOwner = !!me && data?.user?.id === me.id;
 
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem('viewed-posts');
-      const ids: string[] = raw ? (JSON.parse(raw) ?? []) : [];
-      if (!ids.includes(id)) {
-        ids.push(id);
-        while (ids.length > 1000) ids.shift();
-        window.localStorage.setItem('viewed-posts', JSON.stringify(ids));
-      }
-    } catch {
-      /* localStorage can be unavailable in private browsing. */
-    }
+    markPostViewedLocally(id);
   }, [id]);
 
   return (
@@ -72,14 +70,24 @@ export function PostDetailClient({ id }: { id: string }) {
         />
         <span className="text-sm font-semibold">جزئیات آگهی</span>
         {isOwner ? (
-          <Link
-            href={`/post/${id}/insights`}
-            className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/15"
-            aria-label="آمار آگهی"
-          >
-            <BarChart3 className="size-4" aria-hidden />
-            آمار
-          </Link>
+          <>
+            <Link
+              href={`/post/${id}/edit`}
+              className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted/80"
+              aria-label="ویرایش آگهی"
+            >
+              <Pencil className="size-4" aria-hidden />
+              ویرایش
+            </Link>
+            <Link
+              href={`/post/${id}/insights`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/15"
+              aria-label="آمار آگهی"
+            >
+              <BarChart3 className="size-4" aria-hidden />
+              آمار
+            </Link>
+          </>
         ) : null}
       </div>
 
@@ -139,6 +147,7 @@ export function PostDetailClient({ id }: { id: string }) {
             postId={id}
             isOwner={isOwner}
             commentsEnabled={data.commentsEnabled ?? true}
+            highlightCommentId={highlightCommentId}
           />
         </>
       )}

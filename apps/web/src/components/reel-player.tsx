@@ -21,20 +21,30 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { handleEngagementError } from '@/lib/engagement-auth';
+import { useAuthStore } from '@/lib/auth-store';
 
 export function ReelPlayer({ reel }: { reel: ReelItem }) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef(0);
 
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(true);
-  const [liked, setLiked] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [liked, setLiked] = useState(reel.isLiked ?? false);
+  const [saved, setSaved] = useState(reel.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(reel.likesCount);
   const [contactRevealed, setContactRevealed] = useState(false);
   const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
+
+  useEffect(() => {
+    setLiked(reel.isLiked ?? false);
+    setSaved(reel.isSaved ?? false);
+    setLikeCount(reel.likesCount);
+  }, [reel.id, reel.isLiked, reel.isSaved, reel.likesCount]);
 
   /* Try HLS first; fall back to MP4 if hls not supported */
   useEffect(() => {
@@ -93,33 +103,45 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
 
   const onLikeToggle = useCallback(
     async (forceLike?: boolean) => {
+      if (!isAuthenticated) {
+        handleEngagementError({ success: false, statusCode: 401 }, 'like', logout);
+        return;
+      }
       const next = forceLike ?? !liked;
       if (next === liked) return;
       setLiked(next);
       setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
       const res = next
-        ? await apiClient.post(`/posts/${reel.id}/like`)
-        : await apiClient.delete(`/posts/${reel.id}/like`);
+        ? await apiClient.post<{ liked: boolean; likesCount: number }>(`/posts/${reel.id}/like`, {})
+        : await apiClient.delete<{ liked: boolean; likesCount: number }>(`/posts/${reel.id}/like`);
       if (!res.success) {
         setLiked(!next);
         setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
-        toast.error('برای لایک ابتدا وارد شوید');
+        handleEngagementError(res, 'like', logout);
+        return;
+      }
+      if (typeof res.data?.likesCount === 'number') {
+        setLikeCount(res.data.likesCount);
       }
     },
-    [liked, reel.id],
+    [liked, reel.id, isAuthenticated, logout],
   );
 
   const onSaveToggle = useCallback(async () => {
+    if (!isAuthenticated) {
+      handleEngagementError({ success: false, statusCode: 401 }, 'save', logout);
+      return;
+    }
     const next = !saved;
     setSaved(next);
     const res = next
-      ? await apiClient.post(`/posts/${reel.id}/save`)
+      ? await apiClient.post(`/posts/${reel.id}/save`, {})
       : await apiClient.delete(`/posts/${reel.id}/save`);
     if (!res.success) {
       setSaved(!next);
-      toast.error('برای ذخیره ابتدا وارد شوید');
+      handleEngagementError(res, 'save', logout);
     }
-  }, [saved, reel.id]);
+  }, [saved, reel.id, isAuthenticated, logout]);
 
   const onShare = useCallback(async () => {
     const url = `${window.location.origin}/post/${reel.id}`;

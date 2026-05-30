@@ -67,7 +67,7 @@ $SshOpts = @(
 if (Test-Path $KeyPath) {
   $SshOpts = @("-i", $KeyPath) + $SshOpts
 } else {
-  Write-Host "SSH key not found at $KeyPath — using password auth" -ForegroundColor Yellow
+  Write-Host "SSH key not found at $KeyPath - using password auth" -ForegroundColor Yellow
 }
 
 $ConfigArchive = Join-Path $env:TEMP "agahiram-config.tar.gz"

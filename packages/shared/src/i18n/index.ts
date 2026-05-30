@@ -154,6 +154,32 @@ const toDate = (d: DateInput): Date | null => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+/** Iran Standard Time (UTC+3:30, no DST). Converts a UTC instant for display. */
+export const IRAN_TZ = 'Asia/Tehran';
+
+export function toIranTime(input: DateInput): Date | null {
+  const date = toDate(input);
+  if (!date) return null;
+  const iranOffsetMs = 3.5 * 60 * 60 * 1000;
+  return new Date(date.getTime() + iranOffsetMs + date.getTimezoneOffset() * 60 * 1000);
+}
+
+/** YYYY-MM-DD bucket key in Iran local calendar (Gregorian components). */
+export function toIranDateKey(input: DateInput): string {
+  const iran = toIranTime(input);
+  if (!iran) return '';
+  const y = iran.getFullYear();
+  const m = String(iran.getMonth() + 1).padStart(2, '0');
+  const d = String(iran.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/** Hour-of-day 0..23 in Iran local time. */
+export function toIranHour(input: DateInput): number {
+  const iran = toIranTime(input);
+  return iran?.getHours() ?? 0;
+}
+
 /**
  * Format date in Jalali calendar with Persian digits.
  *   style "short"  → "۱۴۰۴/۰۳/۰۲"
@@ -166,7 +192,7 @@ export function formatJalaliDate(
   input: DateInput,
   style: 'short' | 'medium' | 'long' | 'time' | 'dateTime' = 'medium',
 ): string {
-  const date = toDate(input);
+  const date = toIranTime(input);
   if (!date) return '';
   const pattern =
     style === 'short'
@@ -211,7 +237,7 @@ export function formatRelativeTimeFa(input: DateInput): string {
  * Always returns Persian digits.
  */
 export function formatJalaliCustom(input: DateInput, pattern: string): string {
-  const date = toDate(input);
+  const date = toIranTime(input);
   if (!date) return '';
   return toPersianDigits(formatJalali(date, pattern, { locale: faIR }));
 }
@@ -224,7 +250,7 @@ export function formatJalaliCustom(input: DateInput, pattern: string): string {
  * Strict distance (no "about", "almost") — useful for live indicators (typing, last seen).
  */
 export function formatDistanceStrictFa(input: DateInput): string {
-  const date = toDate(input);
+  const date = toIranTime(input);
   if (!date) return '';
   return toPersianDigits(formatDistanceToNowStrict(date, { locale: faIR, addSuffix: true }));
 }

@@ -1,23 +1,25 @@
 'use client';
 
-import { Check, CheckCheck } from 'lucide-react';
+import { useState } from 'react';
+import { Check, CheckCheck, X } from 'lucide-react';
 import { cn, formatJalaliDate } from '@agahiram/shared';
 import { Avatar, AvatarFallback, AvatarImage } from '@agahiram/ui';
 
 export interface ChatMessageProps {
   id: string;
   content: string;
+  type?: string;
   isMine: boolean;
   createdAt: string;
   sender?: { username?: string | null; avatar?: string | null };
   status?: 'sending' | 'sent' | 'delivered' | 'read';
-  /** Group spacing — first message of a sender shows avatar, last shows status. */
   isFirstOfGroup?: boolean;
   isLastOfGroup?: boolean;
 }
 
 export function ChatMessage({
   content,
+  type = 'text',
   isMine,
   createdAt,
   sender,
@@ -25,63 +27,95 @@ export function ChatMessage({
   isFirstOfGroup = true,
   isLastOfGroup = true,
 }: ChatMessageProps) {
-  return (
-    <div
-      className={cn(
-        'flex w-full gap-2',
-        isMine ? 'justify-end' : 'justify-start',
-        isFirstOfGroup ? 'mt-3' : 'mt-0.5',
-      )}
-    >
-      {/* Their avatar — start side; reserve space for grouped messages */}
-      {!isMine && (
-        <div className="w-8 shrink-0">
-          {isLastOfGroup ? (
-            <Avatar size="sm">
-              {sender?.avatar ? <AvatarImage src={sender.avatar} alt="" /> : null}
-              <AvatarFallback>{(sender?.username ?? '?').slice(0, 2)}</AvatarFallback>
-            </Avatar>
-          ) : null}
-        </div>
-      )}
+  const [lightbox, setLightbox] = useState(false);
 
-      <div className="flex max-w-[82%] flex-col gap-0.5 sm:max-w-[72%]">
-        <div
-          className={cn(
-            'rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words shadow-xs',
-            isMine
-              ? 'bg-primary text-primary-foreground rounded-ee-md'
-              : 'bg-surface-elevated text-foreground rounded-es-md',
-          )}
-        >
-          {content}
-        </div>
-        {isLastOfGroup ? (
-          <div
-            className={cn(
-              'flex items-center gap-1 text-[10px] text-muted-foreground',
-              isMine ? 'justify-end' : 'justify-start',
-            )}
-          >
-            <span>{formatJalaliDate(createdAt, 'time')}</span>
-            {isMine && status ? (
-              <span
-                aria-label={statusLabel(status)}
-                className={cn(status === 'read' && 'text-primary')}
-              >
-                {status === 'sending' ? (
-                  <Check className="size-3 opacity-50" aria-hidden />
-                ) : status === 'sent' ? (
-                  <Check className="size-3" aria-hidden />
-                ) : (
-                  <CheckCheck className="size-3" aria-hidden />
-                )}
-              </span>
+  return (
+    <>
+      <div
+        className={cn(
+          'flex w-full gap-2',
+          isMine ? 'justify-end' : 'justify-start',
+          isFirstOfGroup ? 'mt-3' : 'mt-0.5',
+        )}
+      >
+        {/* Their avatar — start side; reserve space for grouped messages */}
+        {!isMine && (
+          <div className="w-8 shrink-0">
+            {isLastOfGroup ? (
+              <Avatar size="sm">
+                {sender?.avatar ? <AvatarImage src={sender.avatar} alt="" /> : null}
+                <AvatarFallback>{(sender?.username ?? '?').slice(0, 2)}</AvatarFallback>
+              </Avatar>
             ) : null}
           </div>
-        ) : null}
+        )}
+
+        <div className="flex max-w-[82%] flex-col gap-0.5 sm:max-w-[72%]">
+          <div
+            className={cn(
+              'rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words shadow-xs',
+              isMine
+                ? 'bg-primary text-primary-foreground rounded-ee-md'
+                : 'bg-surface-elevated text-foreground rounded-es-md',
+            )}
+          >
+            {type === 'image' ? (
+              <button type="button" onClick={() => setLightbox(true)} className="block">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={content} alt="" className="max-h-48 rounded-xl object-cover" />
+              </button>
+            ) : type === 'voice' ? (
+              <audio src={content} controls className="max-w-full" preload="metadata" />
+            ) : (
+              content
+            )}
+          </div>
+          {isLastOfGroup ? (
+            <div
+              className={cn(
+                'flex items-center gap-1 text-[10px] text-muted-foreground',
+                isMine ? 'justify-end' : 'justify-start',
+              )}
+            >
+              <span>{formatJalaliDate(createdAt, 'time')}</span>
+              {isMine && status ? (
+                <span
+                  aria-label={statusLabel(status)}
+                  className={cn(status === 'read' && 'text-primary')}
+                >
+                  {status === 'sending' ? (
+                    <Check className="size-3 opacity-50" aria-hidden />
+                  ) : status === 'sent' ? (
+                    <Check className="size-3" aria-hidden />
+                  ) : (
+                    <CheckCheck className="size-3" aria-hidden />
+                  )}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+      {lightbox && type === 'image' ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setLightbox(false)}
+        >
+          <button
+            type="button"
+            aria-label="بستن"
+            className="absolute end-4 top-4 rounded-full bg-white/10 p-2 text-white"
+            onClick={() => setLightbox(false)}
+          >
+            <X className="size-5" aria-hidden />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={content} alt="" className="max-h-[90svh] max-w-full object-contain" />
+        </div>
+      ) : null}
+    </>
   );
 }
 

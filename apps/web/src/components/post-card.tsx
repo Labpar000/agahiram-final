@@ -1,6 +1,7 @@
 'use client';
 
 import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -46,6 +47,8 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { handleEngagementError } from '@/lib/engagement-auth';
+import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
 import { CommentSection } from './comment-section';
@@ -64,10 +67,24 @@ export function PostCard({
   initialSaved = false,
   priority = false,
 }: Props) {
+  const qc = useQueryClient();
   const [liked, setLiked] = useState(initialLiked);
   const [saved, setSaved] = useState(initialSaved);
   const [likeCount, setLikeCount] = useState(post.likesCount);
   const [commentsOpen, setCommentsOpen] = useState(false);
+
+  useEffect(() => {
+    setLiked(initialLiked);
+  }, [initialLiked]);
+
+  useEffect(() => {
+    setSaved(initialSaved);
+  }, [initialSaved]);
+
+  useEffect(() => {
+    setLikeCount(post.likesCount);
+  }, [post.likesCount]);
+
   const [contactRevealed, setContactRevealed] = useState(false);
   const [contactPhone, setContactPhone] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
@@ -82,30 +99,11 @@ export function PostCard({
   const [locallyViewed, setLocallyViewed] = useState(false);
   useEffect(() => {
     if (post.viewedByMe) return;
-    try {
-      const raw = window.localStorage.getItem('viewed-posts');
-      if (raw) {
-        const ids = JSON.parse(raw) as string[];
-        if (Array.isArray(ids) && ids.includes(post.id)) setLocallyViewed(true);
-      }
-    } catch {
-      /* localStorage may be unavailable; ignore. */
-    }
+    if (hasViewedPostLocally(post.id)) setLocallyViewed(true);
   }, [post.id, post.viewedByMe]);
   const markViewedLocally = useCallback(() => {
     if (post.viewedByMe || locallyViewed) return;
-    try {
-      const raw = window.localStorage.getItem('viewed-posts');
-      const ids: string[] = raw ? (JSON.parse(raw) ?? []) : [];
-      if (!ids.includes(post.id)) {
-        ids.push(post.id);
-        // Cap to 1000 entries (LRU-ish: newest at end, drop from front).
-        while (ids.length > 1000) ids.shift();
-        window.localStorage.setItem('viewed-posts', JSON.stringify(ids));
-      }
-    } catch {
-      /* ignore */
-    }
+    markPostViewedLocally(post.id);
     setLocallyViewed(true);
   }, [post.id, post.viewedByMe, locallyViewed]);
   const showSeenBadge = Boolean(post.viewedByMe) || locallyViewed;
@@ -114,6 +112,8 @@ export function PostCard({
   // hard-cropped to 1:1. Instagram allows 1:1, 4:5 (portrait), 1.91:1 (landscape).
   const firstMedia = post.media[0];
   const me = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
   const isOwner = me?.id === post.user.id;
   const tier = karmaTier(post.user.karma);
   const postQualityLabel = qualityLabel(post.qualityScore);
@@ -134,33 +134,47 @@ export function PostCard({
 
   const onLikeToggle = useCallback(
     async (forceLike?: boolean) => {
+      if (!isAuthenticated) {
+        handleEngagementError({ success: false, statusCode: 401 }, 'like', logout);
+        return;
+      }
       const next = forceLike ?? !liked;
       if (next === liked) return;
       setLiked(next);
       setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
       const res = next
-        ? await apiClient.post(`/posts/${post.id}/like`)
-        : await apiClient.delete(`/posts/${post.id}/like`);
+        ? await apiClient.post<{ liked: boolean; likesCount: number }>(`/posts/${post.id}/like`, {})
+        : await apiClient.delete<{ liked: boolean; likesCount: number }>(`/posts/${post.id}/like`);
       if (!res.success) {
         setLiked(!next);
         setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
-        toast.error('برای لایک ابتدا وارد شوید');
+        handleEngagementError(res, 'like', logout);
+        return;
       }
+      if (typeof res.data?.likesCount === 'number') {
+        setLikeCount(res.data.likesCount);
+      }
+      void qc.invalidateQueries({ queryKey: ['feed'] });
+      void qc.invalidateQueries({ queryKey: ['post', post.id] });
     },
-    [liked, post.id],
+    [liked, post.id, isAuthenticated, logout, qc],
   );
 
   const onSaveToggle = useCallback(async () => {
+    if (!isAuthenticated) {
+      handleEngagementError({ success: false, statusCode: 401 }, 'save', logout);
+      return;
+    }
     const next = !saved;
     setSaved(next);
     const res = next
-      ? await apiClient.post(`/posts/${post.id}/save`)
+      ? await apiClient.post(`/posts/${post.id}/save`, {})
       : await apiClient.delete(`/posts/${post.id}/save`);
     if (!res.success) {
       setSaved(!next);
-      toast.error('برای ذخیره ابتدا وارد شوید');
+      handleEngagementError(res, 'save', logout);
     }
-  }, [saved, post.id]);
+  }, [saved, post.id, isAuthenticated, logout]);
 
   const onContact = useCallback(async () => {
     if (contactRevealed) {

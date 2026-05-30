@@ -112,6 +112,37 @@ async function main() {
   }
 
   console.log(`Created ${SAMPLES.length} sample posts.`);
+
+  const mobileCategory = await prisma.category.findUnique({ where: { slug: 'mobile-phones' } });
+  if (mobileCategory) {
+    await prisma.post.create({
+      data: {
+        userId: user.id,
+        categoryId: mobileCategory.id,
+        cityId: tehran.id,
+        title: 'ویدیو معرفی آیفون ۱۵ پرو',
+        description: 'نمایش کوتاه از ظاهر و قابلیت‌های گوشی.',
+        price: 88_000_000n,
+        priceType: 'fixed',
+        type: 'reel',
+        status: 'approved',
+        viewCount: 120,
+        media: {
+          create: [
+            {
+              url: 'https://storage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+              thumbnailUrl: PIC(999),
+              type: 'video',
+              order: 0,
+              width: 720,
+              height: 1280,
+            },
+          ],
+        },
+      },
+    });
+    console.log('Created sample reel.');
+  }
 }
 
 main()

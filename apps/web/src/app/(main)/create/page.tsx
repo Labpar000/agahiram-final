@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
@@ -40,8 +40,9 @@ import {
 } from '@agahiram/ui';
 import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api';
-import { uploadToMinio } from '@/lib/upload-media';
+import { useUploadManager } from '@/lib/upload-manager';
 import { ImageEditor } from '@/components/image-editor';
+import { CityLocationPicker } from '@/components/search-filters';
 import type { PickedLocation } from '@/components/maps/location-picker';
 
 // Map picker pulls in maplibre-gl; it only appears on the last step of the
@@ -85,6 +86,7 @@ type PriceType = 'fixed' | 'negotiable' | 'free' | 'callForPrice';
 
 export default function CreatePage() {
   const router = useRouter();
+  const { uploadFile } = useUploadManager();
   const [step, setStep] = useState<Step>(0);
   const [media, setMedia] = useState<UploadedMedia[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -104,6 +106,24 @@ export default function CreatePage() {
   // Editor queue: image files awaiting crop/filter/rotate before upload.
   const [editorFile, setEditorFile] = useState<File | null>(null);
   const [editorQueue, setEditorQueue] = useState<File[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const last = localStorage.getItem('agahiram_last_city_id');
+        if (!last) return;
+        const r = await apiClient.get<{ id: string; provinceId: string }>(
+          `/locations/city/${last}`,
+        );
+        if (r.success && r.data) {
+          setCityId(r.data.id);
+          setProvinceId(r.data.provinceId);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+  }, []);
 
   const { data: cats } = useQuery({
     queryKey: ['categories'],
@@ -162,7 +182,13 @@ export default function CreatePage() {
       }
 
       setUploadProgress(0);
-      const ok = await uploadToMinio(presign.data.uploadUrl, file, contentType, setUploadProgress);
+      const ok = await uploadFile({
+        label: file.name,
+        url: presign.data.uploadUrl,
+        file,
+        contentType,
+      });
+      setUploadProgress(100);
       if (!ok) {
         toast.error(`آپلود «${file.name}» ناموفق بود`);
         return false;
@@ -246,7 +272,7 @@ export default function CreatePage() {
         price: priceType === 'fixed' && price ? Number(price) : null,
         priceType,
         cityId,
-        type: 'post',
+        type: media.length === 1 && media[0]?.type === 'video' ? 'reel' : 'post',
         attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
         mediaKeys: media.map((m, i) => ({ key: m.key, type: m.type, order: i })),
         lat: pickedLocation?.lat ?? null,
@@ -615,79 +641,59 @@ export default function CreatePage() {
               <MapPin className="size-5" aria-hidden /> موقعیت مکانی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما در کجاست؟</p>
-            <div className="mt-4 space-y-4">
+            <div className="mt-4 h-80 overflow-hidden rounded-2xl border border-border">
+              <CityLocationPicker
+                currentCityId={cityId}
+                currentProvinceId={provinceId}
+                onPickProvince={(p) => {
+                  setProvinceId(p.id);
+                  setCityId('');
+                }}
+                onPickCity={(c, p) => {
+                  setCityId(c.id);
+                  setProvinceId(p.id);
+                  try {
+                    localStorage.setItem('agahiram_last_city_id', c.id);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                onPickProvinceOnly={(p) => setProvinceId(p.id)}
+                onClear={() => {
+                  setProvinceId('');
+                  setCityId('');
+                }}
+              />
+            </div>
+
+            {cityId ? (
               <div className="space-y-2">
-                <Label htmlFor="province" required>
-                  استان
-                </Label>
-                <Select
-                  value={provinceId}
-                  onValueChange={(v) => {
-                    setProvinceId(v);
-                    setCityId('');
-                  }}
-                >
-                  <SelectTrigger id="province">
-                    <SelectValue placeholder="انتخاب کنید" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(provinces ?? []).map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {provinceId ? (
-                <div className="space-y-2">
-                  <Label htmlFor="city" required>
-                    شهر
-                  </Label>
-                  <Select value={cityId} onValueChange={setCityId}>
-                    <SelectTrigger id="city">
-                      <SelectValue placeholder="انتخاب کنید" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(cities ?? []).map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-
-              {cityId ? (
-                <div className="space-y-2">
-                  <Label>موقعیت دقیق روی نقشه (اختیاری)</Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    نقشه را جابه‌جا کنید تا پین روی محل دقیق آگهی قرار گیرد. این کمک می‌کند خریداران
-                    فاصله را ببینند.
-                  </p>
-                  <LocationPicker
-                    value={pickedLocation}
-                    onChange={setPickedLocation}
-                    hideExact={hideExactLocation}
-                    onHideExactChange={setHideExactLocation}
-                    defaultCenter={cityCenter}
-                  />
-                </div>
-              ) : null}
-
-              <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                <h3 className="text-sm font-semibold">پیش‌نمایش</h3>
-                <p className="mt-1 text-sm">{title || '—'}</p>
-                <p className="text-sm font-bold gradient-text-brand">
-                  {priceType === 'free'
-                    ? 'رایگان'
-                    : priceType === 'callForPrice'
-                      ? 'تماس بگیرید'
-                      : formatPersianPrice(price ? Number(price) : null)}
+                <Label>موقعیت دقیق روی نقشه (اختیاری)</Label>
+                <p className="text-[11px] text-muted-foreground">
+                  نقشه را جابه‌جا کنید تا پین روی محل دقیق آگهی قرار گیرد. این کمک می‌کند خریداران
+                  فاصله را ببینند.
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">دسته: {category?.name ?? '—'}</p>
+                <LocationPicker
+                  value={pickedLocation}
+                  onChange={setPickedLocation}
+                  hideExact={hideExactLocation}
+                  onHideExactChange={setHideExactLocation}
+                  defaultCenter={cityCenter}
+                />
               </div>
+            ) : null}
+
+            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+              <h3 className="text-sm font-semibold">پیش‌نمایش</h3>
+              <p className="mt-1 text-sm">{title || '—'}</p>
+              <p className="text-sm font-bold gradient-text-brand">
+                {priceType === 'free'
+                  ? 'رایگان'
+                  : priceType === 'callForPrice'
+                    ? 'تماس بگیرید'
+                    : formatPersianPrice(price ? Number(price) : null)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">دسته: {category?.name ?? '—'}</p>
             </div>
           </section>
         )}

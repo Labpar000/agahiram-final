@@ -64,7 +64,12 @@ export function FeedClient() {
         <div className="pt-0 sm:pb-3">
           {posts.map((p, i) => (
             <div key={p.id} className={i === 0 ? undefined : 'cv-card'}>
-              <PostCard post={p as never} priority={i === 0} />
+              <PostCard
+                post={p as never}
+                priority={i === 0}
+                initialLiked={p.isLiked}
+                initialSaved={p.isSaved}
+              />
             </div>
           ))}
           <div

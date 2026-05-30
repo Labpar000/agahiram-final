@@ -28,14 +28,18 @@ export class EngagementController {
 
   @Public()
   @Get('posts/:id/comments')
-  list(@Param('id') id: string, @Query('cursor') cursor?: string) {
-    return this.comments.list(id, cursor);
+  list(
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+    @CurrentUser('sub') viewerId?: string,
+  ) {
+    return this.comments.list(id, cursor, 20, viewerId);
   }
 
   @Public()
   @Get('comments/:id/replies')
-  replies(@Param('id') id: string) {
-    return this.comments.replies(id);
+  replies(@Param('id') id: string, @CurrentUser('sub') viewerId?: string) {
+    return this.comments.replies(id, viewerId);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -79,15 +83,27 @@ export class EngagementController {
   save(
     @CurrentUser('sub') userId: string,
     @Param('id') id: string,
-    @Body() body: { collectionId?: string },
+    @Body() body?: { collectionId?: string },
   ) {
-    return this.saves.save(userId, id, body.collectionId);
+    return this.saves.save(userId, id, body?.collectionId);
   }
 
   @UseGuards(JwtAuthGuard)
   @Delete('posts/:id/save')
   unsave(@CurrentUser('sub') userId: string, @Param('id') id: string) {
     return this.saves.unsave(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('comments/:id/like')
+  likeComment(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.comments.likeComment(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('comments/:id/like')
+  unlikeComment(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.comments.unlikeComment(userId, id);
   }
 
   @UseGuards(JwtAuthGuard)

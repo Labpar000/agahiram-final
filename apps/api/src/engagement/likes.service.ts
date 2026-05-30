@@ -9,20 +9,22 @@ export class LikesService {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException();
 
-    await this.prisma.like.upsert({
+    const existing = await this.prisma.like.findUnique({
       where: { userId_postId: { userId, postId } },
-      update: {},
-      create: { userId, postId },
     });
 
-    if (post.userId !== userId) {
-      await this.prisma.notification.create({
-        data: {
-          userId: post.userId,
-          type: 'like',
-          payload: { likerId: userId, postId },
-        },
-      });
+    if (!existing) {
+      await this.prisma.like.create({ data: { userId, postId } });
+
+      if (post.userId !== userId) {
+        await this.prisma.notification.create({
+          data: {
+            userId: post.userId,
+            type: 'like',
+            payload: { likerId: userId, postId },
+          },
+        });
+      }
     }
 
     const count = await this.prisma.like.count({ where: { postId } });

@@ -89,7 +89,7 @@ export class FeedService {
 
     const hasMore = posts.length > limit;
     const baseData = posts.slice(0, limit).map((p) => this.posts.toSummary(p));
-    const data = await this.posts.attachViewedByMe(baseData, userId);
+    const data = await this.posts.attachViewerState(baseData, userId);
     return {
       data,
       nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null,
@@ -192,7 +192,7 @@ export class FeedService {
 
     const hasMore = ranked.length > limit;
     const baseData = ranked.slice(0, limit).map((p) => this.posts.toSummary(p));
-    const data = await this.posts.attachViewedByMe(baseData, viewerId);
+    const data = await this.posts.attachViewerState(baseData, viewerId);
     return { data, nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null, hasMore };
   }
 
@@ -235,19 +235,25 @@ export class FeedService {
   }
 
   async getReels(cursor: string | undefined, limit = 10, viewerId?: string) {
+    const visibility: Prisma.PostWhereInput = viewerId
+      ? {
+          OR: [
+            { user: { isPrivate: false } },
+            { userId: viewerId },
+            { user: { followers: { some: { followerId: viewerId } } } },
+          ],
+        }
+      : { user: { isPrivate: false } };
+
     const posts = await this.prisma.post.findMany({
       where: {
         status: 'approved',
-        type: 'reel',
-        ...(viewerId
-          ? {
-              OR: [
-                { user: { isPrivate: false } },
-                { userId: viewerId },
-                { user: { followers: { some: { followerId: viewerId } } } },
-              ],
-            }
-          : { user: { isPrivate: false } }),
+        AND: [
+          visibility,
+          {
+            OR: [{ type: 'reel' }, { media: { some: { type: 'video' } } }],
+          },
+        ],
       },
       include: this.posts.fullInclude(),
       take: limit + 1,
@@ -260,7 +266,7 @@ export class FeedService {
       hlsUrl: p.media[0]?.hlsUrl ?? null,
       duration: p.media[0]?.duration ?? null,
     }));
-    const data = await this.posts.attachViewedByMe(baseData, viewerId);
+    const data = await this.posts.attachViewerState(baseData, viewerId);
     return { data, nextCursor: hasMore ? (data[data.length - 1]?.id ?? null) : null, hasMore };
   }
 }

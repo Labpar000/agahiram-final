@@ -1,4 +1,5 @@
 import type { ApiResponse } from '@agahiram/shared';
+import { getViewerHash } from './viewer-hash';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
@@ -65,6 +66,11 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     headers.set('Content-Type', 'application/json');
   }
 
+  const viewerHash = getViewerHash();
+  if (viewerHash) {
+    headers.set('X-Viewer-Hash', viewerHash);
+  }
+
   // httpOnly cookies are sent automatically via credentials: 'include'; no Bearer header needed.
   void skipAuth;
 
@@ -100,7 +106,7 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
     json = { success: false, error: json.message ?? `خطا: ${status}` };
   }
 
-  return json;
+  return { ...json, statusCode: status };
 }
 
 export const apiClient = {

@@ -18,11 +18,11 @@ interface InsightsResponse {
 
 const FA_WEEKDAY = ['شنبه', 'یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه'];
 
-function toFaDayLabel(iso: string): string {
-  const d = new Date(iso);
-  // JS: 0=Sun ... 6=Sat. We want Persian week starting Saturday.
+function toFaDayLabel(dateKey: string): string {
+  const [y, m, d] = dateKey.split('-').map(Number);
+  const date = new Date(y!, (m ?? 1) - 1, d ?? 1);
   const map = [1, 2, 3, 4, 5, 6, 0];
-  return FA_WEEKDAY[map[d.getDay()]!]!;
+  return FA_WEEKDAY[map[date.getDay()]!]!;
 }
 
 export default function InsightsPage({ params }: { params: Promise<{ id: string }> }) {

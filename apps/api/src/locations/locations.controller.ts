@@ -26,6 +26,11 @@ export class LocationsController {
     return this.service.getNeighborhoods(id);
   }
 
+  @Get('city/:id')
+  cityById(@Param('id') id: string) {
+    return this.service.getCityById(id);
+  }
+
   @Get('search')
   search(@Query('q') q: string) {
     if (!q || q.length < 2) return [];

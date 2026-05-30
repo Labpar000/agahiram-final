@@ -77,6 +77,12 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('me/mention-candidates')
+  async mentionCandidates(@CurrentUser('sub') userId: string, @Query('q') q?: string) {
+    return this.usersService.getMentionCandidates(userId, q);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Delete('me/blocked/:username')
   async unblock(@CurrentUser('sub') userId: string, @Param('username') username: string) {
     return this.usersService.unblockUser(userId, username);

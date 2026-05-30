@@ -10,12 +10,12 @@ import { PrismaService } from '../prisma/prisma.service';
 export class CommentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(postId: string, cursor?: string, limit = 30) {
+  async list(postId: string, cursor?: string, limit = 20, viewerId?: string) {
     const comments = await this.prisma.comment.findMany({
       where: { postId, parentId: null },
       include: {
         user: { select: { id: true, username: true, name: true, avatar: true, isVerified: true } },
-        _count: { select: { replies: true } },
+        _count: { select: { replies: true, likes: true } },
       },
       take: limit + 1,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
@@ -23,21 +23,50 @@ export class CommentsService {
       orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
     });
     const hasMore = comments.length > limit;
+    const slice = comments.slice(0, limit);
+    let likedIds = new Set<string>();
+    if (viewerId && slice.length > 0) {
+      const likes = await this.prisma.commentLike.findMany({
+        where: { userId: viewerId, commentId: { in: slice.map((c) => c.id) } },
+        select: { commentId: true },
+      });
+      likedIds = new Set(likes.map((l) => l.commentId));
+    }
     return {
-      data: comments.slice(0, limit),
+      data: slice.map((c) => ({
+        ...c,
+        likesCount: c._count.likes,
+        isLikedByMe: likedIds.has(c.id),
+      })),
       nextCursor: hasMore ? (comments[limit - 1]?.id ?? null) : null,
       hasMore,
     };
   }
 
-  async replies(commentId: string) {
-    return this.prisma.comment.findMany({
+  async replies(commentId: string, viewerId?: string) {
+    const rows = await this.prisma.comment.findMany({
       where: { parentId: commentId },
       include: {
         user: { select: { id: true, username: true, name: true, avatar: true, isVerified: true } },
+        _count: { select: { likes: true } },
+        parent: { select: { user: { select: { username: true } } } },
       },
       orderBy: { createdAt: 'asc' },
     });
+    let likedIds = new Set<string>();
+    if (viewerId && rows.length > 0) {
+      const likes = await this.prisma.commentLike.findMany({
+        where: { userId: viewerId, commentId: { in: rows.map((c) => c.id) } },
+        select: { commentId: true },
+      });
+      likedIds = new Set(likes.map((l) => l.commentId));
+    }
+    return rows.map((c) => ({
+      ...c,
+      likesCount: c._count.likes,
+      isLikedByMe: likedIds.has(c.id),
+      replyToUsername: c.parent?.user.username ?? null,
+    }));
   }
 
   async create(userId: string, postId: string, content: string, parentId?: string) {
@@ -51,6 +80,19 @@ export class CommentsService {
       throw new ForbiddenException('نظرات برای این آگهی غیرفعال است');
     }
 
+    let parentAuthorId: string | null = null;
+    if (parentId) {
+      const parent = await this.prisma.comment.findUnique({
+        where: { id: parentId },
+        select: { postId: true, parentId: true, userId: true },
+      });
+      if (!parent || parent.postId !== postId) throw new NotFoundException();
+      if (parent.parentId) {
+        throw new BadRequestException('فقط یک سطح پاسخ مجاز است');
+      }
+      parentAuthorId = parent.userId;
+    }
+
     const comment = await this.prisma.comment.create({
       data: { userId, postId, content: trimmed, parentId },
       include: {
@@ -59,17 +101,59 @@ export class CommentsService {
       },
     });
 
-    if (post.userId !== userId) {
+    const snippet = trimmed.slice(0, 100);
+    const notified = new Set<string>([userId]);
+
+    const notifyComment = async (targetUserId: string, extra: Record<string, unknown> = {}) => {
+      if (notified.has(targetUserId)) return;
+      notified.add(targetUserId);
       await this.prisma.notification.create({
         data: {
-          userId: post.userId,
+          userId: targetUserId,
           type: 'comment',
-          payload: { commenterId: userId, postId, content: trimmed.slice(0, 100) },
+          payload: {
+            commenterId: userId,
+            postId,
+            commentId: comment.id,
+            message: snippet,
+            ...extra,
+          },
         },
       });
+    };
+
+    if (post.userId !== userId) {
+      await notifyComment(post.userId, { isReply: !!parentId });
+    }
+
+    if (parentAuthorId && parentAuthorId !== userId && parentAuthorId !== post.userId) {
+      await notifyComment(parentAuthorId, { isReply: true, parentId });
+    }
+
+    const mentionedIds = await this.resolveMentionedUserIds(trimmed, userId);
+    for (const mentionedId of mentionedIds) {
+      await notifyComment(mentionedId, { mentioned: true });
     }
 
     return comment;
+  }
+
+  private async resolveMentionedUserIds(content: string, excludeUserId: string) {
+    const handles = [
+      ...new Set(
+        [...content.matchAll(/@([a-zA-Z0-9_.]+)/g)].map((m) => m[1]?.toLowerCase()).filter(Boolean),
+      ),
+    ] as string[];
+    if (!handles.length) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        isBanned: false,
+        OR: handles.map((h) => ({ username: { equals: h, mode: 'insensitive' as const } })),
+      },
+      select: { id: true },
+    });
+    return users.map((u) => u.id).filter((id) => id !== excludeUserId);
   }
 
   async delete(userId: string, commentId: string) {
@@ -113,5 +197,26 @@ export class CommentsService {
       data: { commentsEnabled: enabled },
     });
     return { commentsEnabled: enabled };
+  }
+
+  async likeComment(userId: string, commentId: string) {
+    const comment = await this.prisma.comment.findUnique({ where: { id: commentId } });
+    if (!comment) throw new NotFoundException();
+    const existing = await this.prisma.commentLike.findUnique({
+      where: { userId_commentId: { userId, commentId } },
+    });
+    if (!existing) {
+      await this.prisma.commentLike.create({ data: { userId, commentId } });
+    }
+    const likesCount = await this.prisma.commentLike.count({ where: { commentId } });
+    return { liked: true, likesCount };
+  }
+
+  async unlikeComment(userId: string, commentId: string) {
+    await this.prisma.commentLike
+      .delete({ where: { userId_commentId: { userId, commentId } } })
+      .catch(() => null);
+    const likesCount = await this.prisma.commentLike.count({ where: { commentId } });
+    return { liked: false, likesCount };
   }
 }

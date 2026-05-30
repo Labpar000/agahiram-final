@@ -87,6 +87,8 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   message?: string;
   error?: string;
+  /** HTTP status when available (client-side api helper). */
+  statusCode?: number;
 }
 
 export interface JwtPayload {
@@ -133,6 +135,8 @@ export interface PostSummary {
   qualityScore?: number;
   viewCount: number;
   viewedByMe?: boolean;
+  isLiked?: boolean;
+  isSaved?: boolean;
   likesCount: number;
   commentsCount: number;
   createdAt: string;

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Check, ChevronLeft, Filter, MapPin, Search, X } from 'lucide-react';
-import { cn, formatPersianNumber } from '@agahiram/shared';
+import { cn, formatPersianNumber, normalizePersianText } from '@agahiram/shared';
 import {
   Button,
   Drawer,
@@ -203,7 +203,7 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
             />
           )}
           {step === 'location' && (
-            <LocationPicker
+            <CityLocationPicker
               currentCityId={local.cityId}
               currentProvinceId={local.provinceId}
               onPickProvince={(p) => {
@@ -597,7 +597,7 @@ function CategoryPicker({
 
 /* ───────────────────── Step: province → city cascade ─────────────────────── */
 
-function LocationPicker({
+export function CityLocationPicker({
   currentCityId,
   currentProvinceId,
   onPickProvince,
@@ -647,15 +647,15 @@ function LocationPicker({
 
   const filteredProvinces = useMemo(() => {
     if (provincePicked || !q.trim()) return provinces ?? [];
-    const lower = q.trim().toLowerCase();
-    return (provinces ?? []).filter((p) => p.name.toLowerCase().includes(lower));
+    const lower = normalizePersianText(q.trim());
+    return (provinces ?? []).filter((p) => normalizePersianText(p.name).includes(lower));
   }, [provinces, provincePicked, q]);
 
   const filteredCities = useMemo(() => {
     if (!provincePicked) return [];
     if (!q.trim()) return cities ?? [];
-    const lower = q.trim().toLowerCase();
-    return (cities ?? []).filter((c) => c.name.toLowerCase().includes(lower));
+    const lower = normalizePersianText(q.trim());
+    return (cities ?? []).filter((c) => normalizePersianText(c.name).includes(lower));
   }, [cities, provincePicked, q]);
 
   return (

@@ -315,6 +315,34 @@ export class UsersService {
     });
   }
 
+  /** Users the current user follows — for @mention typeahead in comments. */
+  async getMentionCandidates(userId: string, query?: string, limit = 8) {
+    const following = await this.prisma.follow.findMany({
+      where: {
+        followerId: userId,
+        ...(query?.trim()
+          ? {
+              following: {
+                OR: [
+                  { username: { contains: query.trim(), mode: 'insensitive' as const } },
+                  { name: { contains: query.trim(), mode: 'insensitive' as const } },
+                ],
+                isBanned: false,
+              },
+            }
+          : { following: { isBanned: false } }),
+      },
+      include: {
+        following: {
+          select: { id: true, username: true, name: true, avatar: true, isVerified: true },
+        },
+      },
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    });
+    return following.map((f) => f.following).filter((u) => u.username);
+  }
+
   async searchUsers(query: string, limit = 10) {
     return this.prisma.user.findMany({
       where: {

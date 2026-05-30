@@ -62,6 +62,7 @@ export const createReelSchema = z.object({
   duration: z.number().min(1).max(60),
 });
 
+export type CreateReelInput = z.infer<typeof createReelSchema>;
 export type CreatePostInput = z.infer<typeof createPostSchema>;
 export type UpdatePostInput = z.infer<typeof updatePostSchema>;
 export type PostFilterInput = z.infer<typeof postFilterSchema>;

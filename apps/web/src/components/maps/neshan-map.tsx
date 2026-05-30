@@ -6,7 +6,9 @@ import { cn } from '@agahiram/shared';
 import {
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
+  NESHAN_MAP_KEY,
   NESHAN_STYLES,
+  neshanStaticUrl,
   type NeshanStyleKey,
   transformRequest,
 } from '@/lib/neshan';
@@ -169,9 +171,24 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
       />
       {error ? (
         <div className="absolute inset-0 grid place-items-center bg-background/80 backdrop-blur-sm">
-          <div className="max-w-[80%] rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
-            {error}
-          </div>
+          {NESHAN_MAP_KEY && center ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={neshanStaticUrl({
+                lat: center[1],
+                lng: center[0],
+                zoom,
+                width: 640,
+                height: 360,
+              })}
+              alt="نقشه موقعیت"
+              className="size-full object-cover"
+            />
+          ) : (
+            <div className="max-w-[80%] rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
+              {error || 'نقشه در دسترس نیست'}
+            </div>
+          )}
         </div>
       ) : !ready ? (
         <div className="absolute inset-0 grid place-items-center bg-muted">

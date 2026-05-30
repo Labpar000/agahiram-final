@@ -10,7 +10,11 @@ import {
   BANNED_WORDS,
   BULL_QUEUES,
   POST_EXPIRY_DAYS,
+  PostType,
+  toIranDateKey,
+  toIranHour,
   type CreatePostInput,
+  type CreateReelInput,
   type UpdatePostInput,
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -147,21 +151,58 @@ export class PostsService {
     return this.toSummary(post);
   }
 
+  async createReel(userId: string, input: CreateReelInput) {
+    return this.create(userId, {
+      title: input.title,
+      description: input.description,
+      categoryId: input.categoryId,
+      price: input.price,
+      priceType: input.priceType,
+      cityId: input.cityId,
+      type: PostType.REEL,
+      hideExactLocation: false,
+      mediaKeys: [{ key: input.mediaKey, type: 'video', order: 0 }],
+    });
+  }
+
   async update(userId: string, id: string, input: UpdatePostInput) {
-    const existing = await this.prisma.post.findUnique({ where: { id } });
+    const existing = await this.prisma.post.findUnique({
+      where: { id },
+      include: { media: true, attributes: { include: { attribute: true } } },
+    });
     if (!existing) throw new NotFoundException('آگهی یافت نشد');
     if (existing.userId !== userId) throw new ForbiddenException();
+
+    if (input.mediaKeys && input.mediaKeys.length > 0) {
+      await this.prisma.postMedia.deleteMany({ where: { postId: id } });
+    }
 
     const post = await this.prisma.post.update({
       where: { id },
       data: {
-        title: input.title,
-        description: input.description,
-        price: input.price,
-        priceType: input.priceType,
-        cityId: input.cityId,
-        neighborhoodId: input.neighborhoodId,
-        hideExactLocation: input.hideExactLocation,
+        ...(input.title !== undefined && { title: input.title }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.price !== undefined && { price: input.price }),
+        ...(input.priceType !== undefined && { priceType: input.priceType }),
+        ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
+        ...(input.cityId !== undefined && { cityId: input.cityId }),
+        ...(input.neighborhoodId !== undefined && { neighborhoodId: input.neighborhoodId }),
+        ...(input.lat !== undefined && { lat: input.lat }),
+        ...(input.lng !== undefined && { lng: input.lng }),
+        ...(input.hideExactLocation !== undefined && {
+          hideExactLocation: input.hideExactLocation,
+        }),
+        ...(input.mediaKeys &&
+          input.mediaKeys.length > 0 && {
+            media: {
+              create: input.mediaKeys.map((m) => ({
+                url: this.minio.getPublicUrl(m.key),
+                thumbnailUrl: m.type === 'image' ? this.minio.getPublicUrl(m.key) : null,
+                type: m.type,
+                order: m.order,
+              })),
+            },
+          }),
       },
       include: this.fullInclude(),
     });
@@ -170,7 +211,7 @@ export class PostsService {
     return this.toSummary(post);
   }
 
-  async getById(id: string, viewerId?: string) {
+  async getById(id: string, viewerId?: string, viewerHash?: string) {
     const post = await this.prisma.post.findUnique({
       where: { id },
       include: this.fullInclude(),
@@ -184,22 +225,13 @@ export class PostsService {
       throw new ForbiddenException('این حساب خصوصی است');
     }
 
-    // Record per-viewer view event. The aggregate viewCount column is still
-    // incremented (it powers card-level eye-icon counts cheaply); the PostView
-    // table is the source of truth for unique/repeat analytics.
-    if (viewerId !== post.userId) {
-      try {
-        await this.prisma.postView.create({
-          data: { postId: id, userId: viewerId ?? null },
-        });
-      } catch {
-        /* PostView table may not exist yet on first deploy; ignore. */
-      }
-      await this.prisma.post.update({
-        where: { id },
-        data: { viewCount: { increment: 1 } },
-      });
-    }
+    await this.recordView(id, post.userId, viewerId, viewerHash);
+
+    const freshCount = await this.prisma.post.findUnique({
+      where: { id },
+      select: { viewCount: true },
+    });
+    if (freshCount) post.viewCount = freshCount.viewCount;
 
     let isLiked = false;
     let isSaved = false;
@@ -261,12 +293,12 @@ export class PostsService {
     const days: Array<{ date: string; count: number }> = [];
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now.getTime() - i * 86400000);
-      const key = d.toISOString().slice(0, 10);
+      const key = toIranDateKey(d);
       days.push({ date: key, count: 0 });
     }
     const dayIndex = new Map(days.map((d, i) => [d.date, i]));
     for (const v of views) {
-      const key = v.viewedAt.toISOString().slice(0, 10);
+      const key = toIranDateKey(v.viewedAt);
       const i = dayIndex.get(key);
       if (i != null) days[i]!.count++;
     }
@@ -285,10 +317,10 @@ export class PostsService {
 
     // By hour of day (0..23)
     const byHour = Array.from({ length: 24 }, () => 0);
-    for (const v of views) byHour[v.viewedAt.getHours()]!++;
+    for (const v of views) byHour[toIranHour(v.viewedAt)]!++;
 
     return {
-      totalViews: post.viewCount,
+      totalViews: await this.countUniqueViews(postId, post.viewCount),
       last7Days: days,
       unique,
       repeat,
@@ -317,11 +349,6 @@ export class PostsService {
     });
     if (!post) throw new NotFoundException();
 
-    await this.prisma.post.update({
-      where: { id: postId },
-      data: { viewCount: { increment: 1 } },
-    });
-
     if (!viewerId) {
       return { contactRevealed: false, requiresAuth: true };
     }
@@ -331,6 +358,59 @@ export class PostsService {
       requiresAuth: false,
       phone: post.user.phone,
     };
+  }
+
+  /** Record a unique view; no-op if this viewer already saw the post. */
+  private async recordView(
+    postId: string,
+    ownerId: string,
+    viewerId?: string | null,
+    viewerHash?: string | null,
+  ): Promise<void> {
+    if (viewerId === ownerId) return;
+
+    const hash = viewerHash?.trim().slice(0, 128) || null;
+    if (!viewerId && !hash) return;
+
+    try {
+      const existing = viewerId
+        ? await this.prisma.postView.findFirst({ where: { postId, userId: viewerId } })
+        : await this.prisma.postView.findFirst({ where: { postId, viewerHash: hash! } });
+      if (existing) return;
+
+      await this.prisma.$transaction([
+        this.prisma.postView.create({
+          data: {
+            postId,
+            userId: viewerId ?? null,
+            viewerHash: viewerId ? null : hash,
+          },
+        }),
+        this.prisma.post.update({
+          where: { id: postId },
+          data: { viewCount: { increment: 1 } },
+        }),
+      ]);
+    } catch {
+      /* Unique constraint race or table missing — ignore. */
+    }
+  }
+
+  private async countUniqueViews(postId: string, fallback: number): Promise<number> {
+    try {
+      const rows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS count FROM (
+          SELECT DISTINCT COALESCE("userId", "viewerHash") AS viewer
+          FROM "PostView"
+          WHERE "postId" = ${postId}
+            AND COALESCE("userId", "viewerHash") IS NOT NULL
+        ) t
+      `;
+      const n = Number(rows[0]?.count ?? 0);
+      return n > 0 ? n : fallback;
+    } catch {
+      return fallback;
+    }
   }
 
   async getUserPosts(username: string, viewerId?: string, cursor?: string, limit = 12) {
@@ -355,7 +435,7 @@ export class PostsService {
     });
 
     const hasMore = posts.length > limit;
-    const data = await this.attachViewedByMe(
+    const data = await this.attachViewerState(
       posts.slice(0, limit).map((p) => this.toSummary(p)),
       viewerId,
     );
@@ -387,7 +467,7 @@ export class PostsService {
     });
 
     const hasMore = posts.length > limit;
-    const data = await this.attachViewedByMe(
+    const data = await this.attachViewerState(
       posts.slice(0, limit).map((p) => this.toSummary(p)),
       viewerId,
     );
@@ -415,7 +495,7 @@ export class PostsService {
     });
 
     const hasMore = saves.length > limit;
-    const data = await this.attachViewedByMe(
+    const data = await this.attachViewerState(
       saves.slice(0, limit).map((save) => this.toSummary(save.post)),
       viewerId,
     );
@@ -502,5 +582,44 @@ export class PostsService {
       /* PostView not migrated yet; ignore. */
     }
     return summaries.map((s) => ({ ...s, viewedByMe: seenIds.has(s.id) }));
+  }
+
+  /**
+   * Batch-fetch like/save state for the current viewer across a list of posts.
+   */
+  async attachEngagementByMe<T extends { id: string }>(
+    summaries: T[],
+    viewerId: string | undefined | null,
+  ): Promise<Array<T & { isLiked: boolean; isSaved: boolean }>> {
+    if (!viewerId || summaries.length === 0) {
+      return summaries.map((s) => ({ ...s, isLiked: false, isSaved: false }));
+    }
+    const ids = summaries.map((s) => s.id);
+    const [likes, saves] = await Promise.all([
+      this.prisma.like.findMany({
+        where: { userId: viewerId, postId: { in: ids } },
+        select: { postId: true },
+      }),
+      this.prisma.savedPost.findMany({
+        where: { userId: viewerId, postId: { in: ids } },
+        select: { postId: true },
+      }),
+    ]);
+    const likedIds = new Set(likes.map((l) => l.postId));
+    const savedIds = new Set(saves.map((s) => s.postId));
+    return summaries.map((s) => ({
+      ...s,
+      isLiked: likedIds.has(s.id),
+      isSaved: savedIds.has(s.id),
+    }));
+  }
+
+  /** Attach viewed + engagement flags in one pass (feed/explore/reels hot path). */
+  async attachViewerState<T extends { id: string }>(
+    summaries: T[],
+    viewerId: string | undefined | null,
+  ): Promise<Array<T & { viewedByMe: boolean; isLiked: boolean; isSaved: boolean }>> {
+    const withViewed = await this.attachViewedByMe(summaries, viewerId);
+    return this.attachEngagementByMe(withViewed, viewerId);
   }
 }
