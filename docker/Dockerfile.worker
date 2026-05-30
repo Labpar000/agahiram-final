@@ -12,7 +12,8 @@ COPY workers/media-processor/package.json ./workers/media-processor/
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/database/package.json ./packages/database/
-RUN pnpm install --filter @agahiram/media-processor... --frozen-lockfile --ignore-scripts
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --filter @agahiram/media-processor... --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules

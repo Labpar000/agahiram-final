@@ -9,7 +9,8 @@ COPY apps/web/package.json ./apps/web/
 COPY packages/config/package.json ./packages/config/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/ui/package.json ./packages/ui/
-RUN pnpm install --filter @agahiram/web... --frozen-lockfile --ignore-scripts
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --filter @agahiram/web... --frozen-lockfile --ignore-scripts
 
 FROM base AS build
 ARG NEXT_PUBLIC_API_URL=/api/v1

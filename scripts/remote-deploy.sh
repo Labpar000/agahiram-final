@@ -56,10 +56,8 @@ log "ensuring infra containers..."
 docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch minio
 docker compose -f docker-compose.prod.yml up -d createbuckets
 
-log "building: $BUILD_SERVICES"
-for svc in $BUILD_SERVICES; do
-  docker compose -f docker-compose.prod.yml build "$svc"
-done
+log "building (parallel): $BUILD_SERVICES"
+docker compose -f docker-compose.prod.yml build --parallel $BUILD_SERVICES
 
 if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
   log "running database migrations..."
