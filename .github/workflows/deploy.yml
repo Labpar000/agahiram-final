@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   APP_DIR: ${{ vars.APP_DIR || '/opt/agahiram' }}
