@@ -2,38 +2,38 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Film, Home, MessageCircle, PlusSquare, Search, User } from 'lucide-react';
 import { cn, formatPersianNumber } from '@agahiram/shared';
+import { IgCreate, IgDirect, IgHome, IgReels, IgSearch, IgUser } from '@agahiram/ui';
 import { useUnreadMessages } from '@/hooks/useUnreadCounts';
 import { useAuthStore } from '@/lib/auth-store';
 
 const items = [
-  { href: '/feed', icon: Home, label: 'خانه' },
-  { href: '/explore', icon: Search, label: 'اکسپلور' },
-  { href: '/create', icon: PlusSquare, label: 'افزودن' },
-  { href: '/reels', icon: Film, label: 'ریلز' },
+  { href: '/feed', label: 'خانه', Icon: IgHome, filledWhenActive: true },
+  { href: '/explore', label: 'اکسپلور', Icon: IgSearch, filledWhenActive: true },
+  { href: '/create', label: 'افزودن', Icon: IgCreate, filledWhenActive: false },
+  { href: '/reels', label: 'ریلز', Icon: IgReels, filledWhenActive: true },
   {
     href: '/messages',
-    icon: MessageCircle,
     label: 'پیام‌ها',
+    Icon: IgDirect,
+    filledWhenActive: true,
     badgeQuery: 'messages-unread' as const,
   },
-  { href: '/profile', icon: User, label: 'پروفایل' },
+  { href: '/profile', label: 'پروفایل', Icon: IgUser, filledWhenActive: true },
 ] as const;
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
   const msgUnread = useUnreadMessages();
-  // When the auth store already knows our username, link straight to the
-  // canonical profile route instead of bouncing through `/profile`. The
-  // hop-page ran a client redirect that sometimes flashed a "redirecting…"
-  // placeholder, which is why the profile tab felt the slowest of all.
   const myUsername = useAuthStore((s) => s.user?.username);
 
   return (
-    <nav aria-label="ناوبری اصلی" className="fixed inset-x-0 bottom-0 z-40 glass border-t pb-safe">
-      <ul className="mx-auto grid h-bottom-nav max-w-2xl grid-cols-6 items-stretch px-1">
-        {items.map(({ href, icon: Icon, label, ...rest }) => {
+    <nav
+      aria-label="ناوبری اصلی"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface pb-safe"
+    >
+      <ul className="mx-auto grid h-bottom-nav max-w-2xl grid-cols-6 items-stretch">
+        {items.map(({ href, label, Icon, filledWhenActive, ...rest }) => {
           const resolvedHref = href === '/profile' && myUsername ? `/profile/${myUsername}` : href;
           const active =
             href === '/feed'
@@ -42,38 +42,38 @@ export function BottomNav() {
                 ? pathname === '/profile' || pathname.startsWith('/profile/')
                 : pathname === href || pathname.startsWith(`${href}/`);
           const badge = 'badgeQuery' in rest ? msgUnread : 0;
+          const filled = filledWhenActive && active;
+
           return (
             <li key={href} className="contents">
               <Link
                 href={resolvedHref}
                 aria-current={active ? 'page' : undefined}
-                aria-label={label}
+                aria-label={
+                  badge > 0 ? `${label} (${formatPersianNumber(badge)} مورد جدید)` : label
+                }
                 prefetch
                 className={cn(
-                  'group relative flex flex-col items-center justify-center gap-1 rounded-2xl px-1 pt-2 pb-2 tap-none',
-                  'min-h-11 text-[10px] font-medium leading-none',
-                  'transition-[background-color,color,transform] duration-[var(--duration-fast)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-                  active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
+                  'relative flex flex-col items-center justify-center tap-none',
+                  'transition-colors duration-[var(--duration-fast)]',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+                  active ? 'text-foreground' : 'text-muted-foreground',
                 )}
               >
-                {active ? (
-                  <span
-                    aria-hidden
-                    className="absolute inset-x-4 top-1 h-1 rounded-full bg-foreground"
-                  />
-                ) : null}
                 <span className="relative inline-flex">
-                  <Icon className="size-6" strokeWidth={active ? 2.4 : 1.9} aria-hidden />
+                  <Icon
+                    className="size-[var(--ig-icon)]"
+                    filled={filled}
+                    strokeWidth={active ? 2.1 : 1.75}
+                    aria-hidden
+                  />
                   {badge > 0 ? (
                     <span
-                      aria-label={`${formatPersianNumber(badge)} مورد جدید`}
-                      className="absolute -end-1.5 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground ring-2 ring-surface"
-                    >
-                      {badge > 9 ? '۹+' : formatPersianNumber(badge)}
-                    </span>
+                      aria-hidden
+                      className="absolute -end-1 -top-0.5 size-2 rounded-full bg-destructive ring-2 ring-surface"
+                    />
                   ) : null}
                 </span>
-                <span>{label}</span>
               </Link>
             </li>
           );

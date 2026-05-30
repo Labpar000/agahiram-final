@@ -176,7 +176,7 @@ export function ExploreClient({
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
+        <div className="grid grid-cols-3 gap-0.5">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
           ))}
@@ -196,7 +196,7 @@ export function ExploreClient({
         />
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
+          <div className="grid grid-cols-3 gap-0.5">
             {posts.map((p) => (
               <ExploreTile key={p.id} post={p} />
             ))}

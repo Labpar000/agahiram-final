@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  MapPin,
   MessageSquare,
   Phone,
   Sparkles,
@@ -235,63 +234,32 @@ export function PostCard({
   }, [messaging, post.user.username]);
 
   return (
-    <article className="border-b border-border bg-surface sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card">
-      {/* Header */}
-      <header className="flex items-center gap-2.5 px-3.5 py-3">
+    <article className="border-b border-border bg-surface">
+      {/* Header — IG-minimal: avatar + username + more */}
+      <header className="flex items-center gap-3 px-3 py-2.5">
         <Link
           href={`/profile/${post.user.username}`}
           aria-label={`پروفایل ${post.user.username}`}
           className="shrink-0 tap-none"
         >
-          <Avatar size="md" ring="brand" verified={post.user.isVerified}>
+          <Avatar size="sm" verified={post.user.isVerified}>
             {post.user.avatar ? <AvatarImage src={post.user.avatar} alt="" /> : null}
             <AvatarFallback>{(post.user.username ?? '?').slice(0, 2)}</AvatarFallback>
           </Avatar>
         </Link>
         <Link
           href={`/profile/${post.user.username}`}
-          className="min-w-0 flex-1 rounded-md tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="min-w-0 flex-1 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
-          <div className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold leading-tight">
-              {post.user.username}
-            </span>
-            {post.user.isBusiness ? (
-              <Badge tone="warning" size="sm">
-                فروشگاه
-              </Badge>
-            ) : null}
-            {post.user.karma && post.user.karma >= 50 ? (
-              <span
-                className={cn(
-                  'inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                  tier.className,
-                )}
-                aria-label={`نشان کارما: ${tier.label}`}
-              >
-                <Award className="size-3" aria-hidden />
-                {tier.label}
-              </span>
-            ) : null}
-          </div>
+          <span className="block truncate text-sm font-semibold leading-tight">
+            {post.user.username}
+          </span>
           {post.city ? (
-            <div className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <MapPin className="size-3" aria-hidden />
-              <span className="truncate">{post.city.name}</span>
-            </div>
+            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+              {post.city.name}
+            </span>
           ) : null}
         </Link>
-        {post.isPromoted ? (
-          <Badge tone="brand" size="sm">
-            نردبان
-          </Badge>
-        ) : null}
-        {postQualityLabel ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
-            <Sparkles className="size-3" aria-hidden />
-            {postQualityLabel}
-          </span>
-        ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <IconButton
@@ -425,9 +393,9 @@ export function PostCard({
       </div>
 
       {/* Actions */}
-      <div className="space-y-2.5 px-3.5 pb-3.5 pt-2">
+      <div className="space-y-1.5 px-3 pb-3 pt-1.5">
         <div className="flex items-center justify-between">
-          <div className="flex items-center -ms-2">
+          <div className="flex items-center -ms-1.5">
             <ActionButton
               ariaLabel={liked ? 'حذف لایک' : 'لایک'}
               onClick={() => onLikeToggle()}
@@ -438,14 +406,14 @@ export function PostCard({
                 key={String(liked)}
                 className={cn('inline-flex', liked ? 'like-pop' : 'like-pop-off')}
               >
-                <IgHeart className="size-7" filled={liked} />
+                <IgHeart className="size-[var(--ig-icon)]" filled={liked} />
               </span>
             </ActionButton>
             <ActionButton ariaLabel="نظرات" onClick={() => setCommentsOpen(true)}>
-              <IgComment className="size-7" />
+              <IgComment className="size-[var(--ig-icon)]" />
             </ActionButton>
             <ActionButton ariaLabel="اشتراک‌گذاری" onClick={onShare}>
-              <IgShare className="size-7" />
+              <IgShare className="size-[var(--ig-icon)]" />
             </ActionButton>
           </div>
           <ActionButton
@@ -454,68 +422,76 @@ export function PostCard({
             filled={saved}
             filledClass="text-foreground"
           >
-            <IgBookmark className="size-7" filled={saved} />
+            <IgBookmark className="size-[var(--ig-icon)]" filled={saved} />
           </ActionButton>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          {likeCount > 0 ? (
-            <p
-              key={likeCount}
-              className="count-in font-semibold leading-tight"
-              aria-label={`${formatPersianNumber(likeCount)} پسند`}
+        {likeCount > 0 ? (
+          <p
+            key={likeCount}
+            className="count-in text-sm font-semibold leading-tight"
+            aria-label={`${formatPersianNumber(likeCount)} پسند`}
+          >
+            {formatPersianNumber(likeCount)} پسند
+          </p>
+        ) : null}
+
+        {/* Caption — IG-style username + title */}
+        <div className="space-y-0.5 text-sm leading-snug">
+          <p>
+            <Link
+              href={`/profile/${post.user.username}`}
+              className="font-semibold tap-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              {formatPersianNumber(likeCount)} پسند
+              {post.user.username}
+            </Link>{' '}
+            <Link
+              href={`/post/${post.id}`}
+              className="tap-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {post.title}
+            </Link>
+          </p>
+          <p className="font-semibold text-foreground">{formatPersianPrice(post.price)}</p>
+          {post.description ? (
+            <p className="text-muted-foreground">
+              <Link
+                href={`/post/${post.id}`}
+                className="tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {post.description}
+              </Link>
             </p>
-          ) : null}
-          {post.viewCount > 0 ? (
-            <span
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums"
-              aria-label={`${formatPersianNumber(post.viewCount)} بازدید`}
-            >
-              <Eye className="size-3.5" aria-hidden />
-              {formatPersianNumber(post.viewCount)}
-            </span>
           ) : null}
         </div>
 
-        <div>
-          <h3 className="line-clamp-2 text-base font-bold leading-snug">{post.title}</h3>
-          <div className="mt-1 flex items-baseline justify-between gap-2">
-            <span className="min-w-0 text-lg font-extrabold tracking-tight gradient-text-brand">
-              {formatPersianPrice(post.price)}
-            </span>
-            <span className="shrink-0 truncate rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-              {post.category.name}
-            </span>
-          </div>
-          {post.description ? (
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground leading-relaxed">
-              {post.description}
-            </p>
-          ) : null}
-        </div>
+        <PostMetaChips
+          post={post}
+          tier={tier}
+          postQualityLabel={postQualityLabel}
+          viewCount={post.viewCount}
+        />
 
         {post.commentsCount > 0 ? (
           <Link
             href={`/post/${post.id}`}
-            className="block w-fit rounded-md text-xs text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="block w-fit text-sm text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             مشاهده {formatPersianNumber(post.commentsCount)} نظر
           </Link>
         ) : null}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <Button
             fullWidth
             variant={contactRevealed ? 'outline' : 'secondary'}
-            size="md"
+            size="sm"
             leftIcon={<Phone className="size-4" />}
             onClick={onContact}
             aria-live="polite"
           >
             {contactRevealed ? (
-              <span dir="ltr" className="font-mono text-base tracking-wide">
+              <span dir="ltr" className="font-mono text-sm tracking-wide">
                 {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
               </span>
             ) : (
@@ -524,19 +500,17 @@ export function PostCard({
           </Button>
           <Button
             variant="brand"
-            size="md"
+            size="sm"
             leftIcon={<MessageSquare className="size-4" />}
             onClick={onSendMessage}
             isLoading={messaging}
             aria-label="ارسال پیام به فروشنده"
           >
-            ارسال پیام
+            پیام
           </Button>
         </div>
 
-        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {formatRelativeTimeFa(post.createdAt)}
-        </p>
+        <p className="text-[11px] text-muted-foreground">{formatRelativeTimeFa(post.createdAt)}</p>
       </div>
       <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
         <DrawerContent className="max-h-[85svh] overflow-hidden">
@@ -574,8 +548,8 @@ function ActionButton({
   filledClass?: string;
 }) {
   const className = cn(
-    'inline-grid size-11 place-items-center rounded-full transition-[background-color,color,transform] tap-none active:scale-[0.96]',
-    'text-foreground hover:bg-muted',
+    'inline-grid size-[var(--ig-action)] place-items-center rounded-full transition-[background-color,color,transform] tap-none active:scale-[0.96]',
+    'text-foreground hover:bg-muted/80',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
     filled && filledClass,
   );
@@ -597,5 +571,68 @@ function ActionButton({
     >
       {children}
     </button>
+  );
+}
+
+function PostMetaChips({
+  post,
+  tier,
+  postQualityLabel,
+  viewCount,
+}: {
+  post: Props['post'];
+  tier: ReturnType<typeof karmaTier>;
+  postQualityLabel: string | null;
+  viewCount: number;
+}) {
+  const hasKarma = post.user.karma != null && post.user.karma >= 50;
+  const hasAny =
+    post.user.isBusiness || hasKarma || post.isPromoted || postQualityLabel || viewCount > 0;
+
+  if (!hasAny) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+        {post.category.name}
+      </span>
+      {post.user.isBusiness ? (
+        <Badge tone="warning" size="sm">
+          فروشگاه
+        </Badge>
+      ) : null}
+      {hasKarma ? (
+        <span
+          className={cn(
+            'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
+            tier.className,
+          )}
+          aria-label={`نشان کارما: ${tier.label}`}
+        >
+          <Award className="size-3" aria-hidden />
+          {tier.label}
+        </span>
+      ) : null}
+      {post.isPromoted ? (
+        <Badge tone="brand" size="sm">
+          نردبان
+        </Badge>
+      ) : null}
+      {postQualityLabel ? (
+        <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+          <Sparkles className="size-3" aria-hidden />
+          {postQualityLabel}
+        </span>
+      ) : null}
+      {viewCount > 0 ? (
+        <span
+          className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground tabular-nums"
+          aria-label={`${formatPersianNumber(viewCount)} بازدید`}
+        >
+          <Eye className="size-3" aria-hidden />
+          {formatPersianNumber(viewCount)}
+        </span>
+      ) : null}
+    </div>
   );
 }

@@ -8,8 +8,6 @@ import {
   Award,
   BookmarkCheck,
   Clapperboard,
-  Film,
-  Grid3X3,
   Images,
   LogOut,
   MessageSquare,
@@ -26,6 +24,8 @@ import {
   EmptyState,
   IconButton,
   IgBookmark,
+  IgGrid,
+  IgReels,
   Skeleton,
   Tabs,
   TabsContent,
@@ -118,13 +118,28 @@ export function ProfileClient({ username }: { username: string }) {
 
   return (
     <div className="bg-background">
-      <header className="space-y-4 bg-surface px-4 py-5 sm:my-3 sm:rounded-2xl sm:border sm:border-border sm:shadow-card">
-        <div className="flex items-start gap-4">
-          <Avatar size="xl" ring="brand" verified={profile.isVerified}>
+      <header className="space-y-3 bg-surface px-4 pb-4 pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 truncate text-sm font-semibold" dir="ltr">
+            @{profile.username}
+          </p>
+          {isMe ? (
+            <Link
+              href="/settings"
+              aria-label="تنظیمات"
+              className="grid size-9 place-items-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <Settings className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-6">
+          <Avatar size="xl" verified={profile.isVerified}>
             {profile.avatar ? <AvatarImage src={profile.avatar} alt="" /> : null}
             <AvatarFallback>{profile.username.slice(0, 2)}</AvatarFallback>
           </Avatar>
-          <ul className="grid flex-1 grid-cols-3 gap-2 text-center">
+          <ul className="grid flex-1 grid-cols-3 gap-1 text-center">
             <Stat label="آگهی" value={profile.postsCount} />
             <Stat
               label="دنبال‌کننده"
@@ -140,56 +155,28 @@ export function ProfileClient({ username }: { username: string }) {
         </div>
 
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="min-w-0 truncate text-base font-bold leading-tight">
-              {profile.name ?? profile.username}
-            </h1>
-            {profile.isBusiness ? (
-              <Badge tone="warning" size="sm">
-                فروشگاه
-              </Badge>
-            ) : null}
-            {profile.karma >= 50 ? (
-              <span
-                className={cn(
-                  'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
-                  tier.className,
-                )}
-                aria-label={`نشان کارما: ${tier.label}`}
-              >
-                <Award className="size-3.5" aria-hidden />
-                {tier.label}
-              </span>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span>@{profile.username}</span>
-            <span className="tabular-nums">کارما {formatPersianNumber(profile.karma)}</span>
-          </div>
+          {profile.name ? (
+            <h1 className="text-sm font-semibold leading-tight">{profile.name}</h1>
+          ) : null}
           {profile.bio ? (
-            <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/90">
+            <p className="whitespace-pre-line text-sm leading-snug text-foreground/90">
               {profile.bio}
             </p>
           ) : null}
+          <ProfileMetaChips profile={profile} tier={tier} />
         </div>
 
         <div className="flex gap-2">
           {isMe ? (
             <>
-              <Button
-                asChild
-                variant="secondary"
-                fullWidth
-                size="md"
-                leftIcon={<Settings className="size-4" aria-hidden />}
-              >
+              <Button asChild variant="secondary" fullWidth size="sm">
                 <Link href="/settings">ویرایش پروفایل</Link>
               </Button>
               <IconButton
                 aria-label="خروج"
-                icon={<LogOut className="size-5" aria-hidden />}
+                icon={<LogOut className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
                 variant="secondary"
-                size="md"
+                size="sm"
                 onClick={() => void logout()}
               />
             </>
@@ -197,7 +184,7 @@ export function ProfileClient({ username }: { username: string }) {
             <>
               <Button
                 fullWidth
-                size="md"
+                size="sm"
                 variant={profile.isFollowing ? 'secondary' : 'brand'}
                 onClick={toggleFollow}
               >
@@ -205,7 +192,7 @@ export function ProfileClient({ username }: { username: string }) {
               </Button>
               <Button
                 variant="secondary"
-                size="md"
+                size="sm"
                 onClick={startChat}
                 leftIcon={<MessageSquare className="size-4" aria-hidden />}
               >
@@ -221,16 +208,16 @@ export function ProfileClient({ username }: { username: string }) {
         onValueChange={(v) => setTab(v as typeof tab)}
         className="border-t border-border bg-surface"
       >
-        <TabsList variant="underline" className="w-full">
-          <TabsTrigger variant="underline" value="posts" className="flex-1">
-            <Grid3X3 className="size-4 me-1" aria-hidden /> آگهی‌ها
+        <TabsList variant="underline" className="h-11 w-full">
+          <TabsTrigger variant="underline" value="posts" className="flex-1" aria-label="آگهی‌ها">
+            <IgGrid className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
           </TabsTrigger>
-          <TabsTrigger variant="underline" value="reels" className="flex-1">
-            <Film className="size-4 me-1" aria-hidden /> ریلز
+          <TabsTrigger variant="underline" value="reels" className="flex-1" aria-label="ریلز">
+            <IgReels className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
           </TabsTrigger>
           {isMe ? (
-            <TabsTrigger variant="underline" value="saved" className="flex-1">
-              <IgBookmark className="size-4 me-1" strokeWidth={2} /> ذخیره‌ها
+            <TabsTrigger variant="underline" value="saved" className="flex-1" aria-label="ذخیره‌ها">
+              <IgBookmark className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
             </TabsTrigger>
           ) : null}
         </TabsList>
@@ -243,19 +230,59 @@ export function ProfileClient({ username }: { username: string }) {
   );
 }
 
+function ProfileMetaChips({
+  profile,
+  tier,
+}: {
+  profile: Profile;
+  tier: ReturnType<typeof karmaTier>;
+}) {
+  const hasKarma = profile.karma >= 50;
+  if (!profile.isBusiness && !hasKarma) {
+    return (
+      <p className="text-xs text-muted-foreground">کارما {formatPersianNumber(profile.karma)}</p>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+      <span className="text-xs text-muted-foreground">
+        کارما {formatPersianNumber(profile.karma)}
+      </span>
+      {profile.isBusiness ? (
+        <Badge tone="warning" size="sm">
+          فروشگاه
+        </Badge>
+      ) : null}
+      {hasKarma ? (
+        <span
+          className={cn(
+            'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
+            tier.className,
+          )}
+          aria-label={`نشان کارما: ${tier.label}`}
+        >
+          <Award className="size-3" aria-hidden />
+          {tier.label}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function Stat({ label, value, href }: { label: string; value: number; href?: string }) {
   const content = (
     <>
-      <span className="text-base font-bold tabular-nums">{formatPersianNumber(value)}</span>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-base font-semibold tabular-nums">{formatPersianNumber(value)}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
     </>
   );
   return (
-    <li className="flex flex-col">
+    <li className="flex flex-col gap-0.5">
       {href ? (
         <Link
           href={href}
-          className="flex flex-col rounded-xl py-1 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex flex-col gap-0.5 rounded-lg py-0.5 transition hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {content}
         </Link>
@@ -277,7 +304,7 @@ function PostsGrid({
 }) {
   if (isLoading) {
     return (
-      <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
+      <div className="grid grid-cols-3 gap-0.5">
         {Array.from({ length: 9 }).map((_, i) => (
           <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
         ))}
@@ -307,13 +334,13 @@ function PostsGrid({
     );
   }
   return (
-    <div className="grid grid-cols-3 gap-1 p-1 sm:gap-1.5 sm:p-2">
+    <div className="grid grid-cols-3 gap-0.5">
       {posts.map((p) => (
         <Link
           key={p.id}
           href={`/post/${p.id}`}
           aria-label={p.title}
-          className="cv-tile relative aspect-square overflow-hidden rounded-sm bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:rounded-md"
+          className="cv-tile relative aspect-square overflow-hidden bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
           {p.media[0] ? (
             <Image
@@ -321,7 +348,7 @@ function PostsGrid({
               alt=""
               fill
               sizes="(max-width: 640px) 33vw, 200px"
-              className={cn('object-cover transition-transform duration-300 hover:scale-105')}
+              className="object-cover"
             />
           ) : null}
         </Link>
@@ -332,18 +359,19 @@ function PostsGrid({
 
 function ProfileSkeleton() {
   return (
-    <div className="space-y-4 px-4 py-5">
-      <div className="flex items-start gap-4">
+    <div className="space-y-4 px-4 py-4">
+      <Skeleton className="h-4 w-28 rounded-full" />
+      <div className="flex items-center gap-6">
         <Skeleton className="size-20 rounded-full" />
-        <div className="flex-1 grid grid-cols-3 gap-2">
+        <div className="grid flex-1 grid-cols-3 gap-2">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-12 rounded-md" />
+            <Skeleton key={i} className="h-10 rounded-md" />
           ))}
         </div>
       </div>
       <Skeleton className="h-4 w-40 rounded-full" />
       <Skeleton className="h-3 w-3/4 rounded-full" />
-      <Skeleton className="h-11 w-full rounded-xl" />
+      <Skeleton className="h-9 w-full rounded-lg" />
     </div>
   );
 }

@@ -17,6 +17,9 @@ interface StoryGroup {
   viewerCount?: number;
 }
 
+/** Outer ring diameter — matches IG story tray (~66px). */
+const STORY_SIZE = 'size-[4.125rem]';
+
 export function StoryBar() {
   const { data, isLoading } = useQuery({
     queryKey: ['stories', 'feed'],
@@ -30,20 +33,23 @@ export function StoryBar() {
     <div className="border-b border-border bg-surface">
       <ul
         aria-label="استوری‌ها"
-        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-3 py-3 scrollbar-hide sm:gap-4"
+        className="mx-auto flex max-w-2xl gap-4 overflow-x-auto px-4 py-3 scrollbar-hide"
       >
         <li>
           <Link
             href="/create/story"
             aria-label="افزودن استوری"
-            className="group flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-xl tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="group flex w-[4.125rem] shrink-0 flex-col items-center gap-1.5 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            <span className="relative grid size-16 place-items-center rounded-full bg-muted ring-1 ring-border transition-[background-color,transform] group-hover:scale-105 group-hover:bg-accent">
-              <Plus className="size-6 text-muted-foreground" aria-hidden />
+            <span
+              className={cn(
+                STORY_SIZE,
+                'relative grid place-items-center rounded-full bg-muted ring-1 ring-border transition-transform group-active:scale-95',
+              )}
+            >
+              <Plus className="size-6 text-muted-foreground" strokeWidth={1.75} aria-hidden />
             </span>
-            <span className="w-full truncate text-center text-[11px] text-muted-foreground">
-              شما
-            </span>
+            <span className="w-full truncate text-center text-xs text-muted-foreground">شما</span>
           </Link>
         </li>
 
@@ -69,11 +75,12 @@ function StoryItem({ group }: { group: StoryGroup }) {
     <Link
       href={`/stories/${group.userId}`}
       aria-label={`استوری ${group.user.username ?? ''}${group.hasUnviewed ? ' (دیده‌نشده)' : ''}`}
-      className="group flex w-16 shrink-0 flex-col items-center gap-1.5 rounded-xl tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+      className="group flex w-[4.125rem] shrink-0 flex-col items-center gap-1.5 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
     >
       <span
         className={cn(
-          'relative grid size-16 place-items-center rounded-full p-[2.5px] transition-transform group-hover:scale-105',
+          STORY_SIZE,
+          'relative grid place-items-center rounded-full p-[2px] transition-transform group-active:scale-95',
           group.hasUnviewed ? 'gradient-story' : 'bg-border',
         )}
       >
@@ -82,8 +89,8 @@ function StoryItem({ group }: { group: StoryGroup }) {
             <Image
               src={group.user.avatar}
               alt=""
-              width={60}
-              height={60}
+              width={58}
+              height={58}
               className="size-full rounded-full object-cover"
             />
           ) : (
@@ -98,14 +105,14 @@ function StoryItem({ group }: { group: StoryGroup }) {
         {showViewerCount ? (
           <span
             aria-label={`${group.viewerCount} بازدید`}
-            className="absolute -bottom-1 -end-1 inline-flex items-center gap-0.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background ring-2 ring-surface"
+            className="absolute -bottom-0.5 -end-0.5 inline-flex items-center gap-0.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background ring-2 ring-surface"
           >
             <Eye className="size-3" aria-hidden />
             {formatPersianNumber(group.viewerCount!)}
           </span>
         ) : null}
       </span>
-      <span className="w-full truncate text-center text-[11px] text-foreground">
+      <span className="w-full truncate text-center text-xs text-foreground">
         {group.isMe ? 'استوری شما' : (group.user.username ?? 'کاربر')}
       </span>
     </Link>
@@ -114,8 +121,8 @@ function StoryItem({ group }: { group: StoryGroup }) {
 
 function StorySkeleton() {
   return (
-    <div className="flex w-16 shrink-0 flex-col items-center gap-1.5">
-      <Skeleton className="size-16 rounded-full" />
+    <div className="flex w-[4.125rem] shrink-0 flex-col items-center gap-1.5">
+      <Skeleton className={cn(STORY_SIZE, 'rounded-full')} />
       <Skeleton className="h-3 w-12 rounded-full" />
     </div>
   );

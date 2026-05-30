@@ -61,7 +61,7 @@ export function FeedClient() {
           }
         />
       ) : (
-        <div className="pt-1 sm:px-3 sm:pb-3">
+        <div className="pt-0 sm:pb-3">
           {posts.map((p, i) => (
             <div key={p.id} className={i === 0 ? undefined : 'cv-card'}>
               <PostCard post={p as never} priority={i === 0} />
@@ -90,22 +90,20 @@ function FeedSkeleton() {
   return (
     <div>
       {[0, 1].map((i) => (
-        <article
-          key={i}
-          className="border-b border-border bg-surface sm:my-3 sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card"
-        >
-          <header className="flex items-center gap-3 p-3">
-            <Skeleton className="size-10 rounded-full" />
-            <div className="space-y-2 flex-1">
-              <Skeleton className="h-3 w-32 rounded-full" />
-              <Skeleton className="h-3 w-20 rounded-full" />
+        <article key={i} className="border-b border-border bg-surface">
+          <header className="flex items-center gap-3 px-3 py-2.5">
+            <Skeleton className="size-8 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3 w-28 rounded-full" />
+              <Skeleton className="h-2.5 w-16 rounded-full" />
             </div>
           </header>
           <Skeleton className="aspect-square w-full rounded-none" />
-          <div className="space-y-2 p-3">
-            <Skeleton className="h-4 w-2/3 rounded-full" />
-            <Skeleton className="h-3 w-1/3 rounded-full" />
-            <Skeleton className="mt-3 h-11 w-full rounded-xl" />
+          <div className="space-y-2 px-3 py-3">
+            <Skeleton className="h-6 w-24 rounded-full" />
+            <Skeleton className="h-3 w-full rounded-full" />
+            <Skeleton className="h-3 w-2/3 rounded-full" />
+            <Skeleton className="h-9 w-full rounded-lg" />
           </div>
         </article>
       ))}
