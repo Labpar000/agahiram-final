@@ -3,6 +3,11 @@ packages:
   - "packages/*"
   - "workers/*"
 
+pnpm:
+  overrides:
+    prisma: 6.19.3
+    "@prisma/client": 6.19.3
+
 supportedArchitectures:
   os:
     - linux

@@ -8,6 +8,11 @@ updates:
       time: "06:00"
       timezone: Asia/Tehran
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: "@prisma/client"
+        update-types: [version-update:semver-major]
     groups:
       nextjs:
         patterns:

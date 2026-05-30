@@ -22,8 +22,8 @@
   },
   "dependencies": {
     "@agahiram/shared": "workspace:*",
-    "@prisma/client": "^6.8.2",
-    "prisma": "^6.19.3"
+    "@prisma/client": "6.19.3",
+    "prisma": "6.19.3"
   },
   "devDependencies": {
     "@agahiram/config": "workspace:*",
