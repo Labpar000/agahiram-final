@@ -1,8 +1,13 @@
 #!/bin/bash
-# Unified production deploy — GitHub Actions (pull mode) and manual fallback (build mode).
+# Unified production deploy — GitHub Actions (transfer mode) and manual fallback (build mode).
 #
-# Pull mode (default):
-#   DEPLOY_MODE=pull IMAGE_TAG=8b6181f CONFIG_TARBALL=/tmp/agahiram-config.tar.gz \
+# Transfer mode (default for CI — VPS cannot reach ghcr.io):
+#   DEPLOY_MODE=transfer IMAGES_TARBALL=/tmp/agahiram-images.tar.gz \
+#     CONFIG_TARBALL=/tmp/agahiram-config.tar.gz BUILD_SERVICES="api web" \
+#     bash scripts/remote-deploy.sh
+#
+# Pull mode (registry reachable from VPS only):
+#   DEPLOY_MODE=pull IMAGE_TAG=abc123 CONFIG_TARBALL=/tmp/agahiram-config.tar.gz \
 #     BUILD_SERVICES="api web" bash scripts/remote-deploy.sh
 #
 # Build mode (emergency / no registry):
@@ -14,7 +19,7 @@ APP_DIR="${APP_DIR:-/opt/agahiram}"
 ENV_FILE="$APP_DIR/docker/.env"
 BUILD_SERVICES="${BUILD_SERVICES:-api worker web admin}"
 CONFIG_ONLY="${CONFIG_ONLY:-}"
-DEPLOY_MODE="${DEPLOY_MODE:-pull}"
+DEPLOY_MODE="${DEPLOY_MODE:-transfer}"
 DOMAIN="${DOMAIN:-alooche.com}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
@@ -94,6 +99,56 @@ ghcr_login() {
     log "logging in to ghcr.io..."
     echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-Labpar000}" --password-stdin
   fi
+}
+
+deploy_transfer() {
+  if [[ -n "${CONFIG_TARBALL:-}" ]]; then
+    extract_config "$CONFIG_TARBALL" "${CONFIG_SHA256:-}"
+  elif [[ -n "${SRC_TARBALL:-}" ]]; then
+    extract_source "$SRC_TARBALL" "${SRC_SHA256:-}"
+  fi
+
+  migrate_minio_env
+
+  if [[ -n "${IMAGES_TARBALL:-}" ]]; then
+    verify_checksum "$IMAGES_TARBALL" "${IMAGES_SHA256:-}"
+    log "loading images from $IMAGES_TARBALL"
+    gunzip -c "$IMAGES_TARBALL" | docker load
+  fi
+
+  cd "$APP_DIR/docker"
+  export IMAGE_REGISTRY IMAGE_TAG
+
+  log "ensuring infra containers..."
+  docker compose $COMPOSE up -d postgres redis meilisearch minio
+  docker compose $COMPOSE up -d createbuckets
+
+  if [[ -n "$CONFIG_ONLY" && -z "${BUILD_SERVICES// /}" && -z "${IMAGES_TARBALL:-}" ]]; then
+    log "config-only deploy: recreating $CONFIG_ONLY"
+    docker compose $COMPOSE up -d --force-recreate "$CONFIG_ONLY"
+    docker compose $COMPOSE ps
+    return 0
+  fi
+
+  if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
+    log "running database migrations..."
+    docker compose $COMPOSE run --rm --workdir /app api sh -lc \
+      '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
+  fi
+
+  log "restarting application containers..."
+  recreate=( )
+  if [[ -n "${BUILD_SERVICES// /}" ]]; then
+    read -r -a recreate <<< "$BUILD_SERVICES"
+  fi
+  recreate+=("caddy")
+  if [[ -n "$CONFIG_ONLY" && " ${recreate[*]} " != *" $CONFIG_ONLY "* ]]; then
+    recreate+=("$CONFIG_ONLY")
+  fi
+  # shellcheck disable=SC2086
+  docker compose $COMPOSE up -d --force-recreate "${recreate[@]}"
+  docker image prune -f
+  docker compose $COMPOSE ps
 }
 
 deploy_pull() {
@@ -196,8 +251,10 @@ main() {
 
   if [[ "$DEPLOY_MODE" == "build" ]]; then
     deploy_build
-  else
+  elif [[ "$DEPLOY_MODE" == "pull" ]]; then
     deploy_pull
+  else
+    deploy_transfer
   fi
 
   write_status "done"

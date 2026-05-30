@@ -10,7 +10,8 @@ param(
   [string]$GhcrToken = "",
   [switch]$SkipLocalChecks = $false,
   [switch]$ForceFullBuild = $false,
-  [switch]$BuildOnServer = $false
+  [switch]$BuildOnServer = $true,
+  [switch]$PullFromRegistry = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,7 +56,7 @@ if ($ForceFullBuild) {
   }
 }
 
-$DeployMode = if ($BuildOnServer) { "build" } else { "pull" }
+$DeployMode = if ($PullFromRegistry) { "pull" } elseif ($BuildOnServer) { "build" } else { "transfer" }
 Step "Deploy mode: $DeployMode | services: $BuildServices | config: $ConfigOnly | tag: $ImageTag"
 
 $SshOpts = @(
