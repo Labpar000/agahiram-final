@@ -28,8 +28,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = req.cookies.get('accessToken');
-  if (!token) {
+  const hasSession =
+    !!req.cookies.get('accessToken')?.value || !!req.cookies.get('refreshToken')?.value;
+  if (!hasSession) {
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = `${ADMIN_BASE_PATH}/login`;
     loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`;

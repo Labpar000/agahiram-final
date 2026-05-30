@@ -29,6 +29,15 @@ www.{$DOMAIN:agahiram.ir} {
         reverse_proxy api:4000
     }
 
+    # MinIO (browser presigned uploads). Uses /storage on the apex domain so
+    # uploads work even when s3.<DOMAIN> has no DNS record yet.
+    handle_path /storage/* {
+        request_body {
+            max_size 250MB
+        }
+        reverse_proxy minio:9000
+    }
+
     handle_path /admin* {
         reverse_proxy admin:3001
     }

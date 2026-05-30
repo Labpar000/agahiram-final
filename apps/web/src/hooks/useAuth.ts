@@ -34,7 +34,7 @@ export function useAuth() {
       setUser(null);
       return null;
     },
-    enabled: typeof window !== 'undefined' && isAuthenticated,
+    enabled: false,
     staleTime: 5 * 60 * 1000,
   });
 

@@ -84,8 +84,8 @@ if [[ ! -f "$APP_DIR/docker/.env" ]]; then
   sed -i "s|DOMAIN=.*|DOMAIN=$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|ACME_EMAIL=.*|ACME_EMAIL=$EMAIL|" "$APP_DIR/docker/.env"
   sed -i "s|MEILI_HOST=.*|MEILI_HOST=http://meilisearch:7700|" "$APP_DIR/docker/.env"
-  sed -i "s|S3_PUBLIC_ENDPOINT=.*|S3_PUBLIC_ENDPOINT=https://s3.$DOMAIN|" "$APP_DIR/docker/.env"
-  sed -i "s|S3_PUBLIC_URL=.*|S3_PUBLIC_URL=https://s3.$DOMAIN/agahiram|" "$APP_DIR/docker/.env"
+  sed -i "s|S3_PUBLIC_ENDPOINT=.*|S3_PUBLIC_ENDPOINT=https://$DOMAIN/storage|" "$APP_DIR/docker/.env"
+  sed -i "s|S3_PUBLIC_URL=.*|S3_PUBLIC_URL=https://$DOMAIN/storage/agahiram|" "$APP_DIR/docker/.env"
   sed -i "s|CORS_ORIGIN=.*|CORS_ORIGIN=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|FRONTEND_URL=.*|FRONTEND_URL=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=https://$DOMAIN/api/v1|" "$APP_DIR/docker/.env"
@@ -94,7 +94,7 @@ if [[ ! -f "$APP_DIR/docker/.env" ]]; then
   sed -i "s|NEXT_PUBLIC_SOCKET_URL=.*|NEXT_PUBLIC_SOCKET_URL=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|ZARINPAL_CALLBACK_URL=.*|ZARINPAL_CALLBACK_URL=https://$DOMAIN/payment/callback|" "$APP_DIR/docker/.env"
 
-  warn "فایل .env ساخته شد - حتماً KAVENEGAR_API_KEY و ZARINPAL_MERCHANT_ID و NESHAN_API_KEY را در آن وارد کنید"
+  warn "فایل .env ساخته شد - حتماً SMS_IR_API_KEY (یا KAVENEGAR_API_KEY) و ZARINPAL_MERCHANT_ID و NESHAN_API_KEY را در آن وارد کنید"
   warn "مسیر: $APP_DIR/docker/.env"
 fi
 

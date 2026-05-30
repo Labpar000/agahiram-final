@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refetch = async () => {
     setLoading(true);
-    const r = await apiClient.get<UserProfile>('/auth/me', undefined, { silent401: true });
+    const r = await apiClient.get<UserProfile>('/auth/me');
     setLoading(false);
     if (r.success && r.data) {
       const role = r.data.role as string;
@@ -70,6 +70,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPublic]);
+
+  useEffect(() => {
+    if (isPublic || !me) return;
+
+    const refresh = () => {
+      void apiClient.post('/auth/refresh', undefined, { silent401: true });
+    };
+
+    const interval = setInterval(refresh, 10 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refresh();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [isPublic, me]);
 
   const logout = async () => {
     await apiClient.post('/auth/logout');

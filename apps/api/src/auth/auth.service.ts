@@ -200,7 +200,7 @@ export class AuthService {
   }
 
   private async generateTokens(payload: JwtPayload) {
-    const accessToken = this.jwt.sign(payload, { expiresIn: '15m' });
+    const accessToken = this.jwt.sign(payload, { expiresIn: '1d' });
     const refreshToken = this.jwt.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET ?? 'agahiram-dev-refresh-secret',
       expiresIn: '30d',

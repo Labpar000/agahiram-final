@@ -3,6 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ThemeProvider, Toaster, TooltipProvider } from '@agahiram/ui';
+import { AuthSessionProvider } from './auth-session-provider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -21,7 +22,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <QueryClientProvider client={client}>
-        <TooltipProvider>{children}</TooltipProvider>
+        <AuthSessionProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </AuthSessionProvider>
         <Toaster />
       </QueryClientProvider>
     </ThemeProvider>

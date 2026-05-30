@@ -50,8 +50,7 @@ export class AuthController {
   @Public()
   @Post('logout')
   async logout(@Res({ passthrough: true }) res: FastifyReply) {
-    res.clearCookie('accessToken', { path: '/' });
-    res.clearCookie('refreshToken', { path: '/' });
+    this.clearAuthCookies(res);
     return { message: 'با موفقیت خارج شدید' };
   }
 
@@ -68,28 +67,25 @@ export class AuthController {
     return this.authService.completeProfile(userId, body);
   }
 
+  private cookieOptions(maxAge: number) {
+    const sameSite =
+      (process.env.COOKIE_SAMESITE as 'lax' | 'none' | 'strict' | undefined) ?? 'lax';
+    const secure = process.env.COOKIE_SECURE === 'true' || sameSite === 'none';
+    return { httpOnly: true, secure, sameSite, path: '/', maxAge } as const;
+  }
+
   private setAuthCookies(res: FastifyReply, accessToken: string, refreshToken: string) {
     /* `lax` works for same-site / sub-domain flows; in true cross-origin admin
      * deployments (admin.example.com → api.example.com), set
      * COOKIE_SAMESITE=none + COOKIE_SECURE=true. Secure is required when
      * SameSite=None per RFC 6265bis. */
-    const sameSite =
-      (process.env.COOKIE_SAMESITE as 'lax' | 'none' | 'strict' | undefined) ?? 'lax';
-    const secure = process.env.COOKIE_SECURE === 'true' || sameSite === 'none';
+    res.setCookie('accessToken', accessToken, this.cookieOptions(60 * 60 * 24));
+    res.setCookie('refreshToken', refreshToken, this.cookieOptions(60 * 60 * 24 * 30));
+  }
 
-    res.setCookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure,
-      sameSite,
-      path: '/',
-      maxAge: 60 * 15,
-    });
-    res.setCookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure,
-      sameSite,
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-    });
+  private clearAuthCookies(res: FastifyReply) {
+    const { httpOnly: _h, maxAge: _m, ...clearOpts } = this.cookieOptions(0);
+    res.clearCookie('accessToken', clearOpts);
+    res.clearCookie('refreshToken', clearOpts);
   }
 }
