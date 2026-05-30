@@ -59,4 +59,3 @@ s3.{$DOMAIN:agahiram.ir} {
         header_up Host {host}
     }
 }
-}
