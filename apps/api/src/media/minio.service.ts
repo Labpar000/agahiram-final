@@ -33,6 +33,7 @@ export class MinioService {
       useSSL: internalUseSSL,
       accessKey,
       secretKey,
+      region: 'us-east-1',
     });
 
     const publicHost = process.env.MINIO_PUBLIC_HOST ?? 'localhost';
@@ -45,6 +46,7 @@ export class MinioService {
       useSSL: publicUseSSL,
       accessKey,
       secretKey,
+      region: 'us-east-1',
     });
 
     this.publicPathPrefix = process.env.MINIO_PUBLIC_PATH_PREFIX ?? '/storage';

@@ -53,7 +53,7 @@ jobs:
 
       - name: Test SSH connectivity
         run: |
-          SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30"
+          SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "echo connected && uname -a"
 
       - name: Package source
@@ -75,14 +75,13 @@ jobs:
       - name: Determine build scope
         id: build_scope
         run: |
-          git fetch --depth=2 origin "${{ github.event.workflow_run.head_sha || github.sha }}" 2>/dev/null || true
           SERVICES=$(bash scripts/detect-build-services.sh HEAD~1 HEAD)
           echo "services=$SERVICES" >> "$GITHUB_OUTPUT"
           echo "Will build: $SERVICES"
 
       - name: Deploy over SSH
         run: |
-          SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
           scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-src.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-src.tar.gz"
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
             "APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' SRC_TARBALL='/tmp/agahiram-src.tar.gz' BUILD_SERVICES='${{ steps.build_scope.outputs.services }}' bash -s" \

@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, RotateCw, X } from 'lucide-react';
-import { Button, Dialog, DialogContent, DialogTitle } from '@agahiram/ui';
+import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '@agahiram/ui';
 
 type AspectKey = 'free' | '1:1' | '4:5' | '16:9';
 
@@ -226,8 +226,11 @@ export function ImageEditor({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="max-w-2xl" aria-describedby={undefined}>
+      <DialogContent className="max-w-2xl" showClose={false}>
         <DialogTitle className="sr-only">ویرایش تصویر</DialogTitle>
+        <DialogDescription className="sr-only">
+          برش، چرخش و تنظیم روشنایی تصویر قبل از آپلود
+        </DialogDescription>
         <div className="space-y-4">
           <header className="flex items-center justify-between">
             <h2 className="text-h3 font-bold">ویرایش تصویر</h2>
