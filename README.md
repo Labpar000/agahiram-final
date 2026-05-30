@@ -10,7 +10,7 @@
 - ورود با شماره موبایل + OTP (Kavenegar)
 - پروفایل کاربری و اکانت فروشگاهی (Business)
 - ویزارد ۵ مرحله‌ای ایجاد آگهی (رسانه، دسته، مشخصات، قیمت، موقعیت)
-- آپلود مستقیم تصویر/ویدیو به ArvanCloud S3 با presigned URL
+- آپلود مستقیم تصویر/ویدیو به MinIO (self-hosted) با presigned URL
 - پردازش ویدیو در background با FFmpeg (HLS adaptive streaming)
 - فید عمودی استایل اینستاگرام
 - صفحه Explore با grid 3 ستونه و جستجوی فارسی MeiliSearch
@@ -48,6 +48,7 @@ agahiram/
 │   ├── update.sh         # به‌روزرسانی سریع
 │   └── backup.sh         # پشتیبان‌گیری روزانه
 └── docs/
+    ├── SERVER.md         # IP، کاربر، رمز، deploy
     └── setup.md          # راهنمای کامل راه‌اندازی
 ```
 
@@ -88,13 +89,16 @@ pnpm dev
 
 ## دیپلوی production
 
-به فایل‌های [`docs/setup.md`](docs/setup.md) و [`docs/CI_CD.md`](docs/CI_CD.md) مراجعه کنید. خلاصه:
+**روش استاندارد:** push به `main` → CI موفق → GitHub Actions **Deploy Production** خودکار.
 
-```bash
-# روی VPS اوبونتو
-git clone git@github.com:Labpar000/agahiram.git /opt/agahiram
-export DOMAIN=agahiram.ir
-bash /opt/agahiram/scripts/deploy.sh
+راه‌اندازی یک‌بار: [`scripts/bootstrap-github-deploy.ps1`](scripts/bootstrap-github-deploy.ps1)
+
+مستندات: [`docs/CI_CD.md`](docs/CI_CD.md) | سرور: [`docs/SERVER.md`](docs/SERVER.md)
+
+**Fallback محلی:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
 ```
 
 ## Git و مشارکت
@@ -124,11 +128,11 @@ pnpm build
 
 ## تکنولوژی‌ها
 
-**Backend:** NestJS 11 + Fastify + Prisma + PostgreSQL + Redis + BullMQ + Socket.IO + MeiliSearch + AWS SDK S3 (ArvanCloud) + Sharp + FFmpeg
+**Backend:** NestJS 11 + Fastify + Prisma + PostgreSQL + Redis + BullMQ + Socket.IO + MeiliSearch + MinIO + Sharp + FFmpeg
 
 **Frontend:** Next.js 15 (App Router + RSC) + React 19 + TailwindCSS 4 + TanStack Query + Zustand + next-pwa + Vazirmatn font
 
-**زیرساخت ایرانی:** Mahancloud/ArvanCloud VPS + ArvanCloud Object Storage + ArvanCloud CDN + Kavenegar SMS + ZarinPal Gateway + Neshan Maps
+**زیرساخت:** VPS (`45.144.18.86`) + MinIO object storage + Caddy + Kavenegar SMS + ZarinPal Gateway + Neshan Maps
 
 ## فازهای بعدی
 

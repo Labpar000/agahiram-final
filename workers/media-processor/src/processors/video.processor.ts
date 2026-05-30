@@ -3,7 +3,7 @@ import { writeFile, mkdir, readdir, readFile, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { prisma } from '@agahiram/database';
-import { getObject, putObject, deleteObject, keyFromUrl } from '../s3';
+import { getObject, putObject, deleteObject, keyFromUrl } from '../minio';
 
 const ffmpegBin = process.env.FFMPEG_PATH || '/usr/bin/ffmpeg';
 const ffprobeBin = process.env.FFPROBE_PATH || '/usr/bin/ffprobe';

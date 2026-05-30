@@ -2,13 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { STORY_EXPIRY_HOURS } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { S3Service } from '../media/s3.service';
+import { MinioService } from '../media/minio.service';
 
 @Injectable()
 export class StoriesService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly s3: S3Service,
+    private readonly minio: MinioService,
   ) {}
 
   async create(
@@ -19,7 +19,7 @@ export class StoriesService {
     const story = await this.prisma.story.create({
       data: {
         userId,
-        mediaUrl: this.s3.getPublicUrl(input.mediaKey),
+        mediaUrl: this.minio.getPublicUrl(input.mediaKey),
         type: input.type,
         expiresAt,
         linkedPostId: input.linkedPostId,

@@ -1,5 +1,6 @@
 #!/bin/bash
-# آگهی‌گرام - اسکریپت دیپلوی صفر تا صد روی VPS اوبونتو ۲۲.۰۴+
+# آگهی‌گرام - اسکریپت دیپلوی صفر تا صد روی VPS
+# سرور production: root@45.144.18.86 — docs/SERVER.md
 # استفاده: bash deploy.sh
 
 set -euo pipefail
@@ -77,15 +78,16 @@ if [[ ! -f "$APP_DIR/docker/.env" ]]; then
   sed -i "s|JWT_REFRESH_SECRET=.*|JWT_REFRESH_SECRET=$JWT_REFRESH|" "$APP_DIR/docker/.env"
   echo "COOKIE_SECRET=$COOKIE_SEC" >> "$APP_DIR/docker/.env"
 
-  # MinIO object storage (creds are reused as the S3 access/secret keys).
+  # MinIO object storage credentials.
   sed -i "s|MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=$MINIO_PASS|" "$APP_DIR/docker/.env"
-  sed -i "s|S3_SECRET_KEY=.*|S3_SECRET_KEY=$MINIO_PASS|" "$APP_DIR/docker/.env"
+  sed -i "s|MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=$MINIO_PASS|" "$APP_DIR/docker/.env"
+  sed -i "s|MINIO_ACCESS_KEY=.*|MINIO_ACCESS_KEY=agahiram|" "$APP_DIR/docker/.env"
 
   sed -i "s|DOMAIN=.*|DOMAIN=$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|ACME_EMAIL=.*|ACME_EMAIL=$EMAIL|" "$APP_DIR/docker/.env"
   sed -i "s|MEILI_HOST=.*|MEILI_HOST=http://meilisearch:7700|" "$APP_DIR/docker/.env"
-  sed -i "s|S3_PUBLIC_ENDPOINT=.*|S3_PUBLIC_ENDPOINT=https://$DOMAIN/storage|" "$APP_DIR/docker/.env"
-  sed -i "s|S3_PUBLIC_URL=.*|S3_PUBLIC_URL=https://$DOMAIN/storage/agahiram|" "$APP_DIR/docker/.env"
+  sed -i "s|MINIO_PUBLIC_HOST=.*|MINIO_PUBLIC_HOST=$DOMAIN|" "$APP_DIR/docker/.env"
+  sed -i "s|MINIO_CORS_ORIGIN=.*|MINIO_CORS_ORIGIN=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|CORS_ORIGIN=.*|CORS_ORIGIN=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|FRONTEND_URL=.*|FRONTEND_URL=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|NEXT_PUBLIC_API_URL=.*|NEXT_PUBLIC_API_URL=https://$DOMAIN/api/v1|" "$APP_DIR/docker/.env"
@@ -96,6 +98,31 @@ if [[ ! -f "$APP_DIR/docker/.env" ]]; then
 
   warn "فایل .env ساخته شد - حتماً SMS_IR_API_KEY (یا KAVENEGAR_API_KEY) و ZARINPAL_MERCHANT_ID و NESHAN_API_KEY را در آن وارد کنید"
   warn "مسیر: $APP_DIR/docker/.env"
+fi
+
+# Migrate legacy S3_* env keys to MINIO_* on existing installs.
+ENV_FILE="$APP_DIR/docker/.env"
+if [[ -f "$ENV_FILE" ]]; then
+  if grep -q '^S3_SECRET_KEY=' "$ENV_FILE" && ! grep -q '^MINIO_SECRET_KEY=' "$ENV_FILE"; then
+    S3_SECRET=$(grep '^S3_SECRET_KEY=' "$ENV_FILE" | cut -d= -f2-)
+    echo "MINIO_SECRET_KEY=$S3_SECRET" >> "$ENV_FILE"
+  fi
+  if grep -q '^S3_ACCESS_KEY=' "$ENV_FILE" && ! grep -q '^MINIO_ACCESS_KEY=' "$ENV_FILE"; then
+    S3_ACCESS=$(grep '^S3_ACCESS_KEY=' "$ENV_FILE" | cut -d= -f2-)
+    echo "MINIO_ACCESS_KEY=$S3_ACCESS" >> "$ENV_FILE"
+  fi
+  if grep -q '^S3_BUCKET=' "$ENV_FILE" && ! grep -q '^MINIO_BUCKET=' "$ENV_FILE"; then
+    S3_BUCKET_VAL=$(grep '^S3_BUCKET=' "$ENV_FILE" | cut -d= -f2-)
+    echo "MINIO_BUCKET=$S3_BUCKET_VAL" >> "$ENV_FILE"
+  fi
+  grep -q '^MINIO_ENDPOINT=' "$ENV_FILE" || echo "MINIO_ENDPOINT=minio" >> "$ENV_FILE"
+  grep -q '^MINIO_PORT=' "$ENV_FILE" || echo "MINIO_PORT=9000" >> "$ENV_FILE"
+  grep -q '^MINIO_USE_SSL=' "$ENV_FILE" || echo "MINIO_USE_SSL=false" >> "$ENV_FILE"
+  grep -q '^MINIO_PUBLIC_HOST=' "$ENV_FILE" || echo "MINIO_PUBLIC_HOST=$DOMAIN" >> "$ENV_FILE"
+  grep -q '^MINIO_PUBLIC_PORT=' "$ENV_FILE" || echo "MINIO_PUBLIC_PORT=443" >> "$ENV_FILE"
+  grep -q '^MINIO_PUBLIC_USE_SSL=' "$ENV_FILE" || echo "MINIO_PUBLIC_USE_SSL=true" >> "$ENV_FILE"
+  grep -q '^MINIO_PUBLIC_PATH_PREFIX=' "$ENV_FILE" || echo "MINIO_PUBLIC_PATH_PREFIX=/storage" >> "$ENV_FILE"
+  grep -q '^MINIO_CORS_ORIGIN=' "$ENV_FILE" || echo "MINIO_CORS_ORIGIN=https://$DOMAIN" >> "$ENV_FILE"
 fi
 
 log "6/8 ساخت ایمیج‌ها و راه‌اندازی کانتینرها..."

@@ -15,30 +15,30 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MediaService } from './media.service';
-import { S3Service } from './s3.service';
+import { MinioService } from './minio.service';
 
 @Controller('media')
 @UseGuards(JwtAuthGuard)
 export class MediaController {
   constructor(
     private mediaService: MediaService,
-    private s3: S3Service,
+    private minio: MinioService,
   ) {}
 
   @Public()
   @Get('object')
   async object(@Query('key') keyRaw: string, @Req() req: FastifyRequest, @Res() res: FastifyReply) {
-    const key = this.s3.getKeyFromUrl(keyRaw);
+    const key = this.minio.getKeyFromUrl(keyRaw);
     if (!key) throw new BadRequestException('کلید فایل نامعتبر است');
 
     // Forward Range so video can stream progressively + seek (otherwise the
     // browser has to download the whole file before playback starts).
     const range = req.headers.range;
-    const object = await this.s3.getObject(key, range);
+    const object = await this.minio.getObject(key, range);
     const body = object.Body;
     if (!body) throw new BadRequestException('فایل یافت نشد');
 
-    // Some legacy uploads landed in S3 without a proper Content-Type and come
+    // Some legacy uploads landed without a proper Content-Type and come
     // back as `application/octet-stream`, which makes the Next.js image
     // optimizer reject them with a 400. Recover the correct MIME from the
     // file extension so images keep working regardless of how they were
@@ -53,7 +53,7 @@ export class MediaController {
       res.header('Content-Range', object.ContentRange);
       res.status(206);
     } else if (range) {
-      // Client asked for a range but S3 returned the full body — still signal OK.
+      // Client asked for a range but storage returned the full body — still signal OK.
       res.status(200);
     }
     return res.send(body);
@@ -95,10 +95,10 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
 };
 
 /**
- * S3 returns whatever Content-Type was set at upload time. Some older media
+ * MinIO returns whatever Content-Type was set at upload time. Some older media
  * was stored as `application/octet-stream` (or with no Content-Type at all),
- * which then makes the Next.js image optimizer reject the response. If S3 is
- * giving us a generic/unknown type, fall back to the extension-derived MIME
+ * which then makes the Next.js image optimizer reject the response. If storage
+ * is giving us a generic/unknown type, fall back to the extension-derived MIME
  * so browsers and image optimizers can render the file correctly.
  */
 function pickContentType(stored: string | undefined, key: string): string {

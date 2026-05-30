@@ -14,7 +14,7 @@ import {
   type UpdatePostInput,
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { S3Service } from '../media/s3.service';
+import { MinioService } from '../media/minio.service';
 import { SettingsService } from '../admin/settings.service';
 import { ModuleRef } from '@nestjs/core';
 import { AdminGateway } from '../admin/admin.gateway';
@@ -31,7 +31,7 @@ export class PostsService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly s3: S3Service,
+    private readonly minio: MinioService,
     private readonly settings: SettingsService,
     private readonly moduleRef: ModuleRef,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
@@ -103,8 +103,8 @@ export class PostsService {
         expiresAt,
         media: {
           create: input.mediaKeys.map((m) => ({
-            url: this.s3.getPublicUrl(m.key),
-            thumbnailUrl: m.type === 'image' ? this.s3.getPublicUrl(m.key) : null,
+            url: this.minio.getPublicUrl(m.key),
+            thumbnailUrl: m.type === 'image' ? this.minio.getPublicUrl(m.key) : null,
             type: m.type,
             order: m.order,
           })),
@@ -472,8 +472,8 @@ export class PostsService {
       city: post.city,
       media: post.media.map((media: any) => ({
         ...media,
-        url: this.s3.toServedUrl(media.url) ?? media.url,
-        thumbnailUrl: this.s3.toServedUrl(media.thumbnailUrl),
+        url: this.minio.toServedUrl(media.url) ?? media.url,
+        thumbnailUrl: this.minio.toServedUrl(media.thumbnailUrl),
       })),
     };
   }

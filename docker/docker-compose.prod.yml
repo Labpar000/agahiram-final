@@ -53,7 +53,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       # Allow the browser to PUT directly to presigned URLs served via Caddy.
-      MINIO_API_CORS_ALLOW_ORIGIN: ${S3_CORS_ALLOW_ORIGIN:-https://${DOMAIN}}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGIN:-https://${DOMAIN}}
     volumes:
       - minio_data:/data
     networks:
@@ -75,8 +75,8 @@ services:
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
-      mc mb --ignore-existing local/${S3_BUCKET:-agahiram} &&
-      mc anonymous set download local/${S3_BUCKET:-agahiram} &&
+      mc mb --ignore-existing local/${MINIO_BUCKET:-agahiram} &&
+      mc anonymous set download local/${MINIO_BUCKET:-agahiram} &&
       echo 'bucket ready';
       "
     networks:

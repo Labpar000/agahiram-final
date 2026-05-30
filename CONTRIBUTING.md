@@ -246,6 +246,6 @@ pnpm test:coverage  # با coverage
 - **Before PR:** `pnpm lint && pnpm format:check && pnpm build` must pass
 - **PR title:** must follow Conventional Commits
 - **Merge strategy:** Squash and merge into `main`
-- **Deploy:** use `scripts/deploy-bridge.ps1` until GitHub runner network access to the VPS is available
+- **Deploy:** `scripts/deploy-bridge.ps1` → server `root@45.144.18.86` (see [`docs/SERVER.md`](docs/SERVER.md))
 
 ممنون از مشارکتت! 💚

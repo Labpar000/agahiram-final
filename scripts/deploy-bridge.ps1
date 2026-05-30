@@ -1,7 +1,10 @@
 param(
+  # Production server — see docs/SERVER.md
   [string]$HostName = "45.144.18.86",
   [string]$User = "root",
+  [string]$Password = "amirhosein",
   [string]$Port = "22",
+  # Optional SSH key; if missing, OpenSSH prompts for $Password
   [string]$KeyPath = ".cache/ssh/agahiram_id_ed25519",
   [string]$AppDir = "/opt/agahiram",
   [switch]$SkipLocalChecks = $false,
@@ -148,10 +151,14 @@ Step "Build scope: $BuildServicesArg"
 
 $LockHash = (Get-FileHash -Path (Join-Path $Root "pnpm-lock.yaml") -Algorithm SHA256).Hash.ToLowerInvariant()
 $SshCommon = @(
-  "-i", $KeyPath,
   "-p", $Port,
   "-o", "StrictHostKeyChecking=no"
 )
+if (Test-Path $KeyPath) {
+  $SshCommon = @("-i", $KeyPath) + $SshCommon
+} else {
+  Write-Host "SSH key not found at $KeyPath — will prompt for password ($Password)" -ForegroundColor Yellow
+}
 $RemoteCacheHash = Invoke-NativeCapture -FilePath ssh -Arguments (
   $SshCommon + @(
     "${User}@${HostName}",
@@ -193,16 +200,9 @@ $TarArgs = @("-czf", $Archive) + $TarExcludes + @("-C", "$Root", ".")
 Invoke-Native -FilePath tar -Arguments $TarArgs
 
 Step "Uploading archive to VPS"
-Invoke-Native -FilePath scp -Arguments @(
-  "-i",
-  $KeyPath,
-  "-P",
-  $Port,
-  "-o",
-  "StrictHostKeyChecking=no",
-  $Archive,
-  "${User}@${HostName}:/tmp/agahiram-src.tar.gz"
-)
+$ScpArgs = @("-P", $Port, "-o", "StrictHostKeyChecking=no", $Archive, "${User}@${HostName}:/tmp/agahiram-src.tar.gz")
+if (Test-Path $KeyPath) { $ScpArgs = @("-i", $KeyPath) + $ScpArgs }
+Invoke-Native -FilePath scp -Arguments $ScpArgs
 
 Step "Deploying on VPS"
 $RemoteScript = @'
@@ -239,7 +239,7 @@ docker compose -f docker-compose.prod.yml ps
 '@
 
 $NeedOfflineCacheSyncInt = if ($NeedOfflineCacheSync) { "1" } else { "0" }
-$RemoteScript | ssh -i $KeyPath -p $Port -o StrictHostKeyChecking=no "${User}@${HostName}" "APP_DIR='$AppDir' BUILD_SERVICES='$BuildServicesArg' NEED_CACHE_SYNC='$NeedOfflineCacheSyncInt' LOCK_HASH='$LockHash' bash -s"
+$RemoteScript | ssh @($SshCommon + @("${User}@${HostName}", "APP_DIR='$AppDir' BUILD_SERVICES='$BuildServicesArg' NEED_CACHE_SYNC='$NeedOfflineCacheSyncInt' LOCK_HASH='$LockHash' bash -s"))
 if ($LASTEXITCODE -ne 0) {
   throw "Remote deploy failed with exit code ${LASTEXITCODE}"
 }

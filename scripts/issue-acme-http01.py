@@ -112,7 +112,7 @@ def main() -> None:
     parser.add_argument("--www-domain", default="www.alooche.com")
     parser.add_argument("--email", default="admin@alooche.com")
     parser.add_argument("--ssh-key", default=".cache/ssh/agahiram_id_ed25519")
-    parser.add_argument("--ssh-target", default="ubuntu@37.32.26.32")
+    parser.add_argument("--ssh-target", default="root@45.144.18.86")
     parser.add_argument("--remote-dir", default="/opt/agahiram/docker")
     args = parser.parse_args()
 

@@ -27,7 +27,7 @@ export const MAX_REEL_DURATION = 60;
 export const MAX_STORY_DURATION = 15;
 
 /* Upload limits. Videos are re-encoded/compressed by the media-processor worker
- * after upload, so these caps protect the upload step + S3 ingest, not the
+ * after upload, so these caps protect the upload step + MinIO ingest, not the
  * final stored size. */
 export const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB
 export const MAX_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
@@ -44,7 +44,7 @@ export const MAX_PAGE_SIZE = 50;
 
 export const MEILI_INDEX_POSTS = 'posts';
 
-export const S3_FOLDERS = {
+export const MEDIA_FOLDERS = {
   POSTS: 'posts',
   AVATARS: 'avatars',
   STORIES: 'stories',
@@ -52,6 +52,9 @@ export const S3_FOLDERS = {
   MESSAGES: 'messages',
   TEMP: 'temp',
 } as const;
+
+/** @deprecated Use MEDIA_FOLDERS */
+export const S3_FOLDERS = MEDIA_FOLDERS;
 
 export const SOCKET_EVENTS = {
   CONNECT: 'connect',

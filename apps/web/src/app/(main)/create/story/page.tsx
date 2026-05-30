@@ -12,6 +12,7 @@ import {
 } from '@agahiram/shared';
 import { Button, IconButton, Spinner, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { uploadToMinio } from '@/lib/upload-media';
 
 export default function CreateStoryPage() {
   const router = useRouter();
@@ -61,7 +62,7 @@ export default function CreateStoryPage() {
         throw new Error('خطا در دریافت لینک آپلود');
       }
 
-      const ok = await uploadToS3(presign.data.uploadUrl, file, contentType);
+      const ok = await uploadToMinio(presign.data.uploadUrl, file, contentType);
       if (!ok) throw new Error('آپلود ناموفق بود');
 
       const confirmRes = await apiClient.post('/media/confirm', { key: presign.data.key });
@@ -152,16 +153,4 @@ export default function CreateStoryPage() {
       </div>
     </div>
   );
-}
-
-function uploadToS3(url: string, file: File, contentType: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url, true);
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-    xhr.onerror = () => resolve(false);
-    xhr.onabort = () => resolve(false);
-    xhr.send(file);
-  });
 }

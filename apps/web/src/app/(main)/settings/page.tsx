@@ -33,6 +33,7 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { uploadToMinio } from '@/lib/upload-media';
 import { useAuth } from '@/hooks/useAuth';
 
 interface NotificationPrefs {
@@ -157,7 +158,8 @@ export default function SettingsPage() {
         extension,
       });
       if (!presign.success || !presign.data) throw new Error(presign.error ?? 'خطا در آپلود');
-      await uploadToS3(presign.data.uploadUrl, file, file.type);
+      const ok = await uploadToMinio(presign.data.uploadUrl, file, file.type);
+      if (!ok) throw new Error('آپلود فایل ناموفق بود');
       const confirm = await apiClient.post('/media/confirm', { key: presign.data.key });
       if (!confirm.success) throw new Error(confirm.error ?? 'خطا در ثبت آپلود');
       const saved = await apiClient.patch('/users/me', { avatarKey: presign.data.key });
@@ -535,18 +537,4 @@ function Row({
       <Separator className="last:hidden" />
     </>
   );
-}
-
-function uploadToS3(url: string, file: File, contentType: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url);
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error('آپلود فایل ناموفق بود'));
-    };
-    xhr.onerror = () => reject(new Error('آپلود فایل ناموفق بود'));
-    xhr.send(file);
-  });
 }

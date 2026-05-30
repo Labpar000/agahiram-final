@@ -1,7 +1,9 @@
 name: Deploy Production
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -15,12 +17,16 @@ concurrency:
 env:
   APP_DIR: ${{ vars.APP_DIR || '/opt/agahiram' }}
   SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+  PRODUCTION_DOMAIN: ${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
 
 jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     environment:
       name: production
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
@@ -28,6 +34,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Validate required secrets
         run: |
@@ -42,6 +50,11 @@ jobs:
           printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/agahiram_deploy_key
           chmod 600 ~/.ssh/agahiram_deploy_key
 
+      - name: Test SSH connectivity
+        run: |
+          SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30"
+          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "echo connected && uname -a"
+
       - name: Package source
         run: |
           tar \
@@ -49,6 +62,8 @@ jobs:
             --exclude=".cursor" \
             --exclude="node_modules" \
             --exclude="**/node_modules" \
+            --exclude=".pnpm-store" \
+            --exclude=".pnpm-meta" \
             --exclude=".turbo" \
             --exclude="tmp" \
             --exclude=".cache" \
@@ -60,28 +75,9 @@ jobs:
         run: |
           SSH_COMMON_OPTS="-i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
           scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-src.tar.gz "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/tmp/agahiram-src.tar.gz"
-          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" "APP_DIR='$APP_DIR' bash -s" <<'REMOTE'
-          set -euo pipefail
-
-          mkdir -p "$APP_DIR"
-          tar -xzf /tmp/agahiram-src.tar.gz -C "$APP_DIR"
-          cd "$APP_DIR/docker"
-
-          export DOCKER_BUILDKIT=1
-          export COMPOSE_DOCKER_CLI_BUILD=1
-          # Build sequentially so parallel Next.js builds don't exhaust RAM on the VPS.
-          # BuildKit cache is preserved between deploys (GC capped in daemon.json).
-          for svc in api worker web admin; do
-            docker compose -f docker-compose.prod.yml build "$svc"
-          done
-
-          docker compose -f docker-compose.prod.yml up -d postgres redis meilisearch minio
-          docker compose -f docker-compose.prod.yml up -d createbuckets
-          docker compose -f docker-compose.prod.yml run --rm --workdir /app api sh -lc '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
-          docker compose -f docker-compose.prod.yml up -d --force-recreate api web admin worker caddy
-          docker image prune -f
-          docker compose -f docker-compose.prod.yml ps
-          REMOTE
+          ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}" \
+            "APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' SRC_TARBALL='/tmp/agahiram-src.tar.gz' bash -s" \
+            < scripts/remote-deploy.sh
 
       - name: Cleanup SSH key
         if: always()

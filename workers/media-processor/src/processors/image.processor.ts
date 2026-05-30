@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { prisma } from '@agahiram/database';
-import { getObject, putObject, deleteObject, keyFromUrl } from '../s3';
+import { getObject, putObject, deleteObject, keyFromUrl } from '../minio';
 
 interface Job {
   mediaId: string;

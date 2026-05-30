@@ -8,13 +8,13 @@ import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { BULL_QUEUES, type UpdateProfileInput } from '@agahiram/shared';
-import { S3Service } from '../media/s3.service';
+import { MinioService } from '../media/minio.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly s3: S3Service,
+    private readonly minio: MinioService,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
   ) {}
 
@@ -62,7 +62,7 @@ export class UsersService {
   async updateProfile(userId: string, input: UpdateProfileInput) {
     let avatarUrl: string | undefined;
     if (input.avatarKey) {
-      avatarUrl = this.s3.getPublicUrl(input.avatarKey);
+      avatarUrl = this.minio.getPublicUrl(input.avatarKey);
     }
 
     if (input.username) {

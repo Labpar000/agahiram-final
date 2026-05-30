@@ -2,10 +2,11 @@ param(
   [string]$RepoName = "agahiram",
   [string]$Description = "Agahiram classified ads platform",
   [string]$DefaultBranch = "main",
-  [string]$SshHost = "37.32.26.32",
-  [string]$SshUser = "ubuntu",
+  [string]$SshHost = "45.144.18.86",
+  [string]$SshUser = "root",
   [string]$SshPort = "22",
-  [string]$SshKeyPath = ".cache/ssh/agahiram_id_ed25519",
+  [string]$SshPassword = "amirhosein",
+  [string]$SshKeyPath = ".cache/ssh/github_deploy_ed25519",
   [switch]$Public
 )
 
@@ -84,11 +85,11 @@ gh secret set SSH_USER --body $SshUser --repo $RepoSlug
 gh secret set SSH_PORT --body $SshPort --repo $RepoSlug
 
 $ResolvedKeyPath = Resolve-Path $SshKeyPath
-gh secret set SSH_KEY --repo $RepoSlug < $ResolvedKeyPath
+Get-Content -Raw $ResolvedKeyPath | gh secret set SSH_KEY --repo $RepoSlug
 
 Step "Configuring repository variables"
 gh variable set APP_DIR --body "/opt/agahiram" --repo $RepoSlug
-gh variable set PRODUCTION_DOMAIN --body "agahiram.ir" --repo $RepoSlug
+gh variable set PRODUCTION_DOMAIN --body "alooche.com" --repo $RepoSlug
 
 Step "Configuring repository settings"
 gh repo edit $RepoSlug --enable-issues=true --enable-projects=false --enable-wiki=false --enable-auto-merge=true --delete-branch-on-merge=true

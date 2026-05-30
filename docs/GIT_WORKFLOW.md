@@ -96,7 +96,7 @@ ci: improve production deploy
 
 - اگر پروژه تک‌نفره است، self-review قابل قبول است.
 - از **Squash and merge** استفاده کن تا history روی `main` تمیز بماند.
-- بعد از merge به `main`، workflow deploy به production اجرا می‌شود.
+- بعد از merge به `main`، deploy با `scripts/deploy-bridge.ps1` به سرور `root@45.144.18.86` انجام می‌شود (جزئیات: [`docs/SERVER.md`](SERVER.md)).
 
 ## Hotfix
 

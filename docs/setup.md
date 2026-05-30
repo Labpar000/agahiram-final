@@ -42,10 +42,18 @@
 
 ## ۲. اتصال به سرور
 
+مشخصات سرور production در [`docs/SERVER.md`](SERVER.md) است:
+
+| مورد  | مقدار          |
+| ----- | -------------- |
+| IP    | `45.144.18.86` |
+| کاربر | `root`         |
+| رمز   | `amirhosein`   |
+
 از کامپیوترت با **MobaXterm** (Windows) یا **Terminal** (Mac) به سرور SSH بزن:
 
 ```
-ssh root@YOUR_SERVER_IP
+ssh root@45.144.18.86
 ```
 
 ## ۳. اجرای دیپلوی خودکار
@@ -82,8 +90,8 @@ nano /opt/agahiram/docker/.env
 ```
 KAVENEGAR_API_KEY=your_kavenegar_api_key
 KAVENEGAR_DEV_MODE=false
-S3_ACCESS_KEY=your_arvancloud_access_key
-S3_SECRET_KEY=your_arvancloud_secret_key
+MINIO_ACCESS_KEY=agahiram
+MINIO_SECRET_KEY=your_minio_password
 ZARINPAL_MERCHANT_ID=your_merchant_id
 ZARINPAL_SANDBOX=true
 NESHAN_API_KEY=your_neshan_api_key
@@ -111,6 +119,8 @@ bash /opt/agahiram/scripts/update.sh
 ```
 
 ## ۷. CI و Deploy
+
+مشخصات سرور: [`docs/SERVER.md`](SERVER.md) (`root@45.144.18.86`)
 
 CI روی GitHub برای هر push و PR اجرا می‌شود. برای deploy production، به خاطر timeout مسیر شبکه بین GitHub Actions و VPS ایران، فعلاً از bridge محلی استفاده کن:
 

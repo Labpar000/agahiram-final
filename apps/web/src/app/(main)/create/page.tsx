@@ -40,6 +40,7 @@ import {
 } from '@agahiram/ui';
 import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api';
+import { uploadToMinio } from '@/lib/upload-media';
 import { ImageEditor } from '@/components/image-editor';
 import type { PickedLocation } from '@/components/maps/location-picker';
 
@@ -161,7 +162,7 @@ export default function CreatePage() {
       }
 
       setUploadProgress(0);
-      const ok = await uploadToS3(presign.data.uploadUrl, file, contentType, setUploadProgress);
+      const ok = await uploadToMinio(presign.data.uploadUrl, file, contentType, setUploadProgress);
       if (!ok) {
         toast.error(`آپلود «${file.name}» ناموفق بود`);
         return false;
@@ -722,26 +723,6 @@ export default function CreatePage() {
       ) : null}
     </div>
   );
-}
-
-function uploadToS3(
-  url: string,
-  file: File,
-  contentType: string,
-  onProgress: (pct: number) => void,
-): Promise<boolean> {
-  return new Promise((resolve) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', url, true);
-    xhr.setRequestHeader('Content-Type', contentType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
-    };
-    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
-    xhr.onerror = () => resolve(false);
-    xhr.onabort = () => resolve(false);
-    xhr.send(file);
-  });
 }
 
 function getFileExtension(file: File) {
