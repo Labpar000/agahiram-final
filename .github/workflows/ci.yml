@@ -56,9 +56,12 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
-      # Typecheck only (tsc). Production build runs once in Deploy (Docker) — not here.
-      - name: Typecheck
-        run: pnpm typecheck
+      # Build libs only (tsc, ~30s). Next.js production build runs in Deploy Docker — not here.
+      - name: Build libraries
+        run: pnpm turbo run build --filter='./packages/*' --filter='./workers/*'
+
+      - name: Typecheck apps
+        run: pnpm turbo run lint --filter='@agahiram/api' --filter='@agahiram/web' --filter='@agahiram/admin' --filter='@agahiram/ui'
 
       - name: Verify media byte-range (optional)
         if: vars.MEDIA_RANGE_TEST_URL != ''
