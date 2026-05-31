@@ -211,17 +211,21 @@ deploy_pull() {
     pull_services() {
       local tag="$1"
       export IMAGE_TAG="$tag"
-      log "pulling images in parallel (tag=$tag): $BUILD_SERVICES"
-      local pids=() svc
+      log "pulling images sequentially (tag=$tag): $BUILD_SERVICES"
+      local svc attempt
       for svc in $BUILD_SERVICES; do
-        ( docker compose $COMPOSE pull "$svc" ) &
-        pids+=($!)
+        for attempt in 1 2 3 4 5; do
+          log "pull $svc (tag=$tag) attempt $attempt/5"
+          if docker compose $COMPOSE pull "$svc"; then
+            break
+          fi
+          if [[ "$attempt" -eq 5 ]]; then
+            return 1
+          fi
+          sleep 5
+        done
       done
-      local failed=0
-      for pid in "${pids[@]}"; do
-        wait "$pid" || failed=1
-      done
-      return "$failed"
+      return 0
     }
     if ! pull_services "$IMAGE_TAG"; then
       if [[ "$IMAGE_TAG" != "latest" ]]; then
