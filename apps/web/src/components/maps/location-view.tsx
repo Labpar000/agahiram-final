@@ -2,7 +2,8 @@
 
 import { useCallback, useRef } from 'react';
 import type maplibregl from 'maplibre-gl';
-import { ExternalLink, MapPin, Navigation } from 'lucide-react';
+import { MapPin, Navigation } from 'lucide-react';
+import { IgExternalLink } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { NeshanMap, type NeshanMapHandle } from './neshan-map';
 
@@ -29,8 +30,8 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
       const el = document.createElement('div');
       el.className = 'flex flex-col items-center -translate-y-1/2';
       el.innerHTML = `
-        <div class="rounded-full bg-primary p-2 shadow-md ring-4 ring-primary/20">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5 text-primary-foreground"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
+        <div class="rounded-full bg-ig-link p-2 shadow-md ring-4 ring-ig-link/20">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="size-5 text-ig-link-foreground"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>
         </div>
       `;
       markerRef.current = new maplibre.Marker({ element: el, anchor: 'bottom' })
@@ -47,7 +48,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
     <section className={cn('space-y-3', className)}>
       <div className="space-y-1">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <MapPin className="size-4 text-primary" aria-hidden />
+          <MapPin className="size-4 text-muted-foreground" aria-hidden />
           موقعیت آگهی
         </h3>
         {address ? (
@@ -79,7 +80,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
           rel="noreferrer"
           className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
-          <ExternalLink className="size-4" aria-hidden />
+          <IgExternalLink className="size-4" strokeWidth={1.75} aria-hidden />
           باز کردن در نشان
         </a>
       </div>

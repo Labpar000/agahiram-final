@@ -40,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/', icon: LayoutDashboard, label: 'داشبورد' },
   { href: '/pending', icon: FileCheck, label: 'صف تأیید آگهی', badgeKey: 'pending' },
   { href: '/posts', icon: FileText, label: 'آگهی‌ها' },
+  { href: '/stories', icon: Sparkles, label: 'استوری‌ها' },
   { href: '/users', icon: Users, label: 'کاربران' },
   { href: '/reports', icon: Flag, label: 'گزارش‌ها', badgeKey: 'reports' },
   { href: '/comments', icon: MessageSquareWarning, label: 'مدیریت کامنت‌ها' },

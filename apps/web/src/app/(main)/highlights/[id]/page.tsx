@@ -3,11 +3,18 @@
 import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { X } from 'lucide-react';
-import { Spinner } from '@agahiram/ui';
+import { IgClose, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { StoryVideo } from '@/components/story-video';
-import { StoryOverlayView, parseStoryOverlay } from '@/components/story-overlay-view';
+import {
+  StoryOverlayView,
+  getStoryFilterCss,
+  parseStoryOverlay,
+} from '@/components/story-overlay-view';
+import {
+  StoryInteractiveStickersView,
+  type ApiStorySticker,
+} from '@/features/stories/stickers/story-interactive-stickers-view';
 
 interface StoryItem {
   id: string;
@@ -15,6 +22,7 @@ interface StoryItem {
   type: 'image' | 'video';
   durationMs?: number;
   overlayJson?: unknown;
+  stickers?: ApiStorySticker[];
 }
 
 export default function HighlightViewerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -77,19 +85,32 @@ export default function HighlightViewerPage({ params }: { params: Promise<{ id: 
         onClick={() => router.back()}
         className="absolute end-3 top-[calc(var(--safe-top)+1rem)] z-10 grid size-10 place-items-center rounded-full bg-black/50 text-white"
       >
-        <X className="size-5" aria-hidden />
+        <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
       </button>
       <div className="relative size-full">
-        {current.type === 'video' ? (
-          <StoryVideo mediaUrl={current.mediaUrl} className="size-full object-cover" />
-        ) : (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img src={current.mediaUrl} alt="" className="size-full object-cover" />
-        )}
-        <StoryOverlayView
-          overlay={parseStoryOverlay(current.overlayJson)}
-          className="absolute inset-0 size-full"
-        />
+        {(() => {
+          const overlay = parseStoryOverlay(current.overlayJson);
+          const filterCss = getStoryFilterCss(overlay);
+          return (
+            <div className="relative size-full" style={{ filter: filterCss }}>
+              {current.type === 'video' ? (
+                <StoryVideo mediaUrl={current.mediaUrl} className="size-full object-cover" />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={current.mediaUrl} alt="" className="size-full object-cover" />
+              )}
+              <StoryOverlayView overlay={overlay} className="absolute inset-0 size-full" />
+              {(current.stickers?.length ?? 0) > 0 ? (
+                <StoryInteractiveStickersView
+                  storyId={current.id}
+                  stickers={current.stickers ?? []}
+                  isOwner={false}
+                  allowInteraction={false}
+                />
+              ) : null}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

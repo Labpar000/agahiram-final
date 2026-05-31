@@ -81,6 +81,9 @@ export class UsersService {
         avatar: avatarUrl,
         isPrivate: input.isPrivate,
         defaultCityId: input.defaultCityId,
+        ...(input.storyArchiveEnabled !== undefined && {
+          storyArchiveEnabled: input.storyArchiveEnabled,
+        }),
       },
       select: {
         id: true,
@@ -94,6 +97,7 @@ export class UsersService {
         isPrivate: true,
         role: true,
         defaultCityId: true,
+        storyArchiveEnabled: true,
         createdAt: true,
       },
     });
@@ -166,6 +170,26 @@ export class UsersService {
       take: 100,
     });
     return rows.map((r) => r.blocked);
+  }
+
+  async blockUser(userId: string, username: string) {
+    const target = await this.prisma.user.findUnique({ where: { username } });
+    if (!target) throw new NotFoundException('کاربر یافت نشد');
+    if (target.id === userId) throw new BadRequestException('نمی‌توانید خودتان را مسدود کنید');
+    await this.prisma.block.upsert({
+      where: { blockerId_blockedId: { blockerId: userId, blockedId: target.id } },
+      update: {},
+      create: { blockerId: userId, blockedId: target.id },
+    });
+    await this.prisma.follow.deleteMany({
+      where: {
+        OR: [
+          { followerId: userId, followingId: target.id },
+          { followerId: target.id, followingId: userId },
+        ],
+      },
+    });
+    return { blocked: true, username: target.username };
   }
 
   async unblockUser(userId: string, username: string) {

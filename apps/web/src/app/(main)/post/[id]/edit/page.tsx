@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, ChevronDown, ChevronUp, ImagePlus, X } from 'lucide-react';
+import { ImagePlus } from 'lucide-react';
 import { PostStatus } from '@agahiram/shared';
 import {
   ALLOWED_IMAGE_TYPES,
@@ -13,7 +13,18 @@ import {
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_VIDEO_UPLOAD_BYTES,
 } from '@agahiram/shared';
-import { Button, IconButton, Input, Label, LoadingState, Textarea, toast } from '@agahiram/ui';
+import {
+  Button,
+  IconButton,
+  IgArrowBack,
+  IgChevron,
+  IgClose,
+  Input,
+  Label,
+  LoadingState,
+  Textarea,
+  toast,
+} from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { mediaKeyFromUrl } from '@/lib/media-key';
 import { useUploadManager } from '@/lib/upload-manager';
@@ -172,18 +183,18 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
   if (isLoading) return <LoadingState label="در حال بارگذاری…" />;
 
   return (
-    <div className="bg-background p-4">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-background pb-12">
+      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <IconButton
           aria-label="بازگشت"
-          icon={<ArrowRight className="size-5 rtl:rotate-180" aria-hidden />}
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
           onClick={() => router.back()}
         />
-        <h1 className="text-lg font-bold">ویرایش آگهی</h1>
+        <h1 className="text-sm font-semibold">ویرایش آگهی</h1>
       </div>
       <form
-        className="space-y-4"
+        className="space-y-4 p-4"
         onSubmit={(e) => {
           e.preventDefault();
           save.mutate();
@@ -204,7 +215,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
                   className="absolute end-1 top-1 grid size-7 place-items-center rounded-full bg-black/60 text-white"
                   onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))}
                 >
-                  <X className="size-3.5" aria-hidden />
+                  <IgClose className="size-3.5" strokeWidth={1.75} aria-hidden />
                 </button>
                 <div className="absolute inset-x-0 bottom-0 flex justify-center gap-0.5 bg-black/50 p-0.5">
                   <button
@@ -212,14 +223,24 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
                     aria-label="جابجایی به بالا"
                     onClick={() => moveMedia(i, -1)}
                   >
-                    <ChevronUp className="size-4 text-white" aria-hidden />
+                    <IgChevron
+                      direction="up"
+                      className="size-4 text-white"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                   </button>
                   <button
                     type="button"
                     aria-label="جابجایی به پایین"
                     onClick={() => moveMedia(i, 1)}
                   >
-                    <ChevronDown className="size-4 text-white" aria-hidden />
+                    <IgChevron
+                      direction="down"
+                      className="size-4 text-white"
+                      strokeWidth={1.75}
+                      aria-hidden
+                    />
                   </button>
                 </div>
               </div>

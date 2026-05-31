@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, RotateCw, X } from 'lucide-react';
+import { IgCheck, IgClose, IgRotate, toast } from '@agahiram/ui';
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '@agahiram/ui';
 
 type AspectKey = 'free' | '1:1' | '4:5' | '16:9';
@@ -240,7 +240,7 @@ export function ImageEditor({
               onClick={onCancel}
               className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"
             >
-              <X className="size-5" aria-hidden />
+              <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
             </button>
           </header>
 
@@ -291,7 +291,7 @@ export function ImageEditor({
                 className={
                   'rounded-full border px-3 py-1 text-xs font-semibold transition-colors ' +
                   (aspect === a.key
-                    ? 'border-primary bg-primary text-primary-foreground'
+                    ? 'border-ig-link bg-ig-link text-ig-link-foreground'
                     : 'border-border bg-surface text-foreground hover:bg-muted')
                 }
               >
@@ -303,7 +303,7 @@ export function ImageEditor({
               onClick={() => setRotation((r) => (r + 90) % 360)}
               className="ms-auto inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold hover:bg-muted"
             >
-              <RotateCw className="size-3.5" aria-hidden />
+              <IgRotate className="size-3.5" strokeWidth={1.75} aria-hidden />
               چرخش ۹۰°
             </button>
           </div>
@@ -320,7 +320,7 @@ export function ImageEditor({
             </Button>
             <Button
               variant="brand"
-              leftIcon={<Check className="size-4" />}
+              leftIcon={<IgCheck className="size-4" strokeWidth={1.75} />}
               onClick={() => void apply()}
               isLoading={processing}
             >

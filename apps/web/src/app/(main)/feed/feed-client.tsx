@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Newspaper } from 'lucide-react';
 import Link from 'next/link';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { Button, EmptyState, ErrorState, Skeleton, Spinner } from '@agahiram/ui';
+import { Button, EmptyState, ErrorState, IgHome, Skeleton, Spinner } from '@agahiram/ui';
 import { fetchFeedPage } from '@/lib/query-definitions';
 import { PostCard } from '@/components/post-card';
 import { StoryBar } from '@/components/story-bar';
@@ -42,7 +41,7 @@ export function FeedClient() {
         <ErrorState onRetry={() => void refetch()} />
       ) : posts.length === 0 ? (
         <EmptyState
-          icon={<Newspaper aria-hidden />}
+          icon={<IgHome className="size-10" strokeWidth={1.5} aria-hidden />}
           title="فعلاً پستی نیست"
           description="با دنبال‌کردن کاربران، پست‌های آن‌ها در این صفحه نمایش داده می‌شود."
           className="min-h-[calc(100svh-var(--header-height)-var(--bottom-nav)-var(--safe-bottom)-5rem)]"

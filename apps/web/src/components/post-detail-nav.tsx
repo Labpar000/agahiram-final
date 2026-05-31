@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { IgChevron } from '@agahiram/ui';
 import { getAdjacentPostsFromCache } from '@/lib/post-feed-navigation';
 
 export function PostDetailNav({ postId }: { postId: string }) {
@@ -19,7 +19,12 @@ export function PostDetailNav({ postId }: { postId: string }) {
           prefetch
           className="inline-flex min-w-0 max-w-[45%] items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground tap-none hover:bg-muted/80"
         >
-          <ChevronRight className="size-4 shrink-0 rtl:rotate-180" aria-hidden />
+          <IgChevron
+            direction="right"
+            className="size-4 shrink-0 rtl:rotate-180"
+            strokeWidth={1.75}
+            aria-hidden
+          />
           <span className="truncate">قبلی</span>
         </Link>
       ) : (
@@ -32,7 +37,12 @@ export function PostDetailNav({ postId }: { postId: string }) {
           className="inline-flex min-w-0 max-w-[45%] items-center gap-1 rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-foreground tap-none hover:bg-muted/80"
         >
           <span className="truncate">بعدی</span>
-          <ChevronLeft className="size-4 shrink-0 rtl:rotate-180" aria-hidden />
+          <IgChevron
+            direction="left"
+            className="size-4 shrink-0 rtl:rotate-180"
+            strokeWidth={1.75}
+            aria-hidden
+          />
         </Link>
       ) : (
         <span className="w-[45%]" />

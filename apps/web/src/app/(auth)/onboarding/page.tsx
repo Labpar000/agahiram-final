@@ -2,9 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, AtSign, Check, UserRound } from 'lucide-react';
 import { formatPersianNumber } from '@agahiram/shared';
-import { Button, Card, CardContent, Input, Label, Textarea, toast } from '@agahiram/ui';
+import {
+  Button,
+  Card,
+  CardContent,
+  IgCheck,
+  IgUser,
+  Input,
+  Label,
+  Textarea,
+  toast,
+} from '@agahiram/ui';
 import { useAuth } from '@/hooks/useAuth';
 
 export default function OnboardingPage() {
@@ -41,16 +50,14 @@ export default function OnboardingPage() {
   };
 
   return (
-    <Card className="overflow-hidden border-border/60 shadow-floating">
-      <CardContent className="!p-7 sm:!p-8 space-y-6">
+    <Card className="overflow-hidden rounded-sm border border-border shadow-none">
+      <CardContent className="!p-4 space-y-4">
         <div>
-          <h1 className="text-h2 font-extrabold tracking-tight">تکمیل پروفایل</h1>
-          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-            برای شروع، اطلاعات زیر را پر کنید.
-          </p>
+          <h1 className="text-lg font-semibold tracking-tight">تکمیل پروفایل</h1>
+          <p className="mt-1 text-xs text-muted-foreground">برای شروع، اطلاعات زیر را پر کنید.</p>
         </div>
 
-        <form onSubmit={submit} className="space-y-5" noValidate>
+        <form onSubmit={submit} className="space-y-3" noValidate>
           <div className="space-y-2">
             <Label htmlFor="name" required>
               نام نمایشی
@@ -61,7 +68,7 @@ export default function OnboardingPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="مثلاً علی محمدی"
-              leadingIcon={<UserRound className="size-4" aria-hidden />}
+              leadingIcon={<IgUser className="size-4" strokeWidth={1.75} aria-hidden />}
               minLength={2}
               required
             />
@@ -85,11 +92,11 @@ export default function OnboardingPage() {
                 )
               }
               placeholder="ali_m"
-              leadingIcon={<AtSign className="size-4" aria-hidden />}
+              leadingIcon={<span className="text-sm font-semibold text-muted-foreground">@</span>}
               trailingIcon={
                 usernameValid ? (
                   <span className="grid size-5 place-items-center rounded-full bg-success/15 text-success">
-                    <Check className="size-3.5" aria-hidden />
+                    <IgCheck className="size-3.5" strokeWidth={2} aria-hidden />
                   </span>
                 ) : null
               }
@@ -122,12 +129,11 @@ export default function OnboardingPage() {
 
           <Button
             type="submit"
-            variant="brand"
-            size="lg"
+            size="sm"
             fullWidth
+            className="btn-ig-link h-8 rounded-lg text-sm font-semibold"
             isLoading={completeProfile.isPending}
             disabled={!nameValid || !usernameValid}
-            rightIcon={<ArrowRight className="size-5" aria-hidden />}
           >
             شروع کنید
           </Button>

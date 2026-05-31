@@ -3,18 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  ImagePlus,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  MapPin,
-  Tag,
-  Type,
-  Wallet,
-  X,
-} from 'lucide-react';
+import { ImagePlus, ChevronLeft, ChevronRight, MapPin, Tag, Type, Wallet } from 'lucide-react';
 import {
   cn,
   formatPersianPrice,
@@ -29,6 +18,9 @@ import { prependProfilePost } from '@/lib/query-cache-profile';
 import {
   Button,
   IconButton,
+  IgArrowBack,
+  IgCheck,
+  IgClose,
   Input,
   Label,
   Progress,
@@ -326,15 +318,15 @@ export default function CreatePage() {
 
   return (
     <div className="bg-background pb-32">
-      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-md">
+      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <IconButton
             aria-label={step === 0 ? 'انصراف' : 'مرحله قبل'}
             icon={
               step === 0 ? (
-                <X className="size-5" aria-hidden />
+                <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
               ) : (
-                <ArrowLeft className="size-5 rtl:rotate-180" aria-hidden />
+                <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
               )
             }
             variant="ghost"
@@ -343,9 +335,9 @@ export default function CreatePage() {
           <div className="flex-1">
             <div className="flex items-baseline justify-between gap-2">
               <span className="text-sm font-semibold">{STEP_LABELS[step]}</span>
-              <span className="text-[11px] text-muted-foreground">مرحله {toFa(step + 1)} از ۵</span>
+              <span className="text-ig-meta">مرحله {toFa(step + 1)} از ۵</span>
             </div>
-            <Progress className="mt-1.5" tone="brand" value={((step + 1) / 5) * 100} />
+            <Progress className="mt-1.5 h-0.5" tone="brand" value={((step + 1) / 5) * 100} />
           </div>
         </div>
       </div>
@@ -378,7 +370,7 @@ export default function CreatePage() {
                     onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))}
                     className="absolute end-1 top-1 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
-                    <X className="size-4" aria-hidden />
+                    <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
                   </button>
                 </div>
               ))}
@@ -497,7 +489,7 @@ export default function CreatePage() {
                         aria-hidden
                       />
                     ) : selected ? (
-                      <Check className="size-5 text-primary" aria-hidden />
+                      <IgCheck className="size-5 text-ig-link" strokeWidth={1.75} aria-hidden />
                     ) : null}
                   </button>
                 );

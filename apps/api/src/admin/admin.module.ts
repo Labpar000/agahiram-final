@@ -9,11 +9,13 @@ import { AdminService } from './admin.service';
 import { AdminGateway } from './admin.gateway';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SearchModule } from '../search/search.module';
+import { StoriesModule } from '../stories/stories.module';
 
 @Module({
   imports: [
     NotificationsModule,
     SearchModule,
+    StoriesModule,
     JwtModule.register({}),
     BullModule.registerQueue(
       { name: BULL_QUEUES.SEARCH_INDEX },

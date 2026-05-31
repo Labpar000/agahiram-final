@@ -5,15 +5,7 @@ import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import {
-  Award,
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  MessageSquare,
-  Phone,
-  Sparkles,
-} from 'lucide-react';
+import { Award, Sparkles } from 'lucide-react';
 import useEmblaCarousel from 'embla-carousel-react';
 import type { PostSummary } from '@agahiram/shared';
 import {
@@ -27,7 +19,6 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  Badge,
   Button,
   Drawer,
   DrawerContent,
@@ -40,9 +31,12 @@ import {
   HeartBurst,
   IconButton,
   IgBookmark,
+  IgChevron,
   IgComment,
+  IgEye,
   IgHeart,
   IgMore,
+  IgPhone,
   IgShare,
   toast,
 } from '@agahiram/ui';
@@ -262,7 +256,7 @@ export function PostCard({
   return (
     <article className="border-b border-border bg-surface">
       {/* Header — IG-minimal: avatar + username + more */}
-      <header className="flex items-center gap-3 px-3 py-2.5">
+      <header className="flex items-center gap-3 px-3 py-2">
         <Link
           href={`/profile/${post.user.username}`}
           aria-label={`پروفایل ${post.user.username}`}
@@ -277,14 +271,7 @@ export function PostCard({
           href={`/profile/${post.user.username}`}
           className="min-w-0 flex-1 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
-          <span className="block truncate text-sm font-semibold leading-tight">
-            {post.user.username}
-          </span>
-          {post.city ? (
-            <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-              {post.city.name}
-            </span>
-          ) : null}
+          <span className="text-ig-username block truncate">{post.user.username}</span>
         </Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -317,7 +304,7 @@ export function PostCard({
             className="pointer-events-none absolute start-2 top-2 z-10 inline-flex items-center gap-1 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm"
             aria-label="این آگهی را دیده‌اید"
           >
-            <Eye className="size-3" aria-hidden />
+            <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
             دیده‌شده
           </span>
         ) : null}
@@ -395,7 +382,7 @@ export function PostCard({
               disabled={!embla?.canScrollPrev()}
               className="absolute start-2 top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-surface/85 text-foreground shadow-md backdrop-blur transition hover:bg-surface disabled:opacity-30 sm:grid"
             >
-              <ChevronRight className="size-5 rtl:rotate-180" aria-hidden />
+              <IgChevron direction="right" className="size-5 rtl:rotate-180" aria-hidden />
             </button>
             <button
               type="button"
@@ -404,7 +391,7 @@ export function PostCard({
               disabled={!embla?.canScrollNext()}
               className="absolute end-2 top-1/2 hidden size-9 -translate-y-1/2 place-items-center rounded-full bg-surface/85 text-foreground shadow-md backdrop-blur transition hover:bg-surface disabled:opacity-30 sm:grid"
             >
-              <ChevronLeft className="size-5 rtl:rotate-180" aria-hidden />
+              <IgChevron direction="left" className="size-5 rtl:rotate-180" aria-hidden />
             </button>
           </>
         ) : null}
@@ -427,9 +414,9 @@ export function PostCard({
       </div>
 
       {/* Actions */}
-      <div className="space-y-1.5 px-3 pb-3 pt-1.5">
+      <div className="px-3 pb-3 pt-1">
         <div className="flex items-center justify-between">
-          <div className="flex items-center -ms-1.5">
+          <div className="flex items-center gap-1">
             <ActionButton
               ariaLabel={liked ? 'حذف لایک' : 'لایک'}
               onClick={() => onLikeToggle()}
@@ -472,7 +459,7 @@ export function PostCard({
         {likeCount > 0 ? (
           <p
             key={likeCount}
-            className="count-in text-sm font-semibold leading-tight"
+            className="count-in mt-2 text-sm font-semibold leading-tight"
             aria-label={`${formatPersianNumber(likeCount)} پسند`}
           >
             {formatPersianNumber(likeCount)} پسند
@@ -480,7 +467,7 @@ export function PostCard({
         ) : null}
 
         {/* Caption — IG-style username + title */}
-        <div className="space-y-0.5 text-sm leading-snug">
+        <div className="mt-1 space-y-0.5 text-sm leading-snug">
           <p>
             <Link
               href={`/profile/${post.user.username}`}
@@ -496,7 +483,6 @@ export function PostCard({
               {post.title}
             </PostLink>
           </p>
-          <p className="font-semibold text-foreground">{formatPersianPrice(post.price)}</p>
           {post.description ? (
             <p className="text-muted-foreground">
               <PostLink
@@ -510,53 +496,67 @@ export function PostCard({
           ) : null}
         </div>
 
-        <PostMetaChips
-          post={post}
-          tier={tier}
-          postQualityLabel={postQualityLabel}
-          viewCount={post.viewCount}
-        />
-
         {post.commentsCount > 0 ? (
           <PostLink
             postId={post.id}
             post={post}
-            className="block w-fit text-sm text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="mt-1 block w-fit text-sm text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             مشاهده {formatPersianNumber(post.commentsCount)} نظر
           </PostLink>
         ) : null}
 
-        <div className="flex gap-2 pt-1">
-          <Button
-            fullWidth
-            variant={contactRevealed ? 'outline' : 'secondary'}
-            size="sm"
-            leftIcon={<Phone className="size-4" />}
-            onClick={onContact}
-            aria-live="polite"
-          >
-            {contactRevealed ? (
-              <span dir="ltr" className="font-mono text-sm tracking-wide">
-                {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
-              </span>
-            ) : (
-              'تماس با فروشنده'
-            )}
-          </Button>
-          <Button
-            variant="brand"
-            size="sm"
-            leftIcon={<MessageSquare className="size-4" />}
-            onClick={onSendMessage}
-            isLoading={messaging}
-            aria-label="ارسال پیام به فروشنده"
-          >
-            پیام
-          </Button>
-        </div>
+        <p className="text-ig-meta mt-1 uppercase">{formatRelativeTimeFa(post.createdAt)}</p>
 
-        <p className="text-[11px] text-muted-foreground">{formatRelativeTimeFa(post.createdAt)}</p>
+        {/* Agahiram marketplace block */}
+        <div className="mt-2 space-y-2 border-t border-border-subtle pt-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-foreground">
+              {formatPersianPrice(post.price)}
+            </span>
+            {post.city ? (
+              <span className="text-ig-secondary text-muted-foreground">{post.city.name}</span>
+            ) : null}
+          </div>
+
+          <PostMetaChips
+            post={post}
+            tier={tier}
+            postQualityLabel={postQualityLabel}
+            viewCount={post.viewCount}
+          />
+
+          <div className="flex gap-2">
+            <Button
+              fullWidth
+              variant={contactRevealed ? 'outline' : 'secondary'}
+              size="sm"
+              className="h-8 rounded-lg text-xs font-semibold"
+              leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
+              onClick={onContact}
+              aria-live="polite"
+            >
+              {contactRevealed ? (
+                <span dir="ltr" className="font-mono text-sm tracking-wide">
+                  {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
+                </span>
+              ) : (
+                'تماس با فروشنده'
+              )}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-8 rounded-lg border-border text-xs font-semibold text-ig-link"
+              leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
+              onClick={onSendMessage}
+              isLoading={messaging}
+              aria-label="ارسال پیام به فروشنده"
+            >
+              پیام
+            </Button>
+          </div>
+        </div>
       </div>
       {enableCommentsDrawer ? (
         <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
@@ -647,21 +647,16 @@ function PostMetaChips({
   if (!hasAny) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+      <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">
         {post.category.name}
       </span>
       {post.user.isBusiness ? (
-        <Badge tone="warning" size="sm">
-          فروشگاه
-        </Badge>
+        <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">فروشگاه</span>
       ) : null}
       {hasKarma ? (
         <span
-          className={cn(
-            'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
-            tier.className,
-          )}
+          className="text-ig-meta inline-flex items-center gap-0.5 rounded-sm bg-muted/80 px-1.5 py-0.5"
           aria-label={`نشان کارما: ${tier.label}`}
         >
           <Award className="size-3" aria-hidden />
@@ -669,22 +664,20 @@ function PostMetaChips({
         </span>
       ) : null}
       {post.isPromoted ? (
-        <Badge tone="brand" size="sm">
-          نردبان
-        </Badge>
+        <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">نردبان</span>
       ) : null}
       {postQualityLabel ? (
-        <span className="inline-flex items-center gap-0.5 rounded-md bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+        <span className="text-ig-meta inline-flex items-center gap-0.5 rounded-sm bg-muted/80 px-1.5 py-0.5">
           <Sparkles className="size-3" aria-hidden />
           {postQualityLabel}
         </span>
       ) : null}
       {viewCount > 0 ? (
         <span
-          className="inline-flex items-center gap-0.5 text-[11px] text-muted-foreground tabular-nums"
+          className="text-ig-meta inline-flex items-center gap-0.5 tabular-nums"
           aria-label={`${formatPersianNumber(viewCount)} بازدید`}
         >
-          <Eye className="size-3" aria-hidden />
+          <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
           {formatPersianNumber(viewCount)}
         </span>
       ) : null}

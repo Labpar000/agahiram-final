@@ -2,14 +2,17 @@
 
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, ImagePlus, MessageSquare, Mic, Send } from 'lucide-react';
 import { MessageType } from '@agahiram/shared';
 import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
   EmptyState,
   IconButton,
+  IgArrowBack,
+  IgDirect,
+  IgGallery,
+  IgInfo,
+  IgMic,
+  IgSend,
+  IgVideoCall,
   Skeleton,
   toast,
 } from '@agahiram/ui';
@@ -138,10 +141,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         height: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
       }}
     >
-      <div className="flex items-center gap-3 border-b border-border bg-surface/95 px-3 py-2 shadow-xs backdrop-blur-md">
+      <div className="glass flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <IconButton
           aria-label="بازگشت"
-          icon={<ArrowRight className="size-5 rtl:rotate-180" aria-hidden />}
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
           asChild={false}
           onClick={() => history.back()}
@@ -149,17 +152,25 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         {head?.otherUser ? (
           <Link
             href={`/profile/${head.otherUser.username}`}
-            className="flex min-w-0 items-center gap-2 rounded-full tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Avatar size="sm" verified={head.otherUser.isVerified}>
-              {head.otherUser.avatar ? <AvatarImage src={head.otherUser.avatar} alt="" /> : null}
-              <AvatarFallback>{(head.otherUser.username ?? '?').slice(0, 2)}</AvatarFallback>
-            </Avatar>
             <span className="truncate text-sm font-semibold">{head.otherUser.username}</span>
           </Link>
         ) : (
-          <span className="text-sm font-semibold">گفتگو</span>
+          <span className="flex-1 text-center text-sm font-semibold">گفتگو</span>
         )}
+        <IconButton
+          aria-label="تماس ویدیویی"
+          icon={<IgVideoCall className="size-5" strokeWidth={1.75} aria-hidden />}
+          variant="ghost"
+          disabled
+        />
+        <IconButton
+          aria-label="اطلاعات گفتگو"
+          icon={<IgInfo className="size-5" strokeWidth={1.75} aria-hidden />}
+          variant="ghost"
+          disabled
+        />
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
@@ -174,7 +185,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           </div>
         ) : grouped.length === 0 ? (
           <EmptyState
-            icon={<MessageSquare className="size-7" aria-hidden />}
+            icon={<IgDirect className="size-7" strokeWidth={1.75} aria-hidden />}
             title="گفتگو خالی است"
             description="اولین پیام خود را بفرستید"
           />
@@ -188,6 +199,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               isMine={m.isMine}
               createdAt={m.createdAt}
               sender={m.sender ?? undefined}
+              storyPreview={m.storyPreview}
               isFirstOfGroup={m.isFirstOfGroup}
               isLastOfGroup={m.isLastOfGroup}
               status={m.id.startsWith('temp-') ? 'sending' : 'sent'}
@@ -220,7 +232,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
           onClick={() => fileInputRef.current?.click()}
         >
-          <ImagePlus className="size-5" aria-hidden />
+          <IgGallery className="size-5" strokeWidth={1.75} aria-hidden />
         </button>
         <button
           type="button"
@@ -231,7 +243,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           onTouchStart={() => void startVoice()}
           onTouchEnd={stopVoice}
         >
-          <Mic className="size-5" aria-hidden />
+          <IgMic className="size-5" strokeWidth={1.75} aria-hidden />
         </button>
         <input
           value={text}
@@ -244,9 +256,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           type="submit"
           aria-label="ارسال"
           disabled={!text.trim() || sendMessage.isPending}
-          className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          className="grid size-11 place-items-center rounded-full bg-ig-link text-ig-link-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
-          <Send className="size-5 swap-x" aria-hidden />
+          <IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />
         </button>
       </form>
     </div>

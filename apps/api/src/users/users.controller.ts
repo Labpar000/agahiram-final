@@ -10,7 +10,7 @@ import {
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
-import { updateProfileSchema, type UpdateProfileInput } from '@agahiram/shared';
+import { blockUserSchema, updateProfileSchema, type UpdateProfileInput } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -80,6 +80,13 @@ export class UsersController {
   @Get('me/mention-candidates')
   async mentionCandidates(@CurrentUser('sub') userId: string, @Query('q') q?: string) {
     return this.usersService.getMentionCandidates(userId, q);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('me/blocked')
+  @UsePipes(new ZodValidationPipe(blockUserSchema))
+  async block(@CurrentUser('sub') userId: string, @Body() body: { username: string }) {
+    return this.usersService.blockUser(userId, body.username);
   }
 
   @UseGuards(JwtAuthGuard)

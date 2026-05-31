@@ -24,7 +24,8 @@ export const POST_EXPIRY_DAYS = 30;
 export const STORY_EXPIRY_HOURS = 24;
 export const MAX_POST_MEDIA = 10;
 export const MAX_REEL_DURATION = 60;
-export const MAX_STORY_DURATION = 60;
+/** Instagram-style max length per story slide (seconds). */
+export const MAX_STORY_DURATION = 15;
 
 /* Upload limits. Videos are re-encoded/compressed by the media-processor worker
  * after upload, so these caps protect the upload step + MinIO ingest, not the
@@ -32,7 +33,7 @@ export const MAX_STORY_DURATION = 60;
 export const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB
 export const MAX_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
-export const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime'] as const;
+export const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
 export const ALLOWED_UPLOAD_TYPES: string[] = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
 
 export function maxUploadBytesFor(contentType: string): number {
@@ -68,6 +69,9 @@ export const SOCKET_EVENTS = {
   LIVE_JOIN: 'live:join',
   LIVE_LEAVE: 'live:leave',
   LIVE_CHAT: 'live:chat',
+  STORY_NEW: 'story:new',
+  STORY_EXPIRED: 'story:expired',
+  STORY_VIEW: 'story:view',
 } as const;
 
 export const BULL_QUEUES = {
@@ -75,7 +79,29 @@ export const BULL_QUEUES = {
   NOTIFICATIONS: 'notifications',
   SEARCH_INDEX: 'search-index',
   STORY_CLEANUP: 'story-cleanup',
+  STORY_SCHEDULED: 'story-scheduled',
 } as const;
+
+export const MAX_STORY_SLIDES_PER_BATCH = 10;
+export const MAX_STORY_SLIDES_PER_SESSION = 100;
+export const STORY_MUSIC_TRACKS = [
+  {
+    id: 'ambient-1',
+    title: 'آرام',
+    artist: 'آگاهیرام',
+    url: '/audio/stories/ambient-1.mp3',
+    durationMs: 30_000,
+  },
+  {
+    id: 'upbeat-1',
+    title: 'شاد',
+    artist: 'آگاهیرام',
+    url: '/audio/stories/upbeat-1.mp3',
+    durationMs: 30_000,
+  },
+] as const;
+
+export const MEILI_INDEX_STORIES = 'stories';
 
 export const BANNED_WORDS = ['فروش اعضا', 'مواد مخدر', 'سلاح', 'قمار', 'پورن'];
 

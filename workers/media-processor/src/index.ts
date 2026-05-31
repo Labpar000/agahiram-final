@@ -6,6 +6,7 @@ import { processVideoJob } from './processors/video.processor';
 import { processSearchIndexJob } from './processors/search-index.processor';
 import { processNotificationJob } from './processors/notification.processor';
 import { processStoryCleanupJob } from './processors/story-cleanup.processor';
+import { processStoryMediaJob } from './processors/story-media.processor';
 
 const connection = new IORedis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
@@ -19,6 +20,7 @@ new Worker(
     console.log(`[media] ${job.name} - ${job.id}`);
     if (job.name === 'transcode') return processVideoJob(job.data);
     if (job.name === 'thumbnail' || job.name === 'optimize') return processImageJob(job.data);
+    if (job.name === 'story-media') return processStoryMediaJob(job.data);
   },
   { connection, concurrency: 2 },
 );

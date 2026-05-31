@@ -40,32 +40,24 @@ export const postFilterSchema = z.object({
   limit: z.coerce.number().min(1).max(50).default(20),
 });
 
-export const createStorySchema = z.object({
-  mediaKey: z.string(),
-  type: z.enum(['image', 'video']),
-  linkedPostId: z.string().uuid().optional(),
-  overlayJson: z.record(z.unknown()).optional(),
-  durationMs: z.number().int().min(1000).max(60000).optional(),
-});
-
-export const storyReactionSchema = z.object({
-  emoji: z.enum(['❤️', '😂', '😮', '😢', '😡', '👏', 'heart']),
-});
-
-export const storyReplySchema = z.object({
-  text: z.string().min(1).max(500),
-});
-
-export const createHighlightSchema = z.object({
-  title: z.string().min(1).max(15),
-  storyIds: z.array(z.string().uuid()).min(1),
-  coverStoryId: z.string().uuid().optional(),
-});
-
-export const updateHighlightSchema = z.object({
-  title: z.string().min(1).max(15).optional(),
-  coverStoryId: z.string().uuid().optional(),
-});
+export {
+  createStorySchema,
+  createStoryBatchSchema,
+  storyReactionSchema,
+  storyReplySchema,
+  storyCommentSchema,
+  storyNavigationSchema,
+  storyStickerVoteSchema,
+  storyStickerAnswerSchema,
+  createHighlightSchema,
+  updateHighlightSchema,
+  closeFriendSchema,
+  storyHiddenFromSchema,
+  storyMuteSchema,
+  storyLinkClickSchema,
+  patchStoryMentionsSchema,
+  shareStoryToDmSchema,
+} from './story';
 
 export const createReelSchema = z.object({
   title: z.string().min(3).max(100),

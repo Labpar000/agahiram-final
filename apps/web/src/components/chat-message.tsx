@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, CheckCheck, X } from 'lucide-react';
+import { IgCheck, IgCheckDouble, IgClose, Avatar, AvatarFallback, AvatarImage } from '@agahiram/ui';
 import { cn, formatJalaliDate } from '@agahiram/shared';
-import { Avatar, AvatarFallback, AvatarImage } from '@agahiram/ui';
+import { StoryReplyPreview } from '@/components/story-reply-preview';
+import type { StoryPreviewInMessage } from '@/hooks/useConversation';
 
 export interface ChatMessageProps {
   id: string;
@@ -12,6 +13,7 @@ export interface ChatMessageProps {
   isMine: boolean;
   createdAt: string;
   sender?: { username?: string | null; avatar?: string | null };
+  storyPreview?: StoryPreviewInMessage;
   status?: 'sending' | 'sent' | 'delivered' | 'read';
   isFirstOfGroup?: boolean;
   isLastOfGroup?: boolean;
@@ -23,6 +25,7 @@ export function ChatMessage({
   isMine,
   createdAt,
   sender,
+  storyPreview,
   status,
   isFirstOfGroup = true,
   isLastOfGroup = true,
@@ -53,10 +56,10 @@ export function ChatMessage({
         <div className="flex max-w-[82%] flex-col gap-0.5 sm:max-w-[72%]">
           <div
             className={cn(
-              'rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words shadow-xs',
+              'rounded-2xl px-3.5 py-2 text-sm leading-relaxed break-words',
               isMine
-                ? 'bg-primary text-primary-foreground rounded-ee-md'
-                : 'bg-surface-elevated text-foreground rounded-es-md',
+                ? 'bg-ig-bubble-sent text-ig-bubble-sent-foreground rounded-ee-md'
+                : 'bg-surface-muted text-foreground rounded-es-md',
             )}
           >
             {type === 'image' ? (
@@ -66,6 +69,11 @@ export function ChatMessage({
               </button>
             ) : type === 'voice' ? (
               <audio src={content} controls className="max-w-full" preload="metadata" />
+            ) : storyPreview ? (
+              <div className="space-y-2">
+                <StoryReplyPreview preview={storyPreview} isMine={isMine} />
+                {content ? <p className="text-sm">{content}</p> : null}
+              </div>
             ) : (
               content
             )}
@@ -81,14 +89,14 @@ export function ChatMessage({
               {isMine && status ? (
                 <span
                   aria-label={statusLabel(status)}
-                  className={cn(status === 'read' && 'text-primary')}
+                  className={cn(status === 'read' && 'text-ig-link')}
                 >
                   {status === 'sending' ? (
-                    <Check className="size-3 opacity-50" aria-hidden />
+                    <IgCheck className="size-3 opacity-50" strokeWidth={2} aria-hidden />
                   ) : status === 'sent' ? (
-                    <Check className="size-3" aria-hidden />
+                    <IgCheck className="size-3" strokeWidth={2} aria-hidden />
                   ) : (
-                    <CheckCheck className="size-3" aria-hidden />
+                    <IgCheckDouble className="size-3" strokeWidth={2} aria-hidden />
                   )}
                 </span>
               ) : null}
@@ -109,7 +117,7 @@ export function ChatMessage({
             className="absolute end-4 top-4 rounded-full bg-white/10 p-2 text-white"
             onClick={() => setLightbox(false)}
           >
-            <X className="size-5" aria-hidden />
+            <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={content} alt="" className="max-h-[90svh] max-w-full object-contain" />

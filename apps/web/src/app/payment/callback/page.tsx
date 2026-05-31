@@ -2,8 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Check, X } from 'lucide-react';
-import { Button, Card, CardContent, Spinner } from '@agahiram/ui';
+import { Button, Card, CardContent, IgCheck, IgClose, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 
 export default function PaymentCallbackPage() {
@@ -84,7 +83,7 @@ function Inner() {
           {status === 'success' && (
             <>
               <div className="mx-auto grid size-16 place-items-center rounded-full bg-success/15 text-success">
-                <Check className="size-8" strokeWidth={3} aria-hidden />
+                <IgCheck className="size-8" strokeWidth={2} aria-hidden />
               </div>
               <h1 className="text-h3 font-bold text-success">پرداخت موفق</h1>
               {refId ? (
@@ -103,7 +102,7 @@ function Inner() {
           {status === 'failed' && (
             <>
               <div className="mx-auto grid size-16 place-items-center rounded-full bg-destructive/15 text-destructive">
-                <X className="size-8" strokeWidth={3} aria-hidden />
+                <IgClose className="size-8" strokeWidth={2} aria-hidden />
               </div>
               <h1 className="text-h3 font-bold text-destructive">پرداخت ناموفق</h1>
               <p className="text-sm leading-relaxed text-muted-foreground">{message}</p>

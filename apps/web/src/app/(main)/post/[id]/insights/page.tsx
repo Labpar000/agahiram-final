@@ -3,9 +3,8 @@
 import { use } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Eye } from 'lucide-react';
 import { formatPersianNumber } from '@agahiram/shared';
-import { Skeleton, EmptyState } from '@agahiram/ui';
+import { IgArrowBack, IgEye, Skeleton, EmptyState } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 
 interface InsightsResponse {
@@ -42,13 +41,13 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
 
   return (
     <div className="bg-background">
-      <div className="sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-md">
+      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <Link
           href={`/post/${id}`}
           aria-label="بازگشت"
           className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"
         >
-          <ArrowLeft className="size-5 rtl:rotate-180" aria-hidden />
+          <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
         </Link>
         <h1 className="text-h3 font-bold tracking-tight">آمار آگهی</h1>
       </div>
@@ -62,7 +61,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
           </div>
         ) : error ? (
           <EmptyState
-            icon={<Eye className="size-7" aria-hidden />}
+            icon={<IgEye className="size-7" strokeWidth={1.5} aria-hidden />}
             title="آمار قابل نمایش نیست"
             description={(error as Error).message}
           />
@@ -83,7 +82,7 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
                     <li key={d.date} className="flex flex-1 flex-col items-center gap-1.5">
                       <div className="relative flex w-full flex-1 items-end">
                         <div
-                          className="w-full rounded-t-md bg-primary/80 transition-all"
+                          className="w-full rounded-t-md bg-ig-link/80 transition-all"
                           style={{ height: `${Math.max(pct, 4)}%` }}
                           aria-label={`${formatPersianNumber(d.count)} بازدید`}
                         />

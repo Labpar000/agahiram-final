@@ -5,27 +5,21 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  BookmarkCheck,
-  Clapperboard,
-  Images,
-  MessageSquare,
-  MoreHorizontal,
-  Settings,
-  Share2,
-} from 'lucide-react';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { formatPersianNumber } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  Badge,
   Button,
   EmptyState,
   IgBookmark,
+  IgComment,
   IgGrid,
+  IgMore,
   IgReels,
+  IgSettings,
+  IgShare,
   Skeleton,
   Tabs,
   TabsContent,
@@ -173,7 +167,7 @@ export function ProfileClient({ username }: { username: string }) {
               aria-label="تنظیمات"
               className="grid size-9 place-items-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Settings className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
+              <IgSettings className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
             </Link>
           ) : (
             <button
@@ -182,7 +176,7 @@ export function ProfileClient({ username }: { username: string }) {
               className="grid size-9 place-items-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setMoreOpen(true)}
             >
-              <MoreHorizontal className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
+              <IgMore className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
             </button>
           )}
         </div>
@@ -226,12 +220,19 @@ export function ProfileClient({ username }: { username: string }) {
                 variant="secondary"
                 fullWidth
                 size="sm"
-                leftIcon={<Share2 className="size-4" aria-hidden />}
+                className="h-8 rounded-lg text-sm font-semibold"
+                leftIcon={<IgShare className="size-4" strokeWidth={1.75} aria-hidden />}
                 onClick={() => void shareProfile()}
               >
                 اشتراک‌گذاری پروفایل
               </Button>
-              <Button asChild variant="secondary" fullWidth size="sm">
+              <Button
+                asChild
+                variant="secondary"
+                fullWidth
+                size="sm"
+                className="h-8 rounded-lg text-sm font-semibold"
+              >
                 <Link href="/settings">ویرایش پروفایل</Link>
               </Button>
             </>
@@ -240,6 +241,7 @@ export function ProfileClient({ username }: { username: string }) {
               <Button
                 fullWidth
                 size="sm"
+                className="h-8 rounded-lg text-sm font-semibold"
                 variant={profile.isFollowing ? 'secondary' : 'brand'}
                 onClick={toggleFollow}
               >
@@ -248,14 +250,37 @@ export function ProfileClient({ username }: { username: string }) {
               <Button
                 variant="secondary"
                 size="sm"
+                className="h-8 rounded-lg text-sm font-semibold"
                 onClick={startChat}
-                leftIcon={<MessageSquare className="size-4" aria-hidden />}
+                leftIcon={<IgComment className="size-4" strokeWidth={1.75} aria-hidden />}
               >
                 پیام
               </Button>
             </>
           )}
         </div>
+        {isMe ? (
+          <div className="mt-2 flex gap-2">
+            <Button
+              asChild
+              variant="outline"
+              fullWidth
+              size="sm"
+              className="h-8 rounded-lg text-sm font-semibold"
+            >
+              <Link href="/stories/insights">آمار استوری‌ها</Link>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              fullWidth
+              size="sm"
+              className="h-8 rounded-lg text-sm font-semibold"
+            >
+              <Link href="/profile/archive/stories">آرشیو</Link>
+            </Button>
+          </div>
+        ) : null}
       </header>
 
       <ProfileHighlights username={username} isMe={isMe} />
@@ -327,9 +352,7 @@ function ProfileMetaChips({ profile }: { profile: Profile }) {
   if (!profile.isBusiness) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-      <Badge tone="warning" size="sm">
-        فروشگاه
-      </Badge>
+      <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">فروشگاه</span>
     </div>
   );
 }
@@ -370,9 +393,9 @@ function PostsGrid({
 }) {
   if (isLoading && posts.length === 0) {
     return (
-      <div className="grid grid-cols-3 gap-0.5">
+      <div className="ig-grid-gap grid grid-cols-3">
         {Array.from({ length: 9 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
+          <Skeleton key={i} className="aspect-square rounded-none bg-surface" shimmer={false} />
         ))}
       </div>
     );
@@ -387,11 +410,11 @@ function PostsGrid({
       <EmptyState
         icon={
           tab === 'reels' ? (
-            <Clapperboard aria-hidden />
+            <IgReels className="size-10" strokeWidth={1.5} aria-hidden />
           ) : tab === 'saved' ? (
-            <BookmarkCheck aria-hidden />
+            <IgBookmark className="size-10" filled strokeWidth={1.5} aria-hidden />
           ) : (
-            <Images aria-hidden />
+            <IgGrid className="size-10" strokeWidth={1.5} aria-hidden />
           )
         }
         title={messages[tab]}
@@ -400,7 +423,7 @@ function PostsGrid({
     );
   }
   return (
-    <div className="grid grid-cols-3 gap-0.5">
+    <div className="ig-grid-gap grid grid-cols-3">
       {posts.map((p) => (
         <PostLink
           key={p.id}

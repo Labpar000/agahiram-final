@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Heart, MessageSquare, Pin, Send, Trash2 } from 'lucide-react';
+import { IgComment, IgHeart, IgPin, IgSend, IgTrash } from '@agahiram/ui';
 import { cn, formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import {
   Avatar,
@@ -104,7 +104,7 @@ function CommentRow({
     <article
       className={cn(
         'rounded-2xl py-1 transition-colors duration-700',
-        highlighted && 'bg-primary/10 ring-2 ring-primary/40',
+        highlighted && 'bg-ig-link/10 ring-2 ring-ig-link/30',
         recentSentId === c.id && 'animate-in fade-in slide-in-from-bottom-2 duration-300',
       )}
       onContextMenu={(e) => {
@@ -126,8 +126,8 @@ function CommentRow({
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
             {c.isPinned ? (
-              <span className="inline-flex items-center gap-1 text-primary">
-                <Pin className="size-3" aria-hidden />
+              <span className="inline-flex items-center gap-1 text-ig-link">
+                <IgPin className="size-3" strokeWidth={1.75} aria-hidden />
                 سنجاق‌شده
               </span>
             ) : null}
@@ -183,7 +183,7 @@ function CommentRow({
                 className="inline-flex items-center gap-1 font-medium text-destructive tap-none"
                 onClick={() => remove.mutate(c.id)}
               >
-                <Trash2 className="size-3" aria-hidden />
+                <IgTrash className="size-3" strokeWidth={1.75} aria-hidden />
                 حذف
               </button>
             ) : null}
@@ -216,7 +216,12 @@ function CommentLikeButton({
       onClick={() => onToggle({ id, liked })}
       {...longPress}
     >
-      <Heart className={`size-3 ${liked ? 'fill-destructive text-destructive' : ''}`} aria-hidden />
+      <IgHeart
+        className={`size-3 ${liked ? 'fill-destructive text-destructive' : ''}`}
+        filled={liked}
+        strokeWidth={1.75}
+        aria-hidden
+      />
       {count > 0 ? formatPersianNumber(count) : null}
     </button>
   );
@@ -262,7 +267,7 @@ function CommentReplies({ commentId, postId }: { commentId: string; postId: stri
             <p className="text-xs leading-relaxed">
               <span className="me-1 font-semibold">{r.user.username}</span>
               {r.replyToUsername ? (
-                <span className="me-1 text-primary">@{r.replyToUsername}</span>
+                <span className="me-1 text-ig-link">@{r.replyToUsername}</span>
               ) : null}
               <CommentContent content={r.content} />
             </p>
@@ -609,7 +614,7 @@ export function CommentSection({
         ) : comments.length === 0 ? (
           <EmptyState
             size="sm"
-            icon={<MessageSquare className="size-6" aria-hidden />}
+            icon={<IgComment className="size-6" strokeWidth={1.75} aria-hidden />}
             title="هنوز نظری ثبت نشده"
             description="اولین نفری باشید که نظر می‌دهد"
           />
@@ -663,7 +668,7 @@ export function CommentSection({
           {replyTo ? (
             <p className="mb-2 text-xs text-muted-foreground">
               پاسخ به @{replyTo.username}
-              <button type="button" className="ms-2 text-primary" onClick={() => setReplyTo(null)}>
+              <button type="button" className="ms-2 text-ig-link" onClick={() => setReplyTo(null)}>
                 لغو
               </button>
             </p>
@@ -717,9 +722,9 @@ export function CommentSection({
               type="submit"
               aria-label="ارسال نظر"
               disabled={!text.trim() || send.isPending}
-              className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
+              className="grid size-11 place-items-center rounded-full bg-ig-link text-ig-link-foreground disabled:opacity-50"
             >
-              <Send className="size-5 swap-x" aria-hidden />
+              <IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />
             </button>
           </div>
         </form>

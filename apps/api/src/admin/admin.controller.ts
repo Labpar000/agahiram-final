@@ -42,6 +42,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { AdminService } from './admin.service';
 import { AuditLogService } from './audit-log.service';
 import { SettingsService } from './settings.service';
+import { StoriesService } from '../stories/stories.service';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN, UserRole.MODERATOR)
@@ -51,6 +52,7 @@ export class AdminController {
     private readonly service: AdminService,
     private readonly settings: SettingsService,
     private readonly audit: AuditLogService,
+    private readonly stories: StoriesService,
   ) {}
 
   /* ──────────── dashboard / settings ──────────── */
@@ -160,6 +162,31 @@ export class AdminController {
   @Post('posts/:id/expire')
   forceExpire(@Param('id') id: string, @Req() req: FastifyRequest) {
     return this.service.forceExpire(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── stories ──────────── */
+
+  @Get('stories')
+  listStories(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('q') q?: string,
+    @Query('reported') reported?: string,
+  ) {
+    return this.stories.adminList(
+      page ? Number(page) : 1,
+      pageSize ? Number(pageSize) : 20,
+      q,
+      reported === '1' || reported === 'true',
+    );
+  }
+
+  @Delete('stories/:id')
+  async deleteStory(@Param('id') id: string, @Req() req: FastifyRequest) {
+    const ctx = AuditLogService.fromRequest(req);
+    const result = await this.stories.adminForceDelete(id);
+    await this.audit.record(ctx, 'story.delete', id, null);
+    return result;
   }
 
   /* ──────────── users ──────────── */

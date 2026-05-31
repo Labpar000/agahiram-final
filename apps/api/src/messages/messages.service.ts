@@ -117,12 +117,71 @@ export class MessagesService {
     });
 
     const hasMore = messages.length > limit;
+    const slice = messages.slice(0, limit).reverse();
+    const enriched = await this.attachStoryPreviews(slice);
+
     return {
-      data: messages.slice(0, limit).reverse(),
+      data: enriched,
       nextCursor: hasMore ? (messages[limit - 1]?.id ?? null) : null,
       hasMore,
       meId: userId,
     };
+  }
+
+  private async attachStoryPreviews<
+    T extends { storyId: string | null; sender: { username: string | null } },
+  >(messages: T[]) {
+    const storyIds = [...new Set(messages.map((m) => m.storyId).filter(Boolean))] as string[];
+    if (!storyIds.length) return messages;
+
+    const [live, archived] = await Promise.all([
+      this.prisma.story.findMany({
+        where: { id: { in: storyIds } },
+        select: {
+          id: true,
+          mediaUrl: true,
+          type: true,
+          overlayJson: true,
+          user: { select: { id: true, username: true, avatar: true } },
+        },
+      }),
+      this.prisma.storyArchive.findMany({
+        where: { OR: [{ id: { in: storyIds } }, { originalStoryId: { in: storyIds } }] },
+        select: {
+          id: true,
+          originalStoryId: true,
+          mediaUrl: true,
+          type: true,
+          overlayJson: true,
+          user: { select: { id: true, username: true, avatar: true } },
+        },
+      }),
+    ]);
+
+    const byKey = new Map<string, (typeof live)[0] | (typeof archived)[0]>();
+    for (const s of live) byKey.set(s.id, s);
+    for (const a of archived) {
+      byKey.set(a.id, a);
+      if (a.originalStoryId) byKey.set(a.originalStoryId, a);
+    }
+
+    return messages.map((m) => {
+      if (!m.storyId) return m;
+      const story = byKey.get(m.storyId);
+      if (!story) return m;
+      return {
+        ...m,
+        storyPreview: {
+          id: m.storyId,
+          mediaUrl: story.mediaUrl,
+          type: story.type,
+          overlayJson: story.overlayJson,
+          ownerUserId: story.user.id,
+          ownerUsername: story.user.username,
+          ownerAvatar: story.user.avatar,
+        },
+      };
+    });
   }
 
   async getConversationHead(userId: string, conversationId: string) {

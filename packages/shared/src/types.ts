@@ -118,6 +118,7 @@ export interface UserProfile {
   isPrivate?: boolean;
   role: UserRole;
   defaultCityId: string | null;
+  storyArchiveEnabled?: boolean;
   createdAt: string;
   followersCount?: number;
   followingCount?: number;

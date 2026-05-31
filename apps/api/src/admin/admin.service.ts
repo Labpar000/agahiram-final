@@ -87,6 +87,7 @@ export class AdminService {
       totalPosts,
       pendingPosts,
       pendingReports,
+      activeStories,
       dau,
       mau,
       paymentSum,
@@ -101,6 +102,9 @@ export class AdminService {
       this.prisma.post.count({ where: { status: 'approved' } }),
       this.prisma.post.count({ where: { status: 'pendingReview' } }),
       this.prisma.report.count({ where: { status: 'pending' } }),
+      this.prisma.story.count({
+        where: { expiresAt: { gt: new Date() }, publishAt: { lte: new Date() } },
+      }),
       this.prisma.user.count({ where: { updatedAt: { gte: dayAgo } } }),
       this.prisma.user.count({ where: { updatedAt: { gte: monthAgo } } }),
       this.prisma.payment.aggregate({
@@ -140,6 +144,7 @@ export class AdminService {
       totalPosts,
       pendingPosts,
       totalReports: pendingReports,
+      activeStories,
       dau,
       mau,
       totalRevenue: paymentSum._sum.amount ?? 0n,

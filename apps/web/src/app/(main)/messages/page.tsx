@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { MessageSquare, Search, X } from 'lucide-react';
 import { formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   EmptyState,
+  IgClose,
+  IgDirect,
+  IgSearch,
   Input,
   Skeleton,
   toast,
@@ -96,23 +98,24 @@ export default function MessagesPage() {
 
   return (
     <div className="bg-background">
-      <div className="sticky top-[var(--header-height)] z-20 space-y-3 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-md">
-        <h1 className="text-h2 font-bold tracking-tight">پیام‌ها</h1>
+      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-3">
+        <h1 className="mb-3 text-base font-semibold">پیام‌ها</h1>
         <Input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="جستجوی نام کاربری یا نام…"
+          placeholder="جستجو"
+          className="h-9 rounded-full border-0 bg-muted text-sm"
           aria-label="جستجوی کاربر"
-          leadingIcon={<Search className="size-4" aria-hidden />}
+          leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
           trailingIcon={
             q ? (
               <button
                 type="button"
                 onClick={() => setQ('')}
                 aria-label="پاک کردن"
-                className="pointer-events-auto -me-1 grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+                className="pointer-events-auto -me-1 grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted/80"
               >
-                <X className="size-4" aria-hidden />
+                <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
               </button>
             ) : null
           }
@@ -143,7 +146,7 @@ export default function MessagesPage() {
                       <p className="truncate text-xs text-muted-foreground">{u.name}</p>
                     ) : null}
                   </div>
-                  <span className="text-xs font-semibold text-primary">پیام دادن</span>
+                  <span className="text-xs font-semibold text-ig-link">پیام دادن</span>
                 </button>
               </li>
             ))}
@@ -166,13 +169,13 @@ export default function MessagesPage() {
       ) : filteredConversations.length === 0 && userHits.length === 0 ? (
         hasSearch ? (
           <EmptyState
-            icon={<Search className="size-7" aria-hidden />}
+            icon={<IgSearch className="size-7" strokeWidth={1.75} aria-hidden />}
             title="کاربری یافت نشد"
             description="نام کاربری دیگری را امتحان کنید."
           />
         ) : (
           <EmptyState
-            icon={<MessageSquare className="size-7" aria-hidden />}
+            icon={<IgDirect className="size-7" strokeWidth={1.75} aria-hidden />}
             title="هنوز گفتگویی ندارید"
             description="با جستجوی نام کاربری در بالا، گفتگوی جدیدی شروع کنید."
           />
@@ -184,9 +187,9 @@ export default function MessagesPage() {
               <Link
                 href={`/messages/${c.id}`}
                 aria-label={`گفتگو با ${c.otherUser?.username}${c.unreadCount > 0 ? ` (${formatPersianNumber(c.unreadCount)} پیام جدید)` : ''}`}
-                className="flex min-h-18 items-center gap-3 px-4 py-3 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none tap-none"
+                className="flex min-h-[4.5rem] items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none tap-none"
               >
-                <Avatar size="lg">
+                <Avatar size="lg" className="size-14">
                   {c.otherUser?.avatar ? <AvatarImage src={c.otherUser.avatar} alt="" /> : null}
                   <AvatarFallback>{(c.otherUser?.username ?? '?').slice(0, 2)}</AvatarFallback>
                 </Avatar>
@@ -211,7 +214,7 @@ export default function MessagesPage() {
                   </p>
                 </div>
                 {c.unreadCount > 0 ? (
-                  <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                  <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-ig-badge px-1.5 text-[11px] font-bold text-white">
                     {c.unreadCount > 9 ? '۹+' : formatPersianNumber(c.unreadCount)}
                   </span>
                 ) : null}

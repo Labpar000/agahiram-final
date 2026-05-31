@@ -3,13 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Search, Users, X } from 'lucide-react';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Button,
   EmptyState,
+  IgArrowBack,
+  IgClose,
+  IgSearch,
+  IgUser,
   Input,
   Skeleton,
   toast,
@@ -79,13 +82,13 @@ export function FollowersClient({
 
   return (
     <div className="min-h-dvh bg-background">
-      <header className="sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-md">
+      <header className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <Link
           href={`/profile/${username}`}
           aria-label="بازگشت"
           className="grid size-9 place-items-center rounded-full text-muted-foreground hover:bg-muted"
         >
-          <ArrowRight className="size-5 rtl:rotate-180" aria-hidden />
+          <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
         </Link>
         <div className="min-w-0">
           <h1 className="text-sm font-bold">{title}</h1>
@@ -94,17 +97,17 @@ export function FollowersClient({
       </header>
 
       <main className="mx-auto max-w-xl">
-        <div className="sticky top-[calc(var(--header-height)+3.25rem)] z-10 border-b border-border bg-background/95 p-3 backdrop-blur-md">
+        <div className="glass sticky top-[calc(var(--header-height)+3.25rem)] z-10 border-b border-border-subtle p-3">
           <Input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="جستجوی نام یا نام کاربری…"
-            leadingIcon={<Search className="size-4" aria-hidden />}
+            leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
             trailingIcon={
               q ? (
                 <button type="button" onClick={() => setQ('')} aria-label="پاک کردن">
-                  <X className="size-4" aria-hidden />
+                  <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
                 </button>
               ) : null
             }
@@ -119,7 +122,7 @@ export function FollowersClient({
           </div>
         ) : data.length === 0 ? (
           <EmptyState
-            icon={<Users className="size-7" aria-hidden />}
+            icon={<IgUser className="size-7" strokeWidth={1.5} aria-hidden />}
             title={q ? 'نتیجه‌ای پیدا نشد' : 'هنوز کاربری اینجا نیست'}
             className="min-h-[18rem]"
           />
@@ -140,7 +143,7 @@ export function FollowersClient({
                     <div className="flex items-center gap-1.5">
                       <span className="truncate text-sm font-semibold">{u.name ?? u.username}</span>
                       {u.isMutual ? (
-                        <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-ig-link">
                           متقابل
                         </span>
                       ) : u.followsMe ? (

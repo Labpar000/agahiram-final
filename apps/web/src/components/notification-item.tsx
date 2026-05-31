@@ -3,13 +3,9 @@
 import Link from 'next/link';
 import {
   AlertCircle,
-  BadgeCheck,
-  Bell,
   CheckCircle2,
   Megaphone,
-  MessageCircle,
   Sparkles,
-  Trash2,
   TrendingDown,
   UserPlus,
   Wallet,
@@ -17,7 +13,16 @@ import {
 } from 'lucide-react';
 import { NotificationType, type NotificationItem as Notif } from '@agahiram/shared';
 import { cn, formatRelativeTimeFa } from '@agahiram/shared';
-import { Avatar, AvatarFallback, AvatarImage, IgComment, IgHeart } from '@agahiram/ui';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  IgBell,
+  IgComment,
+  IgDirect,
+  IgHeart,
+  IgTrash,
+} from '@agahiram/ui';
 
 interface Props {
   notif: Notif;
@@ -41,19 +46,19 @@ type IconCmp = React.ComponentType<{ className?: string; filled?: boolean; strok
 
 const ICON_MAP: Record<NotificationType, { icon: IconCmp; tone: string; filled?: boolean }> = {
   [NotificationType.LIKE]: { icon: IgHeart, tone: 'text-[var(--like)]', filled: true },
-  [NotificationType.COMMENT]: { icon: IgComment, tone: 'text-primary' },
-  [NotificationType.FOLLOW]: { icon: UserPlus, tone: 'text-[var(--verified)]' },
-  [NotificationType.MESSAGE]: { icon: MessageCircle as IconCmp, tone: 'text-primary' },
+  [NotificationType.COMMENT]: { icon: IgComment, tone: 'text-ig-link' },
+  [NotificationType.FOLLOW]: { icon: UserPlus, tone: 'text-ig-link' },
+  [NotificationType.MESSAGE]: { icon: IgDirect, tone: 'text-ig-link' },
   [NotificationType.AD_APPROVED]: { icon: CheckCircle2, tone: 'text-success' },
   [NotificationType.AD_REJECTED]: { icon: AlertCircle, tone: 'text-destructive' },
-  [NotificationType.AD_REMOVED]: { icon: Trash2, tone: 'text-destructive' },
+  [NotificationType.AD_REMOVED]: { icon: IgTrash, tone: 'text-destructive' },
   [NotificationType.BOOST_EXPIRING]: { icon: Zap, tone: 'text-warning' },
   [NotificationType.PRICE_DROP]: { icon: TrendingDown, tone: 'text-success' },
-  [NotificationType.STORY_MENTION]: { icon: Sparkles, tone: 'text-primary' },
+  [NotificationType.STORY_MENTION]: { icon: Sparkles, tone: 'text-ig-link' },
   [NotificationType.WALLET_CREDIT]: { icon: Wallet, tone: 'text-success' },
   [NotificationType.WALLET_DEBIT]: { icon: Wallet, tone: 'text-warning' },
-  [NotificationType.BROADCAST]: { icon: Megaphone, tone: 'text-primary' },
-  [NotificationType.SYSTEM_ANNOUNCEMENT]: { icon: Bell, tone: 'text-primary' },
+  [NotificationType.BROADCAST]: { icon: Megaphone, tone: 'text-ig-link' },
+  [NotificationType.SYSTEM_ANNOUNCEMENT]: { icon: IgBell, tone: 'text-ig-link' },
 };
 
 function buildHref(notif: Notif): string | null {
@@ -119,7 +124,7 @@ export function NotificationItem({ notif, onClick }: Props) {
     icon: Icon,
     tone,
     filled,
-  } = ICON_MAP[notif.type] ?? { icon: BadgeCheck, tone: 'text-foreground', filled: false };
+  } = ICON_MAP[notif.type] ?? { icon: IgBell, tone: 'text-foreground', filled: false };
   const message = buildMessage(notif);
   const p = notif.payload as Payload;
 
@@ -127,12 +132,12 @@ export function NotificationItem({ notif, onClick }: Props) {
     <div
       className={cn(
         'group/notif flex min-h-16 items-start gap-3 px-4 py-3 transition-colors tap-none',
-        'hover:bg-muted focus-visible:bg-muted focus-visible:outline-none',
-        !notif.isRead && 'bg-accent/45',
+        'hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none',
+        !notif.isRead && 'bg-muted/30',
       )}
     >
       <div className="relative shrink-0">
-        <Avatar size="md">
+        <Avatar size="md" className="size-11">
           {p.fromUser?.avatar ? <AvatarImage src={p.fromUser.avatar} alt="" /> : null}
           <AvatarFallback>{(p.fromUser?.username ?? '?').slice(0, 2)}</AvatarFallback>
         </Avatar>
@@ -153,7 +158,7 @@ export function NotificationItem({ notif, onClick }: Props) {
         </p>
       </div>
       {!notif.isRead ? (
-        <span aria-hidden className="mt-2 size-2 shrink-0 rounded-full bg-primary" />
+        <span aria-hidden className="mt-2 size-2 shrink-0 rounded-full bg-ig-badge" />
       ) : null}
     </div>
   );

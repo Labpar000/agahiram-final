@@ -18,6 +18,7 @@ export const updateProfileSchema = z.object({
   avatarKey: z.string().optional(),
   isPrivate: z.boolean().optional(),
   defaultCityId: z.string().uuid().optional().nullable(),
+  storyArchiveEnabled: z.boolean().optional(),
 });
 
 export const followUserSchema = z.object({

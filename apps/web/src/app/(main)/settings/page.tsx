@@ -3,27 +3,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Bell,
-  ImagePlus,
-  HelpCircle,
-  Languages,
-  LockKeyhole,
-  LogOut,
-  Palette,
-  Shield,
-  Sparkles,
-  User,
-  Wallet,
-} from 'lucide-react';
-import { formatPersianPrice, PaymentPurpose, usernameSchema } from '@agahiram/shared';
-import { S3_FOLDERS } from '@agahiram/shared/constants';
-import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Button,
   Card,
   CardContent,
+  IgBell,
+  IgGallery,
+  IgHelp,
+  IgLock,
+  IgLogout,
+  IgMoon,
+  IgShield,
+  IgUser,
+  IgWallet,
   Input,
   Label,
   Separator,
@@ -32,6 +26,8 @@ import {
   ThemeToggle,
   toast,
 } from '@agahiram/ui';
+import { formatPersianPrice, PaymentPurpose, usernameSchema } from '@agahiram/shared';
+import { S3_FOLDERS } from '@agahiram/shared/constants';
 import { apiClient } from '@/lib/api';
 import { uploadToMinio } from '@/lib/upload-media';
 import { useAuth } from '@/hooks/useAuth';
@@ -66,6 +62,7 @@ export default function SettingsPage() {
   const [debouncedUsername, setDebouncedUsername] = useState(user?.username ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [isPrivate, setIsPrivate] = useState(user?.isPrivate ?? false);
+  const [storyArchiveEnabled, setStoryArchiveEnabled] = useState(user?.storyArchiveEnabled ?? true);
   const [showHistory, setShowHistory] = useState(false);
   const [topupAmount, setTopupAmount] = useState('100000');
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -94,7 +91,8 @@ export default function SettingsPage() {
     setDebouncedUsername(user?.username ?? '');
     setBio(user?.bio ?? '');
     setIsPrivate(user?.isPrivate ?? false);
-  }, [user?.bio, user?.isPrivate, user?.name, user?.username]);
+    setStoryArchiveEnabled(user?.storyArchiveEnabled ?? true);
+  }, [user?.bio, user?.isPrivate, user?.name, user?.username, user?.storyArchiveEnabled]);
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedUsername(username.trim().toLowerCase()), 350);
@@ -129,13 +127,14 @@ export default function SettingsPage() {
         username: parsedUsername.data,
         bio,
         isPrivate,
+        storyArchiveEnabled,
       });
       if (!r.success) throw new Error(r.error);
     },
     onSuccess: () => {
       toast.success('پروفایل ذخیره شد');
-      updateUser({ name, username, bio, isPrivate });
-      patchAuthUser(qc, { name, username, bio, isPrivate });
+      updateUser({ name, username, bio, isPrivate, storyArchiveEnabled });
+      patchAuthUser(qc, { name, username, bio, isPrivate, storyArchiveEnabled });
       if (username) patchProfileQuery(qc, username, { name, bio });
       void refetch();
     },
@@ -219,7 +218,7 @@ export default function SettingsPage() {
 
   return (
     <div className="bg-background pb-12">
-      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-4 py-4 backdrop-blur-md">
+      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-4">
         <h1 className="text-h2 font-bold tracking-tight">تنظیمات</h1>
       </div>
 
@@ -232,8 +231,8 @@ export default function SettingsPage() {
                   {user?.avatar ? <AvatarImage src={user.avatar} alt="" /> : null}
                   <AvatarFallback>{(user?.username ?? '?').slice(0, 2)}</AvatarFallback>
                 </Avatar>
-                <span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full bg-primary text-primary-foreground shadow-md">
-                  <ImagePlus className="size-4" aria-hidden />
+                <span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full bg-foreground text-background shadow-md">
+                  <IgGallery className="size-4" strokeWidth={1.75} aria-hidden />
                 </span>
                 <input
                   type="file"
@@ -253,14 +252,17 @@ export default function SettingsPage() {
                 </p>
                 <p className="truncate text-xs text-muted-foreground">@{user?.username ?? '—'}</p>
                 {avatarUploading ? (
-                  <p className="mt-1 text-[11px] text-primary">در حال آپلود آواتار…</p>
+                  <p className="mt-1 text-[11px] text-ig-link">در حال آپلود آواتار…</p>
                 ) : null}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Section title="حساب کاربری" icon={<User className="size-5" aria-hidden />}>
+        <Section
+          title="حساب کاربری"
+          icon={<IgUser className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
           <div className="space-y-2">
             <Label htmlFor="name">نام نمایشی</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -323,13 +325,16 @@ export default function SettingsPage() {
           </div>
         </Section>
 
-        <Section title="ظاهر" icon={<Palette className="size-5" aria-hidden />}>
+        <Section title="ظاهر" icon={<IgMoon className="size-5" strokeWidth={1.75} aria-hidden />}>
           <Row label="حالت ظاهری" description="روشن، تیره یا تطبیق با سیستم">
             <ThemeToggle />
           </Row>
         </Section>
 
-        <Section title="اعلان‌ها" icon={<Bell className="size-5" aria-hidden />}>
+        <Section
+          title="اعلان‌ها"
+          icon={<IgBell className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
           <Row label="پسندها">
             <Switch
               checked={prefs?.likesPush ?? true}
@@ -360,16 +365,33 @@ export default function SettingsPage() {
           </Row>
         </Section>
 
-        <Section title="حریم خصوصی" icon={<Shield className="size-5" aria-hidden />}>
+        <Section
+          title="حریم خصوصی"
+          icon={<IgShield className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
           <Row label="حساب خصوصی" description="فقط دنبال‌کنندگان می‌توانند پست‌ها را ببینند">
             <Switch checked={isPrivate} onCheckedChange={setIsPrivate} aria-label="حساب خصوصی" />
           </Row>
+          <Row
+            label="آرشیو خودکار استوری"
+            description="پس از ۲۴ ساعت استوری‌ها در آرشیو شخصی ذخیره می‌شوند"
+          >
+            <Switch
+              checked={storyArchiveEnabled}
+              onCheckedChange={setStoryArchiveEnabled}
+              aria-label="آرشیو خودکار استوری"
+            />
+          </Row>
           <div className="rounded-xl bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
-            بعد از تغییر وضعیت حریم خصوصی، دکمه «ذخیره تغییرات» در بخش حساب کاربری را بزنید.
+            بعد از تغییر وضعیت حریم خصوصی یا آرشیو، دکمه «ذخیره تغییرات» در بخش حساب کاربری را
+            بزنید.
           </div>
         </Section>
 
-        <Section title="کاربران مسدودشده" icon={<LockKeyhole className="size-5" aria-hidden />}>
+        <Section
+          title="کاربران مسدودشده"
+          icon={<IgLock className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
           {blocked.length === 0 ? (
             <p className="text-sm text-muted-foreground">هنوز کاربری را مسدود نکرده‌اید.</p>
           ) : (
@@ -398,7 +420,10 @@ export default function SettingsPage() {
           )}
         </Section>
 
-        <Section title="امنیت و راهنما" icon={<HelpCircle className="size-5" aria-hidden />}>
+        <Section
+          title="امنیت و راهنما"
+          icon={<IgHelp className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
           <Row label="ورود امن" description="ورود فقط با کد یک‌بارمصرف پیامکی انجام می‌شود.">
             <span className="text-sm text-muted-foreground">فعال</span>
           </Row>
@@ -412,8 +437,8 @@ export default function SettingsPage() {
           </Row>
         </Section>
 
-        <Section title="درباره" icon={<Sparkles className="size-5" aria-hidden />}>
-          <Row label="زبان" icon={<Languages className="size-4" aria-hidden />}>
+        <Section title="درباره" icon={<IgHelp className="size-5" strokeWidth={1.75} aria-hidden />}>
+          <Row label="زبان" icon={<IgHelp className="size-4" strokeWidth={1.75} aria-hidden />}>
             <span className="text-sm text-muted-foreground">فارسی</span>
           </Row>
           <Row label="نسخه">
@@ -421,7 +446,10 @@ export default function SettingsPage() {
           </Row>
         </Section>
 
-        <Section title="کیف پول" icon={<Wallet className="size-5" aria-hidden />}>
+        <Section
+          title="کیف پول"
+          icon={<IgWallet className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
           <div className="overflow-hidden rounded-2xl border border-border bg-surface-muted p-5">
             <p className="text-xs text-muted-foreground">موجودی</p>
             <p className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight gradient-text-brand">
@@ -489,7 +517,7 @@ export default function SettingsPage() {
             if (window.confirm('آیا مطمئن هستید که می‌خواهید از حساب خارج شوید؟')) void logout();
           }}
         >
-          <LogOut className="size-5" aria-hidden />
+          <IgLogout className="size-5" strokeWidth={1.75} aria-hidden />
           خروج از حساب
         </button>
       </div>

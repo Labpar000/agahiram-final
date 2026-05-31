@@ -3,3 +3,5 @@ export * from './constants';
 export * from './types';
 export * from './i18n';
 export * from './cn';
+export * from './story-overlay';
+export * from './story-text';

@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Clapperboard, Loader2 } from 'lucide-react';
-import type { PaginatedResponse, ReelItem } from '@agahiram/shared';
-import { EmptyState } from '@agahiram/ui';
+import { EmptyState, IgReels, Spinner } from '@agahiram/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchReelsPage } from '@/lib/query-definitions';
 import { ReelPlayer } from '@/components/reel-player';
@@ -94,12 +92,12 @@ export default function ReelsPage() {
     >
       {isLoading && !data ? (
         <div className="grid h-full place-items-center text-white">
-          <Loader2 className="size-8 animate-spin" aria-hidden />
+          <Spinner className="size-8" aria-hidden />
         </div>
       ) : reels.length === 0 ? (
         <div className="grid h-full place-items-center text-white">
           <EmptyState
-            icon={<Clapperboard aria-hidden />}
+            icon={<IgReels className="size-10" strokeWidth={1.5} aria-hidden />}
             title="فعلاً ریلی نیست"
             description="به‌زودی ویدیوهای تازه را اینجا می‌بینید."
             className="text-white [&_[data-empty-copy]_*]:text-white [&_[data-empty-visual]]:border-white/10 [&_[data-empty-visual]]:from-white/10 [&_[data-empty-visual]]:via-white/5 [&_[data-empty-visual]]:to-white/10 [&_[data-empty-visual]>span]:bg-white/10 [&_[data-empty-visual]>span]:text-white [&_[data-empty-visual]>span]:ring-white/10"
@@ -137,7 +135,7 @@ export default function ReelsPage() {
             );
           })}
           <div ref={loaderRef} className="grid h-16 snap-start place-items-center text-white/70">
-            {isFetchingNextPage ? <Loader2 className="size-6 animate-spin" aria-hidden /> : null}
+            {isFetchingNextPage ? <Spinner className="size-6" aria-hidden /> : null}
           </div>
         </>
       )}

@@ -15,7 +15,7 @@ export function CommentContent({ content }: { content: string }) {
             <Link
               key={i}
               href={`/profile/${username}`}
-              className="font-medium text-primary hover:underline"
+              className="font-medium text-ig-link hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               {part}

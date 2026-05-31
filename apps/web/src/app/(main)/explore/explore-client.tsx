@@ -5,25 +5,31 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import {
-  Film as FilmIcon,
-  Eye,
-  Layers,
-  PackageOpen,
-  BellPlus,
-  Search,
-  SearchX,
-  SlidersHorizontal,
-} from 'lucide-react';
-import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { formatPersianNumber, formatPersianCompact, formatPersianPrice } from '@agahiram/shared';
-import { EmptyState, ErrorState, IconButton, Input, Skeleton, Spinner } from '@agahiram/ui';
+import {
+  EmptyState,
+  ErrorState,
+  IconButton,
+  IgActivity,
+  IgEye,
+  IgGrid,
+  IgLayers,
+  IgPlay,
+  IgReels,
+  IgSearch,
+  IgSliders,
+  Input,
+  Skeleton,
+  Spinner,
+} from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { PostLink } from '@/components/post-link';
 import type { Filters } from '@/components/search-filters';
 import { toast } from '@agahiram/ui';
 import { parseExploreSearchParams } from '@/lib/explore-url';
+import { StoryDiscoverRings, type DiscoverGroup } from '@/features/stories/story-discover-rings';
 
 const SearchFiltersSheet = dynamic(
   () => import('@/components/search-filters').then((m) => m.SearchFiltersSheet),
@@ -95,6 +101,23 @@ export function ExploreClient({
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  const hashtagStoryTag = useMemo(() => {
+    const m = debouncedQ.match(/^#([\w\u0600-\u06FF]+)/);
+    return m?.[1] ?? null;
+  }, [debouncedQ]);
+
+  const { data: storySearch } = useQuery({
+    queryKey: ['stories', 'search', debouncedQ],
+    queryFn: async () => {
+      const r = await apiClient.get<{ groups: DiscoverGroup[] }>(
+        `/stories/search?q=${encodeURIComponent(debouncedQ)}`,
+      );
+      return r.data?.groups ?? [];
+    },
+    enabled: debouncedQ.length >= 2 && !hashtagStoryTag,
+    staleTime: 30_000,
+  });
 
   const query = useInfiniteQuery({
     queryKey: ['explore', debouncedQ, filters],
@@ -179,23 +202,24 @@ export function ExploreClient({
 
   return (
     <div className="bg-background">
-      <div className="sticky top-[var(--header-height)] z-20 border-b border-border bg-background/95 px-3 py-3 backdrop-blur-md">
+      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-3 py-2">
         <div className="mx-auto flex max-w-2xl items-center gap-2">
           <div className="flex-1">
             <Input
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="جستجو در آگهی‌ها…"
-              leadingIcon={<Search className="size-4" aria-hidden />}
+              placeholder="جستجو"
+              className="h-9 rounded-full border-0 bg-muted text-sm"
+              leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
               aria-label="جستجو"
             />
           </div>
           <div className="relative">
             <IconButton
               aria-label={`فیلترها${activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}`}
-              icon={<SlidersHorizontal className="size-5" aria-hidden />}
-              variant={activeFilterCount > 0 ? 'primary' : 'secondary'}
+              icon={<IgSliders className="size-5" strokeWidth={1.75} aria-hidden />}
+              variant="secondary"
               size="md"
               onClick={() => setOpenFilters(true)}
             />
@@ -210,25 +234,56 @@ export function ExploreClient({
           </div>
           <IconButton
             aria-label="ذخیره هشدار جستجو"
-            icon={<BellPlus className="size-5" aria-hidden />}
+            icon={<IgActivity className="size-5" strokeWidth={1.75} aria-hidden />}
             variant="secondary"
             size="md"
             onClick={() => void createSearchAlert()}
           />
         </div>
+        {hashtagStoryTag ? (
+          <Link
+            href={`/hashtag/${encodeURIComponent(hashtagStoryTag)}/stories`}
+            className="mt-2 block rounded-xl bg-muted px-3 py-2 text-center text-xs font-semibold text-foreground"
+          >
+            مشاهده استوری‌های #{hashtagStoryTag}
+          </Link>
+        ) : null}
+        {filters.cityId ? (
+          <Link
+            href={`/location/${filters.cityId}/stories`}
+            className="mt-2 block rounded-xl bg-muted px-3 py-2 text-center text-xs font-semibold text-foreground"
+          >
+            مشاهده استوری‌های این شهر
+          </Link>
+        ) : null}
+        {(storySearch?.length ?? 0) > 0 ? (
+          <div className="mt-3 rounded-xl border border-border bg-surface p-3">
+            <StoryDiscoverRings
+              groups={storySearch ?? []}
+              title="استوری‌های مرتبط"
+              subtitle={`جستجو: ${debouncedQ}`}
+            />
+          </div>
+        ) : null}
       </div>
 
       {isLoading && !data ? (
-        <div className="grid grid-cols-3 gap-0.5">
+        <div className="ig-grid-gap grid grid-cols-3">
           {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
+            <Skeleton key={i} className="aspect-square rounded-none bg-surface" shimmer={false} />
           ))}
         </div>
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />
       ) : posts.length === 0 && !hasSearchExtras ? (
         <EmptyState
-          icon={debouncedQ ? <SearchX aria-hidden /> : <PackageOpen aria-hidden />}
+          icon={
+            debouncedQ ? (
+              <IgSearch className="size-10" strokeWidth={1.5} aria-hidden />
+            ) : (
+              <IgGrid className="size-10" strokeWidth={1.5} aria-hidden />
+            )
+          }
           title={debouncedQ ? 'نتیجه‌ای یافت نشد' : 'فعلاً آگهی‌ای نیست'}
           description={
             debouncedQ
@@ -278,7 +333,7 @@ export function ExploreClient({
               {debouncedQ ? (
                 <h2 className="border-b border-border px-3 py-2 text-sm font-semibold">آگهی‌ها</h2>
               ) : null}
-              <div className="grid grid-cols-3 gap-0.5">
+              <div className="ig-grid-gap grid grid-cols-3">
                 {posts.map((p) => (
                   <ExploreTile key={p.id} post={p} />
                 ))}
@@ -318,7 +373,7 @@ function ExploreTile({ post }: { post: PostSummary }) {
       postId={post.id}
       post={post}
       aria-label={`${post.title}، ${formatPersianPrice(post.price)}`}
-      className="cv-tile group relative block aspect-square overflow-hidden rounded-sm bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:rounded-md"
+      className="cv-tile group relative block aspect-square overflow-hidden bg-surface tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
     >
       {media ? (
         <Image
@@ -335,8 +390,10 @@ function ExploreTile({ post }: { post: PostSummary }) {
       )}
 
       {isVideo ? (
-        <FilmIcon
+        <IgPlay
           className="absolute start-1.5 top-1.5 size-4 text-white drop-shadow-md"
+          filled
+          strokeWidth={1.75}
           aria-hidden
         />
       ) : null}
@@ -345,7 +402,7 @@ function ExploreTile({ post }: { post: PostSummary }) {
           aria-hidden
           className="absolute end-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white"
         >
-          <Layers className="size-3" aria-hidden />
+          <IgLayers className="size-3" strokeWidth={1.75} aria-hidden />
           {formatPersianNumber(post.media.length)}
         </span>
       ) : null}
@@ -355,7 +412,7 @@ function ExploreTile({ post }: { post: PostSummary }) {
           aria-label={`${formatPersianNumber(post.viewCount)} بازدید`}
           className="absolute bottom-1.5 start-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
         >
-          <Eye className="size-3" aria-hidden />
+          <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
           {formatPersianCompact(post.viewCount)}
         </span>
       ) : null}

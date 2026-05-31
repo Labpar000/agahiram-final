@@ -6,8 +6,16 @@ import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, BarChart3, Pencil, Trash2 } from 'lucide-react';
-import { EmptyState, IconButton, LoadingState, toast } from '@agahiram/ui';
+import { BarChart3, CircleFadingPlus } from 'lucide-react';
+import {
+  EmptyState,
+  IconButton,
+  LoadingState,
+  toast,
+  IgArrowBack,
+  IgPencil,
+  IgTrash,
+} from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { markPostViewedLocally } from '@/lib/viewer-hash';
 import { PostCard } from '@/components/post-card';
@@ -95,10 +103,10 @@ export function PostDetailClient({ id }: { id: string }) {
   return (
     <PostDetailSwipe postId={id}>
       <div className="bg-background">
-        <div className="sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border bg-background/95 px-3 py-2 backdrop-blur-md">
+        <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
           <IconButton
             aria-label="بازگشت"
-            icon={<ArrowRight className="size-5 rtl:rotate-180" aria-hidden />}
+            icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
             variant="ghost"
             onClick={() => history.back()}
           />
@@ -110,16 +118,24 @@ export function PostDetailClient({ id }: { id: string }) {
                 className="ms-auto inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted/80"
                 aria-label="ویرایش آگهی"
               >
-                <Pencil className="size-4" aria-hidden />
+                <IgPencil className="size-4" strokeWidth={1.75} aria-hidden />
                 ویرایش
               </Link>
               <Link
                 href={`/post/${id}/insights`}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-primary/15"
+                className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted/80"
                 aria-label="آمار آگهی"
               >
                 <BarChart3 className="size-4" aria-hidden />
                 آمار
+              </Link>
+              <Link
+                href={`/create/story?repostPost=${id}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-semibold text-foreground transition hover:bg-muted/80"
+                aria-label="افزودن به استوری"
+              >
+                <CircleFadingPlus className="size-4" aria-hidden />
+                استوری
               </Link>
               <button
                 type="button"
@@ -131,7 +147,7 @@ export function PostDetailClient({ id }: { id: string }) {
                   }
                 }}
               >
-                <Trash2 className="size-4" aria-hidden />
+                <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
                 حذف
               </button>
             </>
@@ -154,7 +170,7 @@ export function PostDetailClient({ id }: { id: string }) {
             title="آگهی یافت نشد"
             description="ممکن است حذف شده باشد یا لینک شما اشتباه باشد."
             action={
-              <Link href="/explore" className="text-sm font-medium text-primary hover:underline">
+              <Link href="/explore" className="text-sm font-medium text-ig-link hover:underline">
                 بازگشت به اکسپلور
               </Link>
             }

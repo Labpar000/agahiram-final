@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Crosshair, MapPin, Target } from 'lucide-react';
 import type maplibregl from 'maplibre-gl';
-import { Crosshair, MapPin, Search, Target, X } from 'lucide-react';
-import { Button, IconButton, Input, Spinner, Switch } from '@agahiram/ui';
+import { IgClose, IgSearch, Spinner, Switch, Button, IconButton, Input } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import {
   DEFAULT_MAP_CENTER,
@@ -168,7 +168,7 @@ export function LocationPicker({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => setShowResults(results.length > 0)}
-          leadingIcon={<Search className="size-4" aria-hidden />}
+          leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
           trailingIcon={
             q ? (
               <button
@@ -177,7 +177,7 @@ export function LocationPicker({
                 onClick={clearSearch}
                 className="grid size-6 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <X className="size-3.5" aria-hidden />
+                <IgClose className="size-3.5" strokeWidth={1.75} aria-hidden />
               </button>
             ) : searching ? (
               <Spinner size="sm" />
@@ -221,10 +221,10 @@ export function LocationPicker({
           className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
         >
           <div className="flex flex-col items-center">
-            <div className="rounded-full bg-primary p-2 shadow-popover ring-4 ring-primary/20">
-              <MapPin className="size-5 text-primary-foreground" aria-hidden />
+            <div className="rounded-full bg-ig-link p-2 shadow-popover ring-4 ring-ig-link/20">
+              <MapPin className="size-5 text-ig-link-foreground" aria-hidden />
             </div>
-            <div className="-mt-0.5 size-1.5 rotate-45 bg-primary/40" />
+            <div className="-mt-0.5 size-1.5 rotate-45 bg-ig-link/40" />
           </div>
         </div>
 
@@ -241,7 +241,7 @@ export function LocationPicker({
 
       <div className="rounded-2xl border border-border bg-surface p-3 shadow-xs">
         <div className="flex items-start gap-2">
-          <Target className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+          <Target className="mt-0.5 size-4 shrink-0 text-ig-link" aria-hidden />
           <div className="min-w-0 flex-1">
             <div className="text-xs font-semibold">آدرس انتخاب‌شده</div>
             <div className="mt-0.5 text-sm font-medium">

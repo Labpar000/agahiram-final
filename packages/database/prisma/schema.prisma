@@ -90,6 +90,48 @@ enum LiveStreamStatus {
   ended
 }
 
+enum StoryAudience {
+  PUBLIC
+  CLOSE_FRIENDS
+}
+
+enum StoryAllowReplies {
+  EVERYONE
+  FOLLOWERS
+  FOLLOWING
+  OFF
+}
+
+enum StoryNavigationType {
+  FORWARD
+  BACK
+  EXIT
+  NEXT_ACCOUNT
+}
+
+enum StoryStickerType {
+  POLL
+  QUIZ
+  QUESTION
+  SLIDER
+  COUNTDOWN
+  LINK
+  MENTION
+  HASHTAG
+  LOCATION
+  NOTIFY
+  PRODUCT
+  GIF
+  TIME
+  DATE
+  WEATHER
+}
+
+enum StoryArchiveAudience {
+  PUBLIC
+  CLOSE_FRIENDS
+}
+
 model User {
   id            String   @id @default(uuid())
   phone         String   @unique
@@ -117,10 +159,25 @@ model User {
   savedPosts      SavedPost[]
   followers       Follow[]       @relation("Following")
   following       Follow[]       @relation("Follower")
-  stories         Story[]
-  highlights      Highlight[]
-  storyViews      StoryView[]
-  storyReactions  StoryReaction[]
+  stories                 Story[]
+  storyArchives           StoryArchive[]
+  highlights              Highlight[]
+  storyViews              StoryView[]
+  storyReactions          StoryReaction[]
+  storyComments           StoryComment[]
+  storyStickerResponses   StoryStickerResponse[]
+  closeFriends            CloseFriend[]            @relation("CloseFriendOwner")
+  closeFriendOf           CloseFriend[]            @relation("CloseFriendMember")
+  storyHiddenFrom         StoryHiddenFrom[]        @relation("StoryHiddenOwner")
+  hiddenFromStories       StoryHiddenFrom[]        @relation("StoryHiddenTarget")
+  storyMutes              StoryMute[]              @relation("StoryMuteOwner")
+  mutedStoryUsers         StoryMute[]              @relation("StoryMuteTarget")
+  storySessions           StoryPublishSession[]
+  storyNotifySubscriptions StoryNotifySubscription[] @relation("StoryNotifySubscriber")
+  storyNotifyProviders    StoryNotifySubscription[] @relation("StoryNotifyProvider")
+  storyNavigationEvents   StoryNavigationEvent[]
+  storyArchiveEnabled     Boolean                  @default(true)
+  defaultStoryAllowReplies StoryAllowReplies       @default(EVERYONE)
   postViews       PostView[]
   notifications   Notification[]
   notificationPref NotificationPreference?
@@ -205,6 +262,7 @@ model City {
   posts         Post[]
   users         User[]
   searchAlerts  SearchAlert[]
+  stories       Story[]
 
   @@index([provinceId])
 }
@@ -303,25 +361,87 @@ model PostAttribute {
   @@unique([postId, attributeId])
 }
 
+model StoryPublishSession {
+  id          String    @id @default(uuid())
+  userId      String
+  scheduledAt DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stories Story[]
+
+  @@index([userId, scheduledAt])
+}
+
 model Story {
-  id           String    @id @default(uuid())
+  id           String            @id @default(uuid())
   userId       String
   mediaUrl     String
+  mediaKey     String?
   type         MediaType
   expiresAt    DateTime
   linkedPostId String?
   overlayJson  Json?
   durationMs   Int?
-  createdAt    DateTime  @default(now())
+  audience     StoryAudience     @default(PUBLIC)
+  allowReplies StoryAllowReplies @default(EVERYONE)
+  sessionId    String?
+  sequenceIndex Int              @default(0)
+  altText      String?
+  hashtag      String?
+  cityId       String?
+  hlsUrl       String?
+  thumbnailUrl   String?
+  publishAt      DateTime           @default(now())
+  searchableText String?
+  createdAt      DateTime           @default(now())
 
-  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  linkedPost Post?           @relation(fields: [linkedPostId], references: [id])
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedPost Post?                @relation(fields: [linkedPostId], references: [id])
+  session    StoryPublishSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  city       City?                @relation(fields: [cityId], references: [id])
   views      StoryView[]
   reactions  StoryReaction[]
-  highlights HighlightStory[]
+  stickers           StorySticker[]
+  comments           StoryComment[]
+  music              StoryMusic?
+  highlights         HighlightStory[]
+  navigationEvents   StoryNavigationEvent[]
 
   @@index([userId, expiresAt])
   @@index([expiresAt])
+  @@index([sessionId])
+  @@index([hashtag])
+  @@index([cityId])
+  @@index([publishAt])
+  @@index([searchableText])
+}
+
+model StoryArchive {
+  id              String               @id @default(uuid())
+  userId          String
+  mediaUrl        String
+  mediaKey        String?
+  type            MediaType
+  overlayJson     Json?
+  durationMs      Int?
+  linkedPostId    String?
+  originalStoryId String?
+  sourceAudience  StoryArchiveAudience @default(PUBLIC)
+  altText         String?
+  hashtag         String?
+  cityId          String?
+  hlsUrl          String?
+  thumbnailUrl    String?
+  archivedAt      DateTime             @default(now())
+  createdAt       DateTime
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  highlights HighlightStory[]
+
+  @@index([userId, archivedAt])
+  @@index([hashtag])
 }
 
 model StoryReaction {
@@ -343,6 +463,7 @@ model StoryView {
   storyId  String
   userId   String
   viewedAt DateTime @default(now())
+  replayCount Int   @default(0)
 
   story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])
@@ -350,27 +471,163 @@ model StoryView {
   @@unique([storyId, userId])
 }
 
-model Highlight {
+model StoryNavigationEvent {
+  id        String              @id @default(uuid())
+  storyId   String
+  userId    String
+  type      StoryNavigationType
+  createdAt DateTime            @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, type])
+  @@index([userId, storyId])
+}
+
+model StorySticker {
+  id        String           @id @default(uuid())
+  storyId   String
+  type      StoryStickerType
+  payload   Json
+  x         Float            @default(0.5)
+  y         Float            @default(0.5)
+  scale     Float            @default(1)
+  rotation  Float            @default(0)
+  createdAt DateTime         @default(now())
+
+  story     Story                  @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  responses StoryStickerResponse[]
+
+  @@index([storyId])
+}
+
+model StoryStickerResponse {
+  id        String   @id @default(uuid())
+  stickerId String
+  userId    String
+  value     Json
+  createdAt DateTime @default(now())
+
+  sticker StorySticker @relation(fields: [stickerId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([stickerId, userId])
+  @@index([stickerId])
+  @@index([userId])
+}
+
+model StoryComment {
+  id        String   @id @default(uuid())
+  storyId   String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([storyId, createdAt])
+}
+
+model CloseFriend {
   id        String   @id @default(uuid())
   userId    String
-  title     String
-  coverUrl  String?
+  friendId  String
   createdAt DateTime @default(now())
+
+  owner  User @relation("CloseFriendOwner", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("CloseFriendMember", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId])
+}
+
+model StoryHiddenFrom {
+  id           String   @id @default(uuid())
+  userId       String
+  hiddenUserId String
+  createdAt    DateTime @default(now())
+
+  owner  User @relation("StoryHiddenOwner", fields: [userId], references: [id], onDelete: Cascade)
+  hidden User @relation("StoryHiddenTarget", fields: [hiddenUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, hiddenUserId])
+}
+
+model StoryMute {
+  id            String   @id @default(uuid())
+  userId        String
+  mutedUserId   String
+  createdAt     DateTime @default(now())
+
+  owner User @relation("StoryMuteOwner", fields: [userId], references: [id], onDelete: Cascade)
+  muted User @relation("StoryMuteTarget", fields: [mutedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mutedUserId])
+}
+
+model StoryNotifySubscription {
+  id             String   @id @default(uuid())
+  subscriberId   String
+  providerUserId String
+  createdAt      DateTime @default(now())
+
+  subscriber User @relation("StoryNotifySubscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  provider   User @relation("StoryNotifyProvider", fields: [providerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, providerUserId])
+}
+
+model StoryLinkClick {
+  id        String   @id @default(uuid())
+  storyId   String
+  userId    String?
+  stickerId String?
+  url       String
+  createdAt DateTime @default(now())
+
+  @@index([storyId])
+}
+
+model StoryMusic {
+  id          String @id @default(uuid())
+  storyId     String @unique
+  trackId     String
+  startMs     Int    @default(0)
+  displayMode String @default("minimal")
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([trackId])
+}
+
+model Highlight {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  coverUrl    String?
+  pinnedOrder Int?
+  createdAt   DateTime @default(now())
 
   user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   stories HighlightStory[]
+
+  @@index([userId, pinnedOrder])
 }
 
 model HighlightStory {
-  id          String @id @default(uuid())
-  highlightId String
-  storyId     String
-  order       Int    @default(0)
+  id              String  @id @default(uuid())
+  highlightId     String
+  storyId         String?
+  storyArchiveId  String?
+  order           Int     @default(0)
 
-  highlight Highlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
-  story     Story     @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  highlight    Highlight     @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  story        Story?        @relation(fields: [storyId], references: [id], onDelete: SetNull)
+  storyArchive StoryArchive? @relation(fields: [storyArchiveId], references: [id], onDelete: Cascade)
 
-  @@unique([highlightId, storyId])
+  @@index([highlightId, order])
 }
 
 model Like {

@@ -3,14 +3,14 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowRight, Camera, ChevronLeft } from 'lucide-react';
+import { IgChevron } from '@agahiram/ui';
+import { Button, Card, CardContent, Input, Label, toast } from '@agahiram/ui';
 import {
   formatPersianNumber,
   formatPhoneFa,
   toLatinDigits,
   toPersianDigits,
 } from '@agahiram/shared';
-import { Button, Card, CardContent, Input, Label, toast } from '@agahiram/ui';
 import { useAuth } from '@/hooks/useAuth';
 import { OtpInput } from '@/components/otp-input';
 
@@ -117,62 +117,52 @@ function Inner() {
   const timerLabel = `${toPersianDigits(mins.toString().padStart(2, '0'))}:${toPersianDigits(secs.toString().padStart(2, '0'))}`;
 
   return (
-    <Card className="overflow-hidden border-border/60 shadow-floating">
-      <CardContent className="!p-7 sm:!p-8">
-        <div className="flex flex-col items-center gap-3 pb-6 text-center">
-          <div className="grid size-16 place-items-center rounded-2xl gradient-brand shadow-glow">
-            <Camera className="size-9 text-white" strokeWidth={2.4} aria-hidden />
-          </div>
-          <h1 className="text-h2 font-extrabold tracking-tight">آگهی‌گرام</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            به جامعه‌ای از کاربران و فروشندگان بپیوندید
-          </p>
+    <Card className="overflow-hidden rounded-sm border border-border shadow-none">
+      <CardContent className="!p-4">
+        <div className="flex flex-col items-center gap-2 pb-4 pt-2 text-center">
+          <h1 className="text-xl font-semibold tracking-tight">آگهی‌گرام</h1>
+          <p className="text-xs text-muted-foreground">ورود با شماره موبایل</p>
         </div>
 
         {step === 'phone' ? (
-          <form onSubmit={handleSendOtp} className="space-y-5" noValidate>
-            <div className="space-y-2">
-              <Label htmlFor="phone">شماره موبایل</Label>
+          <form onSubmit={handleSendOtp} className="space-y-3" noValidate>
+            <div className="space-y-1">
+              <Label htmlFor="phone" className="sr-only">
+                شماره موبایل
+              </Label>
               <Input
                 id="phone"
                 type="tel"
                 dir="ltr"
                 inputMode="numeric"
                 autoComplete="tel"
-                placeholder="0912 345 6789"
+                placeholder="شماره موبایل"
                 value={phone}
                 onChange={(e) =>
                   setPhone(toLatinDigits(e.target.value).replace(/\D/g, '').slice(0, 11))
                 }
-                className="h-12 text-center text-lg tracking-wider tabular-nums"
+                className="h-9 rounded-sm text-xs"
                 aria-invalid={phone.length === 11 && !phoneIsValid ? true : undefined}
                 required
               />
             </div>
             <Button
               type="submit"
-              variant="brand"
-              size="lg"
+              size="sm"
               fullWidth
+              className="btn-ig-link h-8 rounded-lg text-sm font-semibold"
               isLoading={sendOtp.isPending}
               disabled={!phoneIsValid}
-              rightIcon={<ArrowRight className="size-5" aria-hidden />}
             >
               ارسال کد تأیید
             </Button>
             <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
               با ورود،{' '}
-              <Link
-                href="/terms"
-                className="font-medium text-foreground underline-offset-2 hover:underline"
-              >
+              <Link href="/terms" className="text-ig-link hover:underline">
                 شرایط استفاده
               </Link>{' '}
               و{' '}
-              <Link
-                href="/privacy"
-                className="font-medium text-foreground underline-offset-2 hover:underline"
-              >
+              <Link href="/privacy" className="text-ig-link hover:underline">
                 سیاست حریم خصوصی
               </Link>{' '}
               آگهی‌گرام را می‌پذیرید.
@@ -184,29 +174,29 @@ function Inner() {
               e.preventDefault();
               void handleVerify();
             }}
-            className="space-y-5"
+            className="space-y-3"
             noValidate
           >
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <Label>کد تأیید</Label>
+                <Label className="text-xs">کد تأیید</Label>
                 <button
                   type="button"
                   onClick={() => {
                     setStep('phone');
                     setCode('');
                   }}
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-ig-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <ChevronLeft className="size-3.5" aria-hidden /> تغییر شماره
+                  <IgChevron direction="left" className="size-3.5 rtl:rotate-180" aria-hidden />{' '}
+                  تغییر شماره
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
                 کد ۶ رقمی ارسال‌شده به{' '}
                 <span className="font-medium text-foreground" dir="ltr">
                   {formatPhoneFa(phone)}
-                </span>{' '}
-                را وارد کنید.
+                </span>
               </p>
               <OtpInput
                 value={code}
@@ -221,9 +211,9 @@ function Inner() {
 
             <Button
               type="submit"
-              variant="brand"
-              size="lg"
+              size="sm"
               fullWidth
+              className="btn-ig-link h-8 rounded-lg text-sm font-semibold"
               isLoading={isVerifying || verifyOtp.isPending}
               disabled={code.length !== 6 || isVerifying || verifyOtp.isPending}
             >
@@ -239,7 +229,7 @@ function Inner() {
                 <button
                   type="button"
                   onClick={() => void handleResend()}
-                  className="rounded-full px-2 py-1 font-medium text-primary transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="font-medium text-ig-link hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   ارسال مجدد کد
                 </button>

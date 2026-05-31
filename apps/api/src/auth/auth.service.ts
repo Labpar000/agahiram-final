@@ -220,6 +220,7 @@ export class AuthService {
     isPrivate?: boolean;
     role: string;
     defaultCityId: string | null;
+    storyArchiveEnabled?: boolean;
     createdAt: Date;
   }) {
     return {
@@ -234,6 +235,7 @@ export class AuthService {
       isPrivate: user.isPrivate ?? false,
       role: user.role as UserRole,
       defaultCityId: user.defaultCityId,
+      storyArchiveEnabled: user.storyArchiveEnabled ?? true,
       createdAt: user.createdAt.toISOString(),
     };
   }

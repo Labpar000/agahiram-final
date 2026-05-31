@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
-import { Button, IconButton, Input, Label, LoadingState, toast } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { Button, IconButton, IgArrowBack, Input, Label, LoadingState, toast } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
+import { apiClient } from '@/lib/api';
+import { StoryArchivePicker } from '@/features/stories/story-archive-picker';
 
 interface StoryPick {
   id: string;
@@ -21,12 +21,29 @@ interface StoryGroup {
   stories: StoryPick[];
 }
 
+type SourceTab = 'live' | 'archive';
+
 export default function CreateHighlightPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <CreateHighlightInner />
+    </Suspense>
+  );
+}
+
+function CreateHighlightInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const qc = useQueryClient();
+  const preselectArchive = searchParams.get('archive');
+  const [tab, setTab] = useState<SourceTab>(preselectArchive ? 'archive' : 'live');
   const [title, setTitle] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [coverId, setCoverId] = useState<string | null>(null);
+  const [selectedLive, setSelectedLive] = useState<Set<string>>(new Set());
+  const [selectedArchive, setSelectedArchive] = useState<Set<string>>(
+    () => new Set(preselectArchive ? [preselectArchive] : []),
+  );
+  const [coverLiveId, setCoverLiveId] = useState<string | null>(null);
+  const [coverArchiveId, setCoverArchiveId] = useState<string | null>(preselectArchive ?? null);
 
   const { data: groups, isLoading } = useQuery({
     queryKey: ['stories', 'feed'],
@@ -38,17 +55,25 @@ export default function CreateHighlightPage() {
 
   const myStories = (groups ?? []).find((g) => g.isMe)?.stories ?? [];
 
+  const selectedCount = tab === 'live' ? selectedLive.size : selectedArchive.size;
+  const canSubmit = title.trim().length > 0 && selectedCount > 0;
+
   const create = useMutation({
     mutationFn: async () => {
-      const storyIds = Array.from(selected);
-      if (!title.trim() || storyIds.length === 0) {
-        throw new Error('عنوان و حداقل یک استوری لازم است');
-      }
-      const r = await apiClient.post<{ id: string }>('/highlights', {
-        title: title.trim(),
-        storyIds,
-        coverStoryId: coverId ?? storyIds[0],
-      });
+      if (!canSubmit) throw new Error('عنوان و حداقل یک استوری لازم است');
+      const body =
+        tab === 'live'
+          ? {
+              title: title.trim(),
+              storyIds: Array.from(selectedLive),
+              coverStoryId: coverLiveId ?? Array.from(selectedLive)[0],
+            }
+          : {
+              title: title.trim(),
+              storyArchiveIds: Array.from(selectedArchive),
+              coverStoryArchiveId: coverArchiveId ?? Array.from(selectedArchive)[0],
+            };
+      const r = await apiClient.post<{ id: string }>('/highlights', body);
       if (!r.success) throw new Error(r.error ?? 'خطا در ساخت هایلایت');
       return r.data;
     },
@@ -60,19 +85,40 @@ export default function CreateHighlightPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  const toggle = (id: string) => {
-    setSelected((prev) => {
+  const toggleLive = (id: string) => {
+    setSelectedLive((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
-        if (coverId === id) setCoverId(null);
+        if (coverLiveId === id) setCoverLiveId(null);
       } else {
         next.add(id);
-        if (!coverId) setCoverId(id);
+        if (!coverLiveId) setCoverLiveId(id);
       }
       return next;
     });
   };
+
+  const toggleArchive = (id: string) => {
+    setSelectedArchive((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+        if (coverArchiveId === id) setCoverArchiveId(null);
+      } else {
+        next.add(id);
+        if (!coverArchiveId) setCoverArchiveId(id);
+      }
+      return next;
+    });
+  };
+
+  const emptyMessage = useMemo(() => {
+    if (tab === 'live') {
+      return 'ابتدا یک استوری زنده بسازید، یا از تب آرشیو استوری‌های گذشته را انتخاب کنید.';
+    }
+    return 'هنوز استوری در آرشیو نیست. پس از انقضای استوری‌ها اینجا ظاهر می‌شوند.';
+  }, [tab]);
 
   if (isLoading) return <LoadingState label="در حال بارگذاری…" />;
 
@@ -81,77 +127,99 @@ export default function CreateHighlightPage() {
       <div className="mb-4 flex items-center gap-2">
         <IconButton
           aria-label="بازگشت"
-          icon={<ArrowRight className="size-5 rtl:rotate-180" aria-hidden />}
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
           onClick={() => router.back()}
         />
         <h1 className="text-lg font-bold">ساخت هایلایت</h1>
       </div>
 
-      {myStories.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          ابتدا یک استوری بسازید، سپس می‌توانید آن را در هایلایت ذخیره کنید.
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate();
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="title" required>
+            عنوان هایلایت
+          </Label>
+          <Input
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="مثلاً: آگهی‌های ویژه"
+            minLength={1}
+            maxLength={15}
+          />
+        </div>
+
+        <div className="flex gap-2 rounded-lg bg-muted p-1">
+          {(['live', 'archive'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              className={cn(
+                'flex-1 rounded-md py-2 text-sm font-medium transition-colors',
+                tab === t ? 'bg-background shadow-sm' : 'text-muted-foreground',
+              )}
+              onClick={() => setTab(t)}
+            >
+              {t === 'live' ? 'استوری زنده' : 'آرشیو'}
+            </button>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          برای کاور، روی تصویر انتخاب‌شده دوباره بزنید.
         </p>
-      ) : (
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            create.mutate();
-          }}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="title" required>
-              عنوان هایلایت
-            </Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="مثلاً: آگهی‌های ویژه"
-              minLength={1}
-              maxLength={15}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            استوری‌های موردنظر را انتخاب کنید. برای کاور، روی تصویر انتخاب‌شده دوباره بزنید.
-          </p>
-          <div className="grid grid-cols-3 gap-2">
-            {myStories.map((s) => {
-              const on = selected.has(s.id);
-              const isCover = coverId === s.id;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={cn(
-                    'relative aspect-[9/16] overflow-hidden rounded-lg ring-2 transition-colors',
-                    on ? 'ring-primary' : 'ring-transparent opacity-70',
-                    isCover && 'ring-4 ring-primary',
-                  )}
-                  onClick={() => {
-                    if (!on) {
-                      toggle(s.id);
-                      return;
-                    }
-                    if (isCover) toggle(s.id);
-                    else setCoverId(s.id);
-                  }}
-                >
-                  <Image src={s.mediaUrl} alt="" fill className="object-cover" sizes="120px" />
-                </button>
-              );
-            })}
-          </div>
-          <Button
-            type="submit"
-            variant="brand"
-            disabled={create.isPending || !title.trim() || selected.size === 0}
-          >
-            {create.isPending ? 'در حال ذخیره…' : 'ساخت هایلایت'}
-          </Button>
-        </form>
-      )}
+
+        {tab === 'live' ? (
+          myStories.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2">
+              {myStories.map((s) => {
+                const on = selectedLive.has(s.id);
+                const isCover = coverLiveId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={cn(
+                      'relative aspect-[9/16] overflow-hidden rounded-lg ring-2 transition-colors',
+                      on ? 'ring-primary' : 'ring-transparent opacity-70',
+                      isCover && 'ring-4 ring-primary',
+                    )}
+                    onClick={() => {
+                      if (!on) {
+                        toggleLive(s.id);
+                        return;
+                      }
+                      if (isCover) toggleLive(s.id);
+                      else setCoverLiveId(s.id);
+                    }}
+                  >
+                    <Image src={s.mediaUrl} alt="" fill className="object-cover" sizes="120px" />
+                  </button>
+                );
+              })}
+            </div>
+          )
+        ) : (
+          <StoryArchivePicker
+            selected={selectedArchive}
+            coverId={coverArchiveId}
+            onToggle={toggleArchive}
+            onSetCover={setCoverArchiveId}
+          />
+        )}
+
+        <Button type="submit" variant="brand" disabled={create.isPending || !canSubmit}>
+          {create.isPending ? 'در حال ذخیره…' : 'ساخت هایلایت'}
+        </Button>
+      </form>
     </div>
   );
 }

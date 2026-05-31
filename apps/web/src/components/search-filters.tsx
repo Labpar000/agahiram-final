@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Check, ChevronLeft, Filter, MapPin, Search, X } from 'lucide-react';
+import { MapPin } from 'lucide-react';
+import { IgArrowBack, IgCheck, IgChevron, IgClose, IgSearch, IgSliders } from '@agahiram/ui';
 import { cn, formatPersianNumber, normalizePersianText } from '@agahiram/shared';
 import {
   Button,
@@ -158,14 +159,14 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
                 aria-label="بازگشت"
                 className="-ms-2 grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <ArrowRight className="size-5 rtl:scale-x-[-1]" aria-hidden />
+                <IgArrowBack className="size-5 rtl:scale-x-[-1]" strokeWidth={1.75} aria-hidden />
               </button>
             ) : (
-              <Filter className="size-5 text-primary" aria-hidden />
+              <IgSliders className="size-5 text-foreground" strokeWidth={1.75} aria-hidden />
             )}
             <span>{headerTitle}</span>
             {step === 'main' && activeCount > 0 ? (
-              <span className="ms-1 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+              <span className="ms-1 grid h-5 min-w-5 place-items-center rounded-full bg-ig-link px-1.5 text-[11px] font-bold text-ig-link-foreground">
                 {formatPersianNumber(activeCount)}
               </span>
             ) : null}
@@ -176,7 +177,7 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
             aria-label="بستن"
             className="grid size-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <X className="size-5" aria-hidden />
+            <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
           </button>
         </DrawerHeader>
 
@@ -255,7 +256,7 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
               <Button variant="outline" size="lg" fullWidth onClick={handleClear}>
                 پاک کردن همه
               </Button>
-              <Button variant="brand" size="lg" fullWidth onClick={handleApply}>
+              <Button className="btn-ig-link" size="lg" fullWidth onClick={handleApply}>
                 اعمال فیلتر
               </Button>
             </div>
@@ -298,7 +299,7 @@ function MainStep({
         {/* Location picker row */}
         <PickerRow
           label="موقعیت"
-          icon={<MapPin className="size-4 text-primary" aria-hidden />}
+          icon={<MapPin className="size-4 text-ig-link" aria-hidden />}
           value={
             local.cityName
               ? `${local.provinceName ? `${local.provinceName} — ` : ''}${local.cityName}`
@@ -455,7 +456,7 @@ function CategoryPicker({
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="جستجوی دسته‌بندی…"
-          leadingIcon={<Search className="size-4" aria-hidden />}
+          leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
           aria-label="جستجوی دسته‌بندی"
         />
         <button
@@ -464,12 +465,12 @@ function CategoryPicker({
           className={cn(
             'mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors tap-none',
             !currentId
-              ? 'bg-primary text-primary-foreground'
+              ? 'bg-ig-link text-ig-link-foreground'
               : 'border border-input text-muted-foreground hover:bg-muted',
           )}
         >
           همه دسته‌ها
-          {!currentId ? <Check className="size-3.5" aria-hidden /> : null}
+          {!currentId ? <IgCheck className="size-3.5" strokeWidth={1.75} aria-hidden /> : null}
         </button>
       </div>
 
@@ -512,7 +513,12 @@ function CategoryPicker({
                   onClick={() => setPath((p) => p.slice(0, -1))}
                   className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-start text-xs text-muted-foreground transition-colors hover:bg-muted tap-none"
                 >
-                  <ChevronLeft className="size-4 rtl:scale-x-[-1]" aria-hidden />
+                  <IgChevron
+                    direction="left"
+                    className="size-4 rtl:scale-x-[-1]"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                   بازگشت
                 </button>
               </li>
@@ -527,7 +533,7 @@ function CategoryPicker({
                 >
                   <span>همه «{parent.name}»</span>
                   {currentId === parent.id ? (
-                    <Check className="size-4 text-primary" aria-hidden />
+                    <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
                   ) : null}
                 </button>
               </li>
@@ -550,10 +556,15 @@ function CategoryPicker({
                       {hasChildren ? (
                         <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                           {formatPersianNumber(child.children!.length)} زیرشاخه
-                          <ChevronLeft className="size-3.5 rtl:scale-x-[-1]" aria-hidden />
+                          <IgChevron
+                            direction="left"
+                            className="size-3.5 rtl:scale-x-[-1]"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
                         </span>
                       ) : currentId === child.id ? (
-                        <Check className="size-4 text-primary" aria-hidden />
+                        <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
                       ) : null}
                     </button>
                   </li>
@@ -581,7 +592,12 @@ function CategoryPicker({
                     {root.children && root.children.length > 0 ? (
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         {formatPersianNumber(root.children.length)} زیرشاخه
-                        <ChevronLeft className="size-3.5 rtl:scale-x-[-1]" aria-hidden />
+                        <IgChevron
+                          direction="left"
+                          className="size-3.5 rtl:scale-x-[-1]"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
                       </span>
                     ) : null}
                   </button>
@@ -668,7 +684,7 @@ export function CityLocationPicker({
           placeholder={
             provincePicked ? `جستجوی شهر در ${provincePicked.name}…` : 'جستجوی استان یا شهر…'
           }
-          leadingIcon={<Search className="size-4" aria-hidden />}
+          leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
           aria-label="جستجوی موقعیت"
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -678,13 +694,13 @@ export function CityLocationPicker({
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors tap-none',
               !currentCityId && !currentProvinceId
-                ? 'bg-primary text-primary-foreground'
+                ? 'bg-ig-link text-ig-link-foreground'
                 : 'border border-input text-muted-foreground hover:bg-muted',
             )}
           >
             سراسر کشور
             {!currentCityId && !currentProvinceId ? (
-              <Check className="size-3.5" aria-hidden />
+              <IgCheck className="size-3.5" strokeWidth={1.75} aria-hidden />
             ) : null}
           </button>
           {provincePicked ? (
@@ -696,7 +712,12 @@ export function CityLocationPicker({
               }}
               className="inline-flex items-center gap-1.5 rounded-full border border-input bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted tap-none"
             >
-              <ChevronLeft className="size-3.5 rtl:scale-x-[-1]" aria-hidden />
+              <IgChevron
+                direction="left"
+                className="size-3.5 rtl:scale-x-[-1]"
+                strokeWidth={1.75}
+                aria-hidden
+              />
               بازگشت به استان‌ها
             </button>
           ) : null}
@@ -769,7 +790,7 @@ export function CityLocationPicker({
                 >
                   <span>کل استان {provincePicked.name}</span>
                   {currentProvinceId === provincePicked.id && !currentCityId ? (
-                    <Check className="size-4 text-primary" aria-hidden />
+                    <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
                   ) : null}
                 </button>
               </li>
@@ -790,7 +811,7 @@ export function CityLocationPicker({
                     >
                       <span>{c.name}</span>
                       {currentCityId === c.id ? (
-                        <Check className="size-4 text-primary" aria-hidden />
+                        <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
                       ) : null}
                     </button>
                   </li>
@@ -842,8 +863,10 @@ function PickerRow({
               {value}
             </span>
           </span>
-          <ChevronLeft
+          <IgChevron
+            direction="left"
             className="size-4 shrink-0 text-muted-foreground rtl:scale-x-[-1]"
+            strokeWidth={1.75}
             aria-hidden
           />
         </button>
@@ -854,7 +877,7 @@ function PickerRow({
             aria-label={`حذف ${label}`}
             className="grid w-11 place-items-center rounded-xl border border-input text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            <X className="size-4" aria-hidden />
+            <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
           </button>
         ) : null}
       </div>
@@ -934,7 +957,9 @@ function ProvinceRow({
         )}
       >
         <span className="inline-flex items-center gap-2">
-          {isCurrent ? <Check className="size-4 text-primary" aria-hidden /> : null}
+          {isCurrent ? (
+            <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
+          ) : null}
           {province.name}
         </span>
       </button>
@@ -944,7 +969,12 @@ function ProvinceRow({
         aria-label={`مشاهده شهرهای ${province.name}`}
         className="grid w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <ChevronLeft className="size-4 rtl:scale-x-[-1]" aria-hidden />
+        <IgChevron
+          direction="left"
+          className="size-4 rtl:scale-x-[-1]"
+          strokeWidth={1.75}
+          aria-hidden
+        />
       </button>
     </div>
   );

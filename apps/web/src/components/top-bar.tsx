@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Bell, Moon, Sun, X } from 'lucide-react';
 import type { SearchSuggestionItem } from '@agahiram/shared';
 import { formatPersianNumber, normalizePersianText } from '@agahiram/shared';
-import { IgDirect, IgSearch, Input, useTheme } from '@agahiram/ui';
+import { IgActivity, IgClose, IgDirect, IgSearch, Input } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useUnreadMessages, useUnreadNotifications } from '@/hooks/useUnreadCounts';
 
@@ -81,43 +80,52 @@ export function TopBar() {
   };
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-surface pt-safe">
-      <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center justify-between gap-2 px-3 sm:px-4">
-        <Link
-          href="/feed"
-          aria-label="آگهی‌گرام — صفحه اصلی"
-          className="min-w-0 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-        >
-          <span className="truncate text-xl font-semibold leading-none tracking-tight text-foreground">
-            آگهی‌گرام
-          </span>
-        </Link>
+    <>
+      <header className="glass sticky top-0 z-30 border-b border-border-subtle pt-safe">
+        <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center justify-between gap-2 px-3 sm:px-4">
+          <Link
+            href="/feed"
+            aria-label="آگهی‌گرام — صفحه اصلی"
+            className="min-w-0 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
+            <span className="truncate text-lg font-semibold leading-none tracking-tight text-foreground">
+              آگهی‌گرام
+            </span>
+          </Link>
 
-        <div className="flex shrink-0 items-center">
-          <HeaderIconButton
-            label="جستجو"
-            onClick={() => setSearchOpen(true)}
-            icon={<IgSearch className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
-          />
-          <ThemeButton />
-          <HeaderIconLink
-            href="/notifications"
-            label="اعلان‌ها"
-            badge={notifUnread}
-            icon={<Bell className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
-          />
-          <HeaderIconLink
-            href="/messages"
-            label="پیام‌ها"
-            badge={msgUnread}
-            icon={<IgDirect className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
-          />
+          <div className="flex shrink-0 items-center">
+            <HeaderIconButton
+              label="جستجو"
+              onClick={() => setSearchOpen(true)}
+              icon={<IgSearch className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
+            />
+            <HeaderIconLink
+              href="/notifications"
+              label="فعالیت"
+              badge={notifUnread}
+              icon={
+                <IgActivity
+                  className="size-[var(--ig-icon)]"
+                  filled={notifUnread > 0}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+              }
+            />
+            <HeaderIconLink
+              href="/messages"
+              label="پیام‌ها"
+              badge={msgUnread}
+              icon={<IgDirect className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
+            />
+          </div>
         </div>
-      </div>
+      </header>
+
       {searchOpen ? (
-        <div className="absolute inset-x-0 top-full border-b border-border bg-surface shadow-sm">
-          <div className="mx-auto max-w-2xl px-3 py-2.5 sm:px-4">
-            <div className="flex items-center gap-2">
+        <div className="fixed inset-0 z-50 bg-surface">
+          <div className="glass border-b border-border-subtle pt-safe">
+            <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center gap-2 px-3 sm:px-4">
               <div className="flex-1">
                 <Input
                   autoFocus
@@ -130,7 +138,8 @@ export function TopBar() {
                       submitSearch(searchText);
                     }
                   }}
-                  placeholder="جستجو در آگهی‌ها…"
+                  placeholder="جستجو"
+                  className="h-9 rounded-full border-0 bg-muted text-sm"
                   leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
                   aria-label="جستجو"
                 />
@@ -141,96 +150,71 @@ export function TopBar() {
                   setSearchOpen(false);
                   setSearchText('');
                 }}
-                icon={<X className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
+                icon={<IgClose className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
               />
             </div>
+          </div>
 
-            <div className="mt-2 max-h-72 overflow-y-auto">
-              {debounced.length >= 2 ? (
-                suggestions.length === 0 ? (
-                  <p className="px-2 py-3 text-sm text-muted-foreground">پیشنهادی پیدا نشد.</p>
-                ) : (
-                  <ul className="space-y-0.5">
-                    {suggestions.map((s, i) => (
-                      <li key={`${s.text}-${i}`}>
-                        <button
-                          type="button"
-                          onClick={() => submitSearch(s.text)}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm transition hover:bg-muted"
-                        >
-                          <span className="truncate">{s.text}</span>
-                          <IgSearch
-                            className="size-3.5 text-muted-foreground"
-                            strokeWidth={1.75}
-                            aria-hidden
-                          />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              ) : shownRecents.length > 0 ? (
-                <>
-                  <p className="px-2 py-1 text-xs font-semibold text-muted-foreground">
-                    جستجوهای اخیر
-                  </p>
-                  <ul className="space-y-0.5">
-                    {shownRecents.map((item) => (
-                      <li key={item}>
-                        <button
-                          type="button"
-                          onClick={() => submitSearch(item)}
-                          className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm transition hover:bg-muted"
-                        >
-                          <span className="truncate">{item}</span>
-                          <IgSearch
-                            className="size-3.5 text-muted-foreground"
-                            strokeWidth={1.75}
-                            aria-hidden
-                          />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </>
+          <div className="mx-auto max-w-2xl overflow-y-auto px-3 py-2 sm:px-4">
+            {debounced.length >= 2 ? (
+              suggestions.length === 0 ? (
+                <p className="px-2 py-3 text-sm text-muted-foreground">پیشنهادی پیدا نشد.</p>
               ) : (
-                <p className="px-2 py-3 text-sm text-muted-foreground">
-                  عبارت مورد نظر را تایپ کنید (حداقل ۲ کاراکتر).
-                </p>
-              )}
-            </div>
+                <ul className="divide-y divide-border-subtle">
+                  {suggestions.map((s, i) => (
+                    <li key={`${s.text}-${i}`}>
+                      <button
+                        type="button"
+                        onClick={() => submitSearch(s.text)}
+                        className="flex w-full items-center justify-between py-3 text-start text-sm transition hover:bg-muted/50"
+                      >
+                        <span className="truncate">{s.text}</span>
+                        <IgSearch
+                          className="size-3.5 text-muted-foreground"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : shownRecents.length > 0 ? (
+              <>
+                <p className="px-2 py-2 text-xs font-semibold text-muted-foreground">اخیر</p>
+                <ul className="divide-y divide-border-subtle">
+                  {shownRecents.map((item) => (
+                    <li key={item}>
+                      <button
+                        type="button"
+                        onClick={() => submitSearch(item)}
+                        className="flex w-full items-center justify-between py-3 text-start text-sm transition hover:bg-muted/50"
+                      >
+                        <span className="truncate">{item}</span>
+                        <IgSearch
+                          className="size-3.5 text-muted-foreground"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p className="px-2 py-3 text-sm text-muted-foreground">
+                عبارت مورد نظر را تایپ کنید (حداقل ۲ کاراکتر).
+              </p>
+            )}
           </div>
         </div>
       ) : null}
-    </header>
+    </>
   );
 }
 
 const headerIconClass =
-  'grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
-
-function ThemeButton() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-
-  const isDark = mounted ? resolvedTheme === 'dark' : false;
-  return (
-    <button
-      type="button"
-      aria-label={isDark ? 'تغییر به حالت روشن' : 'تغییر به حالت تیره'}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className={headerIconClass}
-    >
-      {isDark ? (
-        <Sun className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
-      ) : (
-        <Moon className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
-      )}
-    </button>
-  );
-}
+  'grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-muted/60 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
 
 function HeaderIconButton({
   label,
@@ -269,10 +253,8 @@ function HeaderIconLink({
       {badge > 0 ? (
         <span
           aria-hidden
-          className="absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-bold leading-none text-destructive-foreground ring-2 ring-surface"
-        >
-          {badge > 9 ? '۹+' : formatPersianNumber(badge)}
-        </span>
+          className="absolute end-1.5 top-1.5 size-2 rounded-full bg-ig-badge ring-2 ring-surface"
+        />
       ) : null}
     </Link>
   );

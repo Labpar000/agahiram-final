@@ -7,6 +7,16 @@ import { toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { connectSocket, SOCKET_EVENTS } from '@/lib/socket';
 
+export interface StoryPreviewInMessage {
+  id: string;
+  mediaUrl: string;
+  type: 'image' | 'video';
+  overlayJson?: unknown;
+  ownerUserId?: string;
+  ownerUsername?: string | null;
+  ownerAvatar?: string | null;
+}
+
 export interface ChatMessageRow {
   id: string;
   content: string;
@@ -14,6 +24,7 @@ export interface ChatMessageRow {
   senderId: string;
   createdAt: string;
   sender: { id: string; username: string | null; avatar: string | null };
+  storyPreview?: StoryPreviewInMessage;
 }
 
 export function useConversation(conversationId: string) {

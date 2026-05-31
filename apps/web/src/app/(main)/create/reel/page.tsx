@@ -3,9 +3,17 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { ArrowLeft, ImagePlus } from 'lucide-react';
 import { ALLOWED_VIDEO_TYPES, MAX_VIDEO_UPLOAD_BYTES } from '@agahiram/shared';
-import { Button, IconButton, Input, Label, Spinner, toast } from '@agahiram/ui';
+import {
+  Button,
+  IconButton,
+  IgArrowBack,
+  IgGallery,
+  Input,
+  Label,
+  Spinner,
+  toast,
+} from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
 
@@ -100,86 +108,88 @@ export default function CreateReelPage() {
   });
 
   return (
-    <div className="bg-background p-4 pb-12">
-      <div className="mb-4 flex items-center gap-2">
+    <div className="bg-background pb-12">
+      <div className="glass sticky top-[var(--header-height)] z-20 mb-4 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <IconButton
           aria-label="بازگشت"
-          icon={<ArrowLeft className="size-5 rtl:rotate-180" aria-hidden />}
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
           onClick={() => router.back()}
         />
-        <h1 className="text-lg font-bold">ایجاد ریل</h1>
+        <h1 className="text-sm font-semibold">ایجاد ریل</h1>
       </div>
-      {!preview ? (
-        <label className="grid aspect-[9/16] max-w-xs cursor-pointer place-items-center rounded-2xl border border-dashed border-border bg-muted">
-          <input
-            type="file"
-            accept="video/mp4"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onPick(f);
-            }}
-          />
-          {uploading ? (
-            <Spinner />
-          ) : (
-            <span className="flex flex-col items-center gap-2 text-muted-foreground">
-              <ImagePlus className="size-10" aria-hidden />
-              <span className="text-sm">انتخاب ویدیو از گالری</span>
-            </span>
-          )}
-        </label>
-      ) : (
-        <div className="space-y-4">
-          <video
-            ref={videoRef}
-            src={preview}
-            className="aspect-[9/16] max-h-[50vh] w-full rounded-2xl bg-black object-cover"
-            muted
-            playsInline
-            onLoadedMetadata={() => {
-              if (videoRef.current) videoRef.current.currentTime = coverTime;
-            }}
-          />
-          <div className="space-y-2">
-            <Label>کاور (فریم)</Label>
+      <div className="p-4">
+        {!preview ? (
+          <label className="grid aspect-[9/16] max-w-xs cursor-pointer place-items-center rounded-2xl border border-dashed border-border bg-muted">
             <input
-              type="range"
-              min={0}
-              max={duration}
-              step={0.1}
-              value={coverTime}
+              type="file"
+              accept="video/mp4"
+              className="hidden"
               onChange={(e) => {
-                const t = Number(e.target.value);
-                setCoverTime(t);
-                if (videoRef.current) videoRef.current.currentTime = t;
+                const f = e.target.files?.[0];
+                if (f) void onPick(f);
               }}
-              className="w-full"
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="reel-title" required>
-              عنوان
-            </Label>
-            <Input
-              id="reel-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              minLength={3}
+            {uploading ? (
+              <Spinner />
+            ) : (
+              <span className="flex flex-col items-center gap-2 text-muted-foreground">
+                <IgGallery className="size-10" strokeWidth={1.5} aria-hidden />
+                <span className="text-sm">انتخاب ویدیو از گالری</span>
+              </span>
+            )}
+          </label>
+        ) : (
+          <div className="space-y-4">
+            <video
+              ref={videoRef}
+              src={preview}
+              className="aspect-[9/16] max-h-[50vh] w-full rounded-2xl bg-black object-cover"
+              muted
+              playsInline
+              onLoadedMetadata={() => {
+                if (videoRef.current) videoRef.current.currentTime = coverTime;
+              }}
             />
+            <div className="space-y-2">
+              <Label>کاور (فریم)</Label>
+              <input
+                type="range"
+                min={0}
+                max={duration}
+                step={0.1}
+                value={coverTime}
+                onChange={(e) => {
+                  const t = Number(e.target.value);
+                  setCoverTime(t);
+                  if (videoRef.current) videoRef.current.currentTime = t;
+                }}
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="reel-title" required>
+                عنوان
+              </Label>
+              <Input
+                id="reel-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                minLength={3}
+              />
+            </div>
+            <Button
+              variant="brand"
+              fullWidth
+              disabled={!mediaKey}
+              isLoading={publish.isPending}
+              onClick={() => publish.mutate()}
+            >
+              انتشار ریل
+            </Button>
           </div>
-          <Button
-            variant="brand"
-            fullWidth
-            disabled={!mediaKey}
-            isLoading={publish.isPending}
-            onClick={() => publish.mutate()}
-          >
-            انتشار ریل
-          </Button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

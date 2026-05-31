@@ -114,14 +114,14 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api web admin w
 
 ## عیب‌یابی
 
-| علامت                                 | علت                           | راه‌حل                                                 |
-| ------------------------------------- | ----------------------------- | ------------------------------------------------------ |
-| `manifest unknown` / timeout روی pull | سرور به GHCR دسترسی ندارد     | workflow از `DEPLOY_MODE=transfer` استفاده می‌کند      |
-| `reused 0` در pnpm داخل build VPS     | مدل قدیمی build روی سرور      | از CI deploy استفاده کنید، نه build روی VPS            |
-| `Broken pipe` در Actions              | SSH طولانی                    | با pull mode برطرف شده؛ `ServerAliveInterval` فعال است |
-| `Unexpected EOF` در tar               | tarball ناقص / deploy هم‌زمان | upload اتمیک `.tmp` + `flock` lock                     |
-| `pull access denied`                  | GHCR private                  | `setup-ghcr-server.sh` یا public package               |
-| deploy گیر کرده                       | build قدیمی روی سرور          | `pkill -f 'docker compose.*build'` سپس redeploy        |
+| علامت                                 | علت                           | راه‌حل                                                                              |
+| ------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------- |
+| `manifest unknown` / timeout روی pull | DNS یا image ساخته نشده       | DNS `87.107.110.109`؛ `GHCR_PULL_TOKEN`؛ fallback به `latest` در `remote-deploy.sh` |
+| `reused 0` در pnpm داخل build VPS     | مدل قدیمی build روی سرور      | از CI deploy استفاده کنید، نه build روی VPS                                         |
+| `Broken pipe` در Actions              | SSH طولانی                    | با pull mode برطرف شده؛ `ServerAliveInterval` فعال است                              |
+| `Unexpected EOF` در tar               | tarball ناقص / deploy هم‌زمان | upload اتمیک `.tmp` + `flock` lock                                                  |
+| `pull access denied`                  | GHCR private                  | `setup-ghcr-server.sh` یا public package                                            |
+| deploy گیر کرده                       | build قدیمی روی سرور          | `pkill -f 'docker compose.*build'` سپس redeploy                                     |
 
 لاگ deploy روی سرور: `/tmp/agahiram-deploy.log` — وضعیت: `/tmp/agahiram-deploy.status`
 

@@ -7,17 +7,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import {
-  ArrowRight,
-  Copy,
-  MessageSquare,
-  MoreHorizontal,
-  Phone,
-  Play,
-  Search,
-  Volume2,
-  VolumeX,
-} from 'lucide-react';
 import type { ReelItem } from '@agahiram/shared';
 import { cn, formatPersianNumber, formatPersianPrice, formatPhoneFa } from '@agahiram/shared';
 import {
@@ -26,10 +15,16 @@ import {
   AvatarImage,
   Button,
   HeartBurst,
-  IgBookmark,
+  IgArrowBack,
   IgComment,
+  IgCopy,
   IgHeart,
+  IgMore,
+  IgPhone,
+  IgPlay,
+  IgSearch,
   IgShare,
+  IgVolume,
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -293,7 +288,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
       {!playing && !videoError ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <span className="grid size-20 place-items-center rounded-full bg-black/40 backdrop-blur-sm">
-            <Play className="size-10 text-white" fill="white" aria-hidden />
+            <IgPlay className="size-10 text-white" filled aria-hidden />
           </span>
         </div>
       ) : null}
@@ -307,7 +302,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           onClick={() => router.back()}
           className="grid size-10 place-items-center rounded-full bg-black/40"
         >
-          <ArrowRight className="size-5 rtl:rotate-180" aria-hidden />
+          <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
         </button>
         <span className="text-sm font-semibold">ریلز</span>
         <Link
@@ -315,7 +310,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           aria-label="جستجو"
           className="grid size-10 place-items-center rounded-full bg-black/40"
         >
-          <Search className="size-5" aria-hidden />
+          <IgSearch className="size-5" strokeWidth={1.75} aria-hidden />
         </Link>
       </div>
 
@@ -330,16 +325,12 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             return next;
           });
         }}
-        className="absolute end-4 top-14 z-10 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none"
+        className="absolute start-4 top-14 z-10 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none"
       >
-        {muted ? (
-          <VolumeX className="size-5" aria-hidden />
-        ) : (
-          <Volume2 className="size-5" aria-hidden />
-        )}
+        <IgVolume muted={muted} className="size-5" strokeWidth={1.75} aria-hidden />
       </button>
 
-      <div className="absolute end-3 bottom-24 z-10 flex flex-col items-center gap-4 text-white">
+      <div className="absolute start-3 bottom-24 z-10 flex flex-col items-center gap-4 text-white">
         <Link href={`/profile/${reel.user.username}`} className="relative">
           <Avatar size="md" className="ring-2 ring-white">
             {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
@@ -349,7 +340,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             <button
               type="button"
               aria-label={following ? 'لغو دنبال‌کردن' : 'دنبال‌کردن'}
-              className="absolute -bottom-1 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+              className="absolute -bottom-1 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-white text-[10px] font-bold text-black"
               onClick={async (e) => {
                 e.preventDefault();
                 const r = following
@@ -391,8 +382,18 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         <RailButton ariaLabel="اشتراک‌گذاری" onClick={() => void onShare()}>
           <IgShare className="size-8 drop-shadow-md" strokeWidth={2} />
         </RailButton>
+        <Link
+          href={`/create/story?repostPost=${reel.id}`}
+          className="flex flex-col items-center gap-1 text-white tap-none"
+          aria-label="افزودن به استوری"
+        >
+          <span className="text-2xl drop-shadow-md" aria-hidden>
+            ⊕
+          </span>
+          <span className="text-[10px] font-semibold drop-shadow-md">استوری</span>
+        </Link>
         <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
-          <MoreHorizontal className="size-8 drop-shadow-md" strokeWidth={2} />
+          <IgMore className="size-8 drop-shadow-md" strokeWidth={2} />
         </RailButton>
       </div>
 
@@ -458,7 +459,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
               className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
               onClick={() => void onShare()}
             >
-              <Copy className="size-4" aria-hidden /> کپی لینک
+              <IgCopy className="size-4" strokeWidth={1.75} aria-hidden /> کپی لینک
             </button>
           </div>
         </div>
@@ -501,12 +502,12 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             <p className="text-xs text-white/80 drop-shadow-md">📍 {reel.city.name}</p>
           ) : null}
           <p className="text-sm font-extrabold drop-shadow-md">{formatPersianPrice(reel.price)}</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="inline-flex flex-wrap gap-1 rounded-full bg-black/45 p-1 backdrop-blur-sm">
             <Button
-              variant={contactRevealed ? 'outline' : 'brand'}
+              variant={contactRevealed ? 'outline' : 'secondary'}
               size="sm"
-              leftIcon={<Phone className="size-4" />}
-              className="w-fit shadow-md"
+              leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
+              className="h-7 rounded-full border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
               onClick={() => void onContact()}
               aria-live="polite"
             >
@@ -515,19 +516,19 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                   {formatPhoneFa(contactPhone ?? '')}
                 </span>
               ) : (
-                'تماس با فروشنده'
+                'تماس'
               )}
             </Button>
             <Button
               variant="secondary"
               size="sm"
-              leftIcon={<MessageSquare className="size-4" />}
-              className="w-fit shadow-md"
+              leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
+              className="h-7 rounded-full border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
               onClick={() => void onSendMessage()}
               isLoading={messaging}
               aria-label="ارسال پیام به فروشنده"
             >
-              ارسال پیام
+              پیام
             </Button>
           </div>
         </div>

@@ -4,16 +4,47 @@ import { use, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ExternalLink, Eye, MoreHorizontal, Send, X } from 'lucide-react';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Drawer,
+  DrawerContent,
+  IgClose,
+  IgComment,
+  IgExternalLink,
+  IgEye,
+  IgSend,
+  IgTrash,
+  Spinner,
+} from '@agahiram/ui';
+import {
+  StoryInteractiveStickersView,
+  type ApiStorySticker,
+} from '@/features/stories/stickers/story-interactive-stickers-view';
+import { StoryStickerResultsPanel } from '@/features/stories/stickers/story-sticker-results';
+import { StoryCommentsSheet } from '@/features/stories/story-comments-sheet';
+import {
+  StoryInsightsPanel,
+  type StoryInsightsData,
+} from '@/features/stories/story-insights-panel';
+import { StoryViewerOptions } from '@/features/stories/story-viewer-options';
+import { ShareStoryDmDialog } from '@/features/stories/share-story-dm-dialog';
+import { StoryMentionsDialog } from '@/features/stories/story-mentions-dialog';
+import { StoryMusicBadge } from '@/features/stories/story-music-badge';
+import { connectStorySocket, SOCKET_EVENTS } from '@/lib/story-socket';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn, formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
-import { Avatar, AvatarFallback, AvatarImage, Drawer, DrawerContent, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { StoryVideo } from '@/components/story-video';
-import { StoryOverlayView, parseStoryOverlay } from '@/components/story-overlay-view';
+import {
+  StoryOverlayView,
+  getStoryFilterCss,
+  parseStoryOverlay,
+} from '@/components/story-overlay-view';
 import { useAuthStore } from '@/lib/auth-store';
-import { ReportDialog } from '@/components/report-dialog';
+import { downloadBlob } from '@/features/stories/story-media-utils';
 import { Input, toast } from '@agahiram/ui';
 
 interface StoryGroup {
@@ -22,12 +53,17 @@ interface StoryGroup {
   stories: Array<{
     id: string;
     mediaUrl: string;
+    hlsUrl?: string | null;
     type: 'image' | 'video';
     linkedPostId: string | null;
     viewerCount?: number;
+    commentCount?: number;
     createdAt?: string;
     durationMs?: number;
     overlayJson?: unknown;
+    stickers?: ApiStorySticker[];
+    music?: { trackId: string; startMs?: number; displayMode?: string } | null;
+    allowReplies?: string;
   }>;
   isMe?: boolean;
 }
@@ -55,12 +91,16 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
   const [index, setIndex] = useState(0);
   const [insightsOpen, setInsightsOpen] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [reportOpen, setReportOpen] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [mentionsOpen, setMentionsOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [floatingEmoji, setFloatingEmoji] = useState<string | null>(null);
+  const [liveViewCount, setLiveViewCount] = useState<number | null>(null);
   const me = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
 
-  const { data: groups, isLoading } = useQuery({
+  const { data: groups, isLoading: feedLoading } = useQuery({
     queryKey: ['stories', 'feed'],
     queryFn: async () => {
       const r = await apiClient.get<StoryGroup[]>('/stories/feed');
@@ -68,10 +108,24 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
     },
   });
 
-  const group = (groups ?? []).find((g) => g.userId === userId);
+  const feedGroup = (groups ?? []).find((g) => g.userId === userId);
+
+  const { data: directGroup, isLoading: directLoading } = useQuery({
+    queryKey: ['stories', 'user', userId],
+    queryFn: async () => {
+      const r = await apiClient.get<StoryGroup | null>(`/stories/users/${userId}`);
+      return r.data ?? null;
+    },
+    enabled: !feedLoading && !feedGroup,
+  });
+
+  const group = feedGroup ?? directGroup ?? undefined;
+  const isLoading = feedLoading || (!feedGroup && directLoading);
   const stories = group?.stories ?? [];
   const current = stories[index];
   const isOwner = !!me && me.id === userId;
+  const overlay = parseStoryOverlay(current?.overlayJson);
+  const mediaFilterCss = getStoryFilterCss(overlay);
 
   const viewersQuery = useQuery({
     queryKey: ['story-viewers', current?.id],
@@ -82,13 +136,61 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
     enabled: isOwner && insightsOpen && !!current,
   });
 
+  const storyInsightsQuery = useQuery({
+    queryKey: ['story-insights', current?.id],
+    queryFn: async () => {
+      const r = await apiClient.get<StoryInsightsData>(`/stories/${current!.id}/insights`);
+      return r.data;
+    },
+    enabled: isOwner && insightsOpen && !!current,
+  });
+
+  const stickerResultsQuery = useQuery({
+    queryKey: ['story-sticker-results', current?.id],
+    queryFn: async () => {
+      const r = await apiClient.get<
+        Array<{
+          id: string;
+          type: string;
+          payload: Record<string, unknown>;
+          summary?: {
+            options?: string[];
+            counts?: number[];
+            percents?: number[];
+            total?: number;
+            average?: number;
+            emoji?: string;
+            answers?: string[];
+          };
+          responses?: Array<{
+            userId: string;
+            user: { id: string; username: string | null; avatar: string | null };
+            value: { text?: string; voteIndex?: number; sliderValue?: number };
+          }>;
+        }>
+      >(`/stories/${current!.id}/stickers/results`);
+      return r.data ?? [];
+    },
+    enabled: isOwner && !!current,
+  });
+
   const segmentMs = current?.durationMs ?? STORY_IMAGE_MS;
+
+  const trackNav = useCallback(
+    (type: 'FORWARD' | 'BACK' | 'EXIT' | 'NEXT_ACCOUNT') => {
+      if (!current) return;
+      void apiClient.post(`/stories/${current.id}/navigation`, { type });
+    },
+    [current?.id],
+  );
 
   const goNextSegment = useCallback(() => {
     if (index < stories.length - 1) {
+      trackNav('FORWARD');
       setIndex((i) => i + 1);
       return;
     }
+    trackNav('NEXT_ACCOUNT');
     const groupIdx = (groups ?? []).findIndex((g) => g.userId === userId);
     const nextGroup = groupIdx >= 0 ? groups?.[groupIdx + 1] : undefined;
     if (nextGroup?.userId) {
@@ -96,10 +198,11 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
       return;
     }
     router.back();
-  }, [index, stories.length, groups, userId, router]);
+  }, [index, stories.length, groups, userId, router, trackNav]);
 
   const goPrevSegment = () => {
     if (index > 0) {
+      trackNav('BACK');
       setIndex((i) => i - 1);
       return;
     }
@@ -112,14 +215,37 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
 
   useEffect(() => {
     if (!stories.length) return;
-    if (searchParams.get('at') === 'last') {
+    const storyParam = searchParams.get('story');
+    if (storyParam) {
+      const idx = stories.findIndex((s) => s.id === storyParam);
+      setIndex(idx >= 0 ? idx : 0);
+    } else if (searchParams.get('at') === 'last') {
       setIndex(stories.length - 1);
       router.replace(`/stories/${userId}`);
     } else {
       setIndex(0);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when user group changes
-  }, [userId, stories.length]);
+  }, [userId, stories.length, searchParams]);
+
+  useEffect(() => {
+    setLiveViewCount(current?.viewerCount ?? null);
+  }, [current?.id, current?.viewerCount]);
+
+  useEffect(() => {
+    if (!isOwner || !me?.id) return;
+    const socket = connectStorySocket();
+    const onView = (payload: { storyId?: string }) => {
+      if (payload.storyId === current?.id) {
+        setLiveViewCount((c) => (c ?? current?.viewerCount ?? 0) + 1);
+        void queryClient.invalidateQueries({ queryKey: ['story-viewers', current.id] });
+      }
+    };
+    socket.on(SOCKET_EVENTS.STORY_VIEW, onView);
+    return () => {
+      socket.off(SOCKET_EVENTS.STORY_VIEW, onView);
+    };
+  }, [isOwner, me?.id, current?.id, current?.viewerCount, queryClient]);
 
   useEffect(() => {
     if (!current || paused) return;
@@ -179,7 +305,10 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
         if (e.clientY < 80) return;
         const startY = e.clientY;
         const onUp = (ev: PointerEvent) => {
-          if (ev.clientY - startY > 80) router.back();
+          if (ev.clientY - startY > 80) {
+            trackNav('EXIT');
+            router.back();
+          }
           window.removeEventListener('pointerup', onUp);
         };
         window.addEventListener('pointerup', onUp);
@@ -222,57 +351,153 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
               </span>
             ) : null}
           </Link>
-          {!isOwner ? (
-            <button
-              type="button"
-              aria-label="گزینه‌ها"
-              onClick={() => setReportOpen(true)}
-              className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
-            >
-              <MoreHorizontal className="size-5" aria-hidden />
-            </button>
-          ) : null}
+          <div className="flex gap-1">
+            {!isOwner && current ? (
+              <>
+                {current.allowReplies !== 'OFF' ? (
+                  <button
+                    type="button"
+                    aria-label="کامنت"
+                    onClick={() => setCommentsOpen(true)}
+                    className="relative grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                  >
+                    <IgComment className="size-5" strokeWidth={1.75} aria-hidden />
+                    {(current.commentCount ?? 0) > 0 ? (
+                      <span className="absolute -end-0.5 -top-0.5 min-w-[1.125rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                        {formatPersianNumber(Math.min(current.commentCount ?? 0, 99))}
+                      </span>
+                    ) : null}
+                  </button>
+                ) : null}
+                <StoryViewerOptions
+                  storyId={current.id}
+                  targetUserId={userId}
+                  username={group.user.username}
+                />
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  aria-label="کامنت‌ها"
+                  onClick={() => setCommentsOpen(true)}
+                  className="relative grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                >
+                  <IgComment className="size-5" strokeWidth={1.75} aria-hidden />
+                  {(current.commentCount ?? 0) > 0 ? (
+                    <span className="absolute -end-0.5 -top-0.5 min-w-[1.125rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                      {formatPersianNumber(Math.min(current.commentCount ?? 0, 99))}
+                    </span>
+                  ) : null}
+                </button>
+                <button
+                  type="button"
+                  aria-label="منشن"
+                  onClick={() => setMentionsOpen(true)}
+                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                >
+                  @
+                </button>
+                <button
+                  type="button"
+                  aria-label="اشتراک در پیام"
+                  onClick={() => setShareOpen(true)}
+                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                >
+                  <IgSend className="size-5" strokeWidth={1.75} aria-hidden />
+                </button>
+                <Link
+                  href="/stories/insights"
+                  aria-label="آمار استوری‌ها"
+                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                >
+                  <IgEye className="size-5" strokeWidth={1.75} aria-hidden />
+                </Link>
+                <button
+                  type="button"
+                  aria-label="حذف استوری"
+                  onClick={async () => {
+                    if (!current) return;
+                    const r = await apiClient.delete(`/stories/${current.id}`);
+                    if (r.success) {
+                      toast.success('حذف شد');
+                      router.back();
+                    }
+                  }}
+                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                >
+                  <IgTrash className="size-5" strokeWidth={1.75} aria-hidden />
+                </button>
+              </>
+            )}
+          </div>
           <button
             type="button"
             aria-label="بستن"
-            onClick={() => router.back()}
+            onClick={() => {
+              trackNav('EXIT');
+              router.back();
+            }}
             className="grid size-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <X className="size-5" aria-hidden />
+            <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
           </button>
         </div>
 
         {/* Media */}
         <div className="relative size-full">
-          {current.type === 'video' ? (
-            <StoryVideo
-              mediaUrl={current.mediaUrl}
-              autoPlay
-              muted
-              className="size-full object-contain"
+          <div className="relative size-full" style={{ filter: mediaFilterCss }}>
+            {current.type === 'video' ? (
+              <StoryVideo
+                mediaUrl={current.mediaUrl}
+                hlsUrl={current.hlsUrl}
+                autoPlay
+                muted
+                className="size-full object-contain"
+              />
+            ) : (
+              <Image
+                src={current.mediaUrl}
+                alt=""
+                fill
+                className="object-contain"
+                sizes="(max-width: 640px) 100vw, 420px"
+              />
+            )}
+            <StoryOverlayView
+              overlay={overlay}
+              className="absolute inset-0 size-full pointer-events-none"
             />
-          ) : (
-            <Image
-              src={current.mediaUrl}
-              alt=""
-              fill
-              className="object-contain"
-              sizes="(max-width: 640px) 100vw, 420px"
-            />
-          )}
-          <StoryOverlayView
-            overlay={parseStoryOverlay(current.overlayJson)}
-            className="absolute inset-0 size-full"
+          </div>
+          <StoryInteractiveStickersView
+            storyId={current.id}
+            stickers={current.stickers ?? []}
+            isOwner={isOwner}
+            storyOwnerId={userId}
+            ownerResults={isOwner ? stickerResultsQuery.data : undefined}
           />
+          {current.music?.trackId ? (
+            <StoryMusicBadge
+              trackId={current.music.trackId}
+              startMs={current.music.startMs}
+              displayMode={current.music.displayMode}
+              playing={!paused}
+            />
+          ) : null}
         </div>
 
         {/* Link to post */}
         {current.linkedPostId ? (
           <Link
             href={`/post/${current.linkedPostId}`}
+            onClick={() => {
+              void apiClient.post(`/stories/${current.id}/link-click`, {
+                url: `/post/${current.linkedPostId}`,
+              });
+            }}
             className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+1.5rem)] z-10 mx-auto inline-flex min-h-10 w-fit items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur-md tap-none transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <ExternalLink className="size-4" aria-hidden /> مشاهده آگهی
+            <IgExternalLink className="size-4" strokeWidth={1.75} aria-hidden /> مشاهده آگهی
           </Link>
         ) : null}
 
@@ -284,8 +509,8 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
             aria-label="بازدیدها"
             className="absolute end-3 bottom-[calc(var(--safe-bottom)+0.75rem)] z-10 inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white shadow-md backdrop-blur-md tap-none hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <Eye className="size-4" aria-hidden />
-            {formatPersianNumber(current.viewerCount ?? 0)} بازدید
+            <IgEye className="size-4" strokeWidth={1.75} aria-hidden />
+            {formatPersianNumber(liveViewCount ?? current.viewerCount ?? 0)} بازدید
           </button>
         ) : null}
 
@@ -303,7 +528,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
           ) : null}
         </AnimatePresence>
 
-        {!isOwner ? (
+        {!isOwner && current.allowReplies !== 'OFF' ? (
           <div className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.5rem)] z-10 space-y-2 px-3">
             <div className="flex justify-center gap-2">
               {REACTIONS.map((e) => (
@@ -335,7 +560,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                 aria-label="ارسال"
                 className="grid size-10 place-items-center rounded-full bg-white/20 text-white"
               >
-                <Send className="size-4 rtl:rotate-180" aria-hidden />
+                <IgSend className="size-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
               </button>
             </form>
           </div>
@@ -374,14 +599,25 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
         ) : null}
       </div>
 
-      {!isOwner && current ? (
-        <ReportDialog
-          open={reportOpen}
-          onOpenChange={setReportOpen}
-          targetType="story"
-          targetId={current.id}
-          title="گزارش استوری"
+      {current ? (
+        <StoryCommentsSheet
+          storyId={current.id}
+          storyOwnerId={userId}
+          open={commentsOpen}
+          onOpenChange={setCommentsOpen}
         />
+      ) : null}
+
+      {isOwner && current ? (
+        <StoryMentionsDialog
+          storyId={current.id}
+          open={mentionsOpen}
+          onOpenChange={setMentionsOpen}
+        />
+      ) : null}
+
+      {isOwner && current ? (
+        <ShareStoryDmDialog storyId={current.id} open={shareOpen} onOpenChange={setShareOpen} />
       ) : null}
 
       {isOwner ? (
@@ -389,6 +625,29 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
           <DrawerContent className="max-h-[80vh]">
             <div className="space-y-3 p-4">
               <h3 className="text-h3 font-bold tracking-tight">بازدیدکنندگان استوری</h3>
+              {current ? (
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-border py-2 text-sm font-medium"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(current.mediaUrl);
+                      const blob = await res.blob();
+                      const ext = current.type === 'video' ? 'mp4' : 'jpg';
+                      await downloadBlob(blob, `story-${current.id}.${ext}`);
+                      toast.success('دانلود شروع شد');
+                    } catch {
+                      toast.error('ذخیره در دستگاه ناموفق بود');
+                    }
+                  }}
+                >
+                  ذخیره در دستگاه
+                </button>
+              ) : null}
+              <StoryInsightsPanel
+                data={storyInsightsQuery.data}
+                isLoading={storyInsightsQuery.isLoading}
+              />
               <p className="text-sm text-muted-foreground">
                 {viewersQuery.isLoading
                   ? 'در حال بارگذاری…'
@@ -403,6 +662,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                   ))}
                 </div>
               ) : null}
+              <StoryStickerResultsPanel results={stickerResultsQuery.data ?? []} />
               <ul className="divide-y divide-border">
                 {(viewersQuery.data?.viewers ?? []).map((v) => (
                   <li key={v.id} className="flex items-center gap-3 py-2">
