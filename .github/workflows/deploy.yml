@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: scope
     if: needs.scope.outputs.need_build == 'true'
-    timeout-minutes: 20
+    timeout-minutes: 12
     strategy:
       fail-fast: false
       matrix:
@@ -111,7 +111,6 @@ jobs:
           context: .
           file: docker/Dockerfile.api
           push: true
-          load: true
           tags: |
             ${{ env.IMAGE_REGISTRY }}/api:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/api:latest
@@ -125,7 +124,6 @@ jobs:
           context: .
           file: docker/Dockerfile.worker
           push: true
-          load: true
           tags: |
             ${{ env.IMAGE_REGISTRY }}/worker:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/worker:latest
@@ -139,7 +137,6 @@ jobs:
           context: .
           file: docker/Dockerfile.web
           push: true
-          load: true
           tags: |
             ${{ env.IMAGE_REGISTRY }}/web:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/web:latest
@@ -159,7 +156,6 @@ jobs:
           context: .
           file: docker/Dockerfile.admin
           push: true
-          load: true
           tags: |
             ${{ env.IMAGE_REGISTRY }}/admin:${{ env.IMAGE_TAG }}
             ${{ env.IMAGE_REGISTRY }}/admin:latest
@@ -170,22 +166,6 @@ jobs:
             NEXT_PUBLIC_WS_URL=/
             NEXT_PUBLIC_APP_URL=/
 
-      - name: Export image tarball
-        run: |
-          ref="${{ env.IMAGE_REGISTRY }}/${{ matrix.service }}:${{ env.IMAGE_TAG }}"
-          out="/tmp/${{ matrix.service }}.tar.gz"
-          docker save "$ref" | gzip -1 > "$out"
-          bytes="$(wc -c < "$out" | tr -d ' ')"
-          echo "Exported $ref -> $out ($bytes bytes)"
-          test "$bytes" -gt 5000000
-
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: image-${{ matrix.service }}
-          path: /tmp/${{ matrix.service }}.tar.gz
-          retention-days: 1
-
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
@@ -194,7 +174,7 @@ jobs:
       always() &&
       needs.scope.outputs.need_deploy == 'true' &&
       (needs.scope.outputs.need_build != 'true' || needs.build.result == 'success')
-    timeout-minutes: 45
+    timeout-minutes: 12
     environment:
       name: production
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
@@ -217,25 +197,17 @@ jobs:
           printf '%s\n' "${{ secrets.SSH_KEY }}" > ~/.ssh/agahiram_deploy_key
           chmod 600 ~/.ssh/agahiram_deploy_key
 
-      - name: Download image artifacts
-        if: needs.scope.outputs.need_build == 'true'
-        uses: actions/download-artifact@v4
-        with:
-          pattern: image-*
-          merge-multiple: true
-          path: /tmp/images
-
       - name: Package config
         run: |
           bash scripts/package-config.sh /tmp/agahiram-config.tar.gz
           sha256sum /tmp/agahiram-config.tar.gz | awk '{print $1}' > /tmp/agahiram-config.sha256
 
-      - name: Upload and deploy (transfer mode)
+      - name: Deploy (pull images on VPS)
         env:
-          SSH_COMMON_OPTS: -i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=60 -o Compression=yes
+          SSH_COMMON_OPTS: -i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=60
           BUILD_SERVICES: ${{ needs.scope.outputs.build_services }}
           CONFIG_ONLY: ${{ needs.scope.outputs.config_only }}
-          NEED_BUILD: ${{ needs.scope.outputs.need_build }}
+          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           HOST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
@@ -245,31 +217,14 @@ jobs:
           scp $SSH_COMMON_OPTS -P "$SSH_PORT" scripts/remote-deploy.sh "$HOST:/tmp/remote-deploy.sh"
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" "chmod +x /tmp/remote-deploy.sh"
 
-          if [[ "$NEED_BUILD" == "true" ]]; then
-            read -r -a services <<< "$BUILD_SERVICES"
-            pids=()
-            for svc in "${services[@]}"; do
-              src="/tmp/images/${svc}.tar.gz"
-              test -f "$src" || { echo "missing artifact: $src"; exit 1; }
-              scp $SSH_COMMON_OPTS -P "$SSH_PORT" "$src" "$HOST:/tmp/image-${svc}.tar.gz.tmp" &
-              pids+=($!)
-            done
-            for pid in "${pids[@]}"; do wait "$pid"; done
-            ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
-              "for f in /tmp/image-*.tar.gz.tmp; do mv \"\$f\" \"\${f%.tmp}\"; done"
-            IMAGE_LIST="$(printf '%s ' "${services[@]}")"
-            IMAGES_ENV="IMAGE_SERVICES='${IMAGE_LIST}'"
-          else
-            IMAGES_ENV=""
-          fi
-
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
-            "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=transfer \
+            "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=pull \
              IMAGE_REGISTRY='$IMAGE_REGISTRY' IMAGE_TAG='$IMAGE_TAG' \
              BUILD_SERVICES='$BUILD_SERVICES' CONFIG_ONLY='$CONFIG_ONLY' \
              CONFIG_TARBALL='/tmp/agahiram-config.tar.gz' \
              CONFIG_SHA256='$(cat /tmp/agahiram-config.sha256)' \
-             $IMAGES_ENV bash /tmp/remote-deploy.sh"
+             GHCR_TOKEN='$GHCR_TOKEN' GHCR_USER='${{ github.repository_owner }}' \
+             bash /tmp/remote-deploy.sh"
 
       - name: Cleanup SSH key
         if: always()

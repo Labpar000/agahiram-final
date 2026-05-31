@@ -36,7 +36,7 @@ flowchart TD
 فایل: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 
 - PR و push به `main`
-- `pnpm install --frozen-lockfile` → format → typecheck → build
+- `pnpm install --frozen-lockfile` → format → typecheck (بدون `next build` تکراری)
 
 ### Deploy Production
 
@@ -44,7 +44,7 @@ flowchart TD
 
 1. **scope** — [`scripts/detect-build-services.sh`](../scripts/detect-build-services.sh) سرویس‌های لازم + `CONFIG_ONLY` (مثلاً فقط caddy)
 2. **build** — matrix روی GHA، push به `ghcr.io/labpar000/agahiram/{service}:{sha}`
-3. **deploy** — SCP config کوچک + `remote-deploy.sh` در حالت **pull**
+3. **deploy** — SCP config کوچک + `remote-deploy.sh` در حالت **pull** (بدون انتقال tarball تصویر)
 
 ## Secrets و Variables
 

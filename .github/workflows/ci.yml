@@ -20,9 +20,9 @@ env:
 
 jobs:
   quality:
-    name: Format, Typecheck and Build
+    name: Format and Typecheck
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 12
 
     steps:
       - name: Checkout
@@ -39,6 +39,14 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Cache Turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -48,11 +56,9 @@ jobs:
       - name: Check formatting
         run: pnpm format:check
 
+      # Typecheck only (tsc). Production build runs once in Deploy (Docker) — not here.
       - name: Typecheck
         run: pnpm typecheck
-
-      - name: Build
-        run: pnpm build
 
       - name: Verify media byte-range (optional)
         if: vars.MEDIA_RANGE_TEST_URL != ''

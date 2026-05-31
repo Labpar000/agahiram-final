@@ -122,13 +122,13 @@ bash /opt/agahiram/scripts/update.sh
 
 مشخصات سرور: [`docs/SERVER.md`](SERVER.md) (`root@45.144.18.86`)
 
-CI روی GitHub برای هر push و PR اجرا می‌شود. برای deploy production، به خاطر timeout مسیر شبکه بین GitHub Actions و VPS ایران، فعلاً از bridge محلی استفاده کن:
+CI روی GitHub برای هر push و PR اجرا می‌شود. بعد از push به `main`، workflow **Deploy Production** خودکار اجرا می‌شود (build روی GHA + pull روی VPS).
+
+اگر GHCR از سرور در دسترس نبود، یک‌بار `scripts/setup-ghcr-server.sh` را روی VPS اجرا کن. deploy اضطراری بدون CI:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
+powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1 -PullFromRegistry -SkipLocalChecks
 ```
-
-اگر بعداً runner داخلی یا مسیر شبکه پایدار فراهم شد، workflow دستی `.github/workflows/deploy.yml` هم آماده استفاده است.
 
 ## ۸. عیب‌یابی
 

@@ -91,6 +91,8 @@ else
           ;;
         .github/*)
           ;;
+        docs/*)
+          ;;
         *)
           apply_full_rebuild
           need_config_sync=1
