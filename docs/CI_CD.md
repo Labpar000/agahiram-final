@@ -14,9 +14,11 @@ flowchart TD
   build --> ghcr[Push to GHCR]
   scope --> config[Package config tarball]
   config --> scp[SCP config to VPS]
-  ghcr --> pull[docker pull on VPS]
-  scp --> pull
-  pull --> up[compose up + migrate]
+  ghcr --> export[export tarball on GHA]
+  export --> scpImg[SCP images to VPS]
+  scp --> scpImg
+  scpImg --> load[docker load on VPS]
+  load --> up[compose up + migrate]
   up --> live[alooche.com]
 ```
 
@@ -24,7 +26,7 @@ flowchart TD
 | ---------------------------------- | ------------- | ----------- |
 | CI (format/typecheck/build)        | GitHub runner | ~3 دقیقه    |
 | Build + push image (مثلاً فقط web) | GitHub runner | ~3-8 دقیقه  |
-| Pull + restart روی VPS             | سرور          | ~1-3 دقیقه  |
+| Export + SCP images + restart      | GHA → سرور    | ~3-8 دقیقه  |
 | **فقط Caddyfile**                  | سرور          | ~30 ثانیه   |
 
 **دیگر build روی VPS انجام نمی‌شود** — علت اصلی deployهای ۴۵+ دقیقه‌ای و `Broken pipe` برطرف شده است.
@@ -44,7 +46,7 @@ flowchart TD
 
 1. **scope** — [`scripts/detect-build-services.sh`](../scripts/detect-build-services.sh) سرویس‌های لازم + `CONFIG_ONLY` (مثلاً فقط caddy)
 2. **build** — matrix روی GHA، push به `ghcr.io/labpar000/agahiram/{service}:{sha}`
-3. **deploy** — SCP config کوچک + `remote-deploy.sh` در حالت **pull** (بدون انتقال tarball تصویر)
+3. **deploy** — SCP config + tarball تصاویر از GHA (سرور ایران به `ghcr.io` دسترسی ندارد؛ **transfer** نه pull)
 
 ## Secrets و Variables
 
@@ -114,13 +116,14 @@ docker compose -f docker-compose.prod.yml up -d --force-recreate api web admin w
 
 ## عیب‌یابی
 
-| علامت                             | علت                           | راه‌حل                                                 |
-| --------------------------------- | ----------------------------- | ------------------------------------------------------ |
-| `reused 0` در pnpm داخل build VPS | مدل قدیمی build روی سرور      | مطمئن شوید `DEPLOY_MODE=pull`                          |
-| `Broken pipe` در Actions          | SSH طولانی                    | با pull mode برطرف شده؛ `ServerAliveInterval` فعال است |
-| `Unexpected EOF` در tar           | tarball ناقص / deploy هم‌زمان | upload اتمیک `.tmp` + `flock` lock                     |
-| `pull access denied`              | GHCR private                  | `setup-ghcr-server.sh` یا public package               |
-| deploy گیر کرده                   | build قدیمی روی سرور          | `pkill -f 'docker compose.*build'` سپس redeploy        |
+| علامت                                 | علت                           | راه‌حل                                                 |
+| ------------------------------------- | ----------------------------- | ------------------------------------------------------ |
+| `manifest unknown` / timeout روی pull | سرور به GHCR دسترسی ندارد     | workflow از `DEPLOY_MODE=transfer` استفاده می‌کند      |
+| `reused 0` در pnpm داخل build VPS     | مدل قدیمی build روی سرور      | از CI deploy استفاده کنید، نه build روی VPS            |
+| `Broken pipe` در Actions              | SSH طولانی                    | با pull mode برطرف شده؛ `ServerAliveInterval` فعال است |
+| `Unexpected EOF` در tar               | tarball ناقص / deploy هم‌زمان | upload اتمیک `.tmp` + `flock` lock                     |
+| `pull access denied`                  | GHCR private                  | `setup-ghcr-server.sh` یا public package               |
+| deploy گیر کرده                       | build قدیمی روی سرور          | `pkill -f 'docker compose.*build'` سپس redeploy        |
 
 لاگ deploy روی سرور: `/tmp/agahiram-deploy.log` — وضعیت: `/tmp/agahiram-deploy.status`
 
