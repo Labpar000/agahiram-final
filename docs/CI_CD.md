@@ -14,11 +14,9 @@ flowchart TD
   build --> ghcr[Push to GHCR]
   scope --> config[Package config tarball]
   config --> scp[SCP config to VPS]
-  ghcr --> export[export tarball on GHA]
-  export --> scpImg[SCP images to VPS]
-  scp --> scpImg
-  scpImg --> load[docker load on VPS]
-  load --> up[compose up + migrate]
+  ghcr --> pull[docker pull on VPS]
+  scp --> pull
+  pull --> up[compose up + migrate]
   up --> live[alooche.com]
 ```
 
@@ -26,7 +24,7 @@ flowchart TD
 | ---------------------------------- | ------------- | ----------- |
 | CI (format/typecheck/build)        | GitHub runner | ~3 دقیقه    |
 | Build + push image (مثلاً فقط web) | GitHub runner | ~3-8 دقیقه  |
-| Export + SCP images + restart      | GHA → سرور    | ~3-8 دقیقه  |
+| Pull + restart روی VPS             | سرور          | ~1-3 دقیقه  |
 | **فقط Caddyfile**                  | سرور          | ~30 ثانیه   |
 
 **دیگر build روی VPS انجام نمی‌شود** — علت اصلی deployهای ۴۵+ دقیقه‌ای و `Broken pipe` برطرف شده است.
@@ -46,7 +44,7 @@ flowchart TD
 
 1. **scope** — [`scripts/detect-build-services.sh`](../scripts/detect-build-services.sh) سرویس‌های لازم + `CONFIG_ONLY` (مثلاً فقط caddy)
 2. **build** — matrix روی GHA، push به `ghcr.io/labpar000/agahiram/{service}:{sha}`
-3. **deploy** — SCP config + tarball تصاویر از GHA (سرور ایران به `ghcr.io` دسترسی ندارد؛ **transfer** نه pull)
+3. **deploy** — SCP config کوچک + `remote-deploy.sh` در حالت **pull** از GHCR (DNS سرور: `87.107.110.109`)
 
 ## Secrets و Variables
 
