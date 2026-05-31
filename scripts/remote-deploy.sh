@@ -202,9 +202,17 @@ deploy_pull() {
     pull_services() {
       local tag="$1"
       export IMAGE_TAG="$tag"
-      log "pulling images (tag=$tag): $BUILD_SERVICES"
-      # shellcheck disable=SC2086
-      docker compose $COMPOSE pull $BUILD_SERVICES
+      log "pulling images in parallel (tag=$tag): $BUILD_SERVICES"
+      local pids=() svc
+      for svc in $BUILD_SERVICES; do
+        ( docker compose $COMPOSE pull "$svc" ) &
+        pids+=($!)
+      done
+      local failed=0
+      for pid in "${pids[@]}"; do
+        wait "$pid" || failed=1
+      done
+      return "$failed"
     }
     if ! pull_services "$IMAGE_TAG"; then
       if [[ "$IMAGE_TAG" != "latest" ]]; then
