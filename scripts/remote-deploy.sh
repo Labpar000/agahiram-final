@@ -248,8 +248,9 @@ deploy_pull() {
   if [[ -n "$CONFIG_ONLY" && " ${recreate[*]} " != *" $CONFIG_ONLY "* ]]; then
     recreate+=("$CONFIG_ONLY")
   fi
+  # Only recreate requested services — do not pull api/admin/worker when only web changed.
   # shellcheck disable=SC2086
-  docker compose $COMPOSE up -d --force-recreate "${recreate[@]}"
+  docker compose $COMPOSE up -d --pull never --no-deps --force-recreate "${recreate[@]}"
   docker image prune -f
   docker compose $COMPOSE ps
 }
