@@ -33,6 +33,23 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+function methodImpliesFreshData(method?: string): boolean {
+  return !method || method === 'GET' || method === 'HEAD';
+}
+
+/** Avoid HTTP cache + bfcache eviction on authenticated feeds (Chrome 2025+). */
+function isFreshDataPath(path: string): boolean {
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return (
+    p.startsWith('/posts/feed') ||
+    p.startsWith('/posts/reels') ||
+    p.startsWith('/posts/explore') ||
+    p.startsWith('/auth/') ||
+    p.startsWith('/messages') ||
+    p.startsWith('/notifications')
+  );
+}
+
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const url = path.startsWith('http')
     ? path
@@ -75,11 +92,14 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   void skipAuth;
 
   const url = buildUrl(path, params);
+  const noStore =
+    init.cache === undefined && (methodImpliesFreshData(init.method) || isFreshDataPath(path));
   const doFetch = () =>
     fetch(url, {
       ...init,
       headers,
       credentials: 'include',
+      cache: init.cache ?? (noStore ? 'no-store' : 'default'),
     });
 
   let response = await doFetch();

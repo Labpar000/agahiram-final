@@ -9,6 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cn, formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import { Avatar, AvatarFallback, AvatarImage, Drawer, DrawerContent, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { StoryVideo } from '@/components/story-video';
 import { useAuthStore } from '@/lib/auth-store';
 
 interface StoryGroup {
@@ -152,10 +153,9 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
 
         {/* Media */}
         {current.type === 'video' ? (
-          <video
-            src={current.mediaUrl}
+          <StoryVideo
+            mediaUrl={current.mediaUrl}
             autoPlay
-            playsInline
             muted
             className="size-full object-contain"
           />

@@ -16,7 +16,9 @@
     "db:migrate": "pnpm --filter @agahiram/database migrate:dev",
     "db:seed": "pnpm --filter @agahiram/database seed",
     "db:studio": "pnpm --filter @agahiram/database studio",
-    "clean": "turbo run clean && rimraf node_modules"
+    "clean": "turbo run clean && rimraf node_modules",
+    "qa:preflight": "bash scripts/qa-preflight.sh",
+    "media:range": "bash scripts/check-media-range.sh"
   },
   "devDependencies": {
     "@agahiram/config": "workspace:*",

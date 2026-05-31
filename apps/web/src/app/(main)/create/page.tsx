@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   Camera,
@@ -40,6 +40,7 @@ import {
 } from '@agahiram/ui';
 import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ImageEditor } from '@/components/image-editor';
 import { CityLocationPicker } from '@/components/search-filters';
@@ -86,6 +87,8 @@ type PriceType = 'fixed' | 'negotiable' | 'free' | 'callForPrice';
 
 export default function CreatePage() {
   const router = useRouter();
+  const qc = useQueryClient();
+  const myUsername = useAuthStore((s) => s.user?.username);
   const { uploadFile } = useUploadManager();
   const [step, setStep] = useState<Step>(0);
   const [media, setMedia] = useState<UploadedMedia[]>([]);
@@ -283,6 +286,12 @@ export default function CreatePage() {
       return r.data;
     },
     onSuccess: (data) => {
+      void qc.invalidateQueries({ queryKey: ['feed'] });
+      void qc.invalidateQueries({ queryKey: ['explore'] });
+      void qc.invalidateQueries({ queryKey: ['reels'] });
+      if (myUsername) {
+        void qc.invalidateQueries({ queryKey: ['profile', myUsername, 'posts'] });
+      }
       toast.success('آگهی شما ثبت شد و در انتظار تأیید است');
       router.push(`/post/${data?.id ?? ''}`);
     },

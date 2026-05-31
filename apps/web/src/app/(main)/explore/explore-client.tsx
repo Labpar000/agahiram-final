@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   Film as FilmIcon,
   Eye,
@@ -15,13 +15,15 @@ import {
   SearchX,
   SlidersHorizontal,
 } from 'lucide-react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { formatPersianNumber, formatPersianCompact, formatPersianPrice } from '@agahiram/shared';
 import { EmptyState, ErrorState, IconButton, Input, Skeleton, Spinner } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { PostLink } from '@/components/post-link';
 import type { Filters } from '@/components/search-filters';
 import { toast } from '@agahiram/ui';
+import { parseExploreSearchParams } from '@/lib/explore-url';
 
 const SearchFiltersSheet = dynamic(
   () => import('@/components/search-filters').then((m) => m.SearchFiltersSheet),
@@ -55,7 +57,6 @@ export function ExploreClient({
   initialQ?: string;
   initialFilters?: Filters;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [q, setQ] = useState(initialQ);
@@ -70,7 +71,6 @@ export function ExploreClient({
   }, [q]);
 
   useEffect(() => {
-    // Keep URL query in sync for deep-linking/share.
     const params = new URLSearchParams(searchParams?.toString() ?? '');
     if (debouncedQ) params.set('q', debouncedQ);
     else params.delete('q');
@@ -78,8 +78,23 @@ export function ExploreClient({
       if (value === undefined || value === '' || value === false) params.delete(key);
       else params.set(key, String(value));
     }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [debouncedQ, filters, pathname, router, searchParams]);
+    const next = `${pathname}?${params.toString()}`;
+    const current = `${pathname}${window.location.search}`;
+    if (next !== current) {
+      window.history.replaceState(window.history.state, '', next);
+    }
+  }, [debouncedQ, filters, pathname, searchParams]);
+
+  useEffect(() => {
+    const onPop = () => {
+      const { q: urlQ, filters: urlFilters } = parseExploreSearchParams(window.location.search);
+      setQ(urlQ);
+      setDebouncedQ(urlQ);
+      setFilters(urlFilters);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const query = useInfiniteQuery({
     queryKey: ['explore', debouncedQ, filters],
@@ -112,6 +127,7 @@ export function ExploreClient({
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,
     initialPageParam: undefined as string | undefined,
+    placeholderData: keepPreviousData,
   });
 
   const createSearchAlert = async () => {
@@ -202,7 +218,7 @@ export function ExploreClient({
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && !data ? (
         <div className="grid grid-cols-3 gap-0.5">
           {Array.from({ length: 12 }).map((_, i) => (
             <Skeleton key={i} className="aspect-square rounded-none" shimmer={false} />
@@ -298,8 +314,9 @@ function ExploreTile({ post }: { post: PostSummary }) {
   const media = post.media[0];
   const isVideo = media?.type === 'video';
   return (
-    <Link
-      href={`/post/${post.id}`}
+    <PostLink
+      postId={post.id}
+      post={post}
       aria-label={`${post.title}، ${formatPersianPrice(post.price)}`}
       className="cv-tile group relative block aspect-square overflow-hidden rounded-sm bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:rounded-md"
     >
@@ -349,6 +366,6 @@ function ExploreTile({ post }: { post: PostSummary }) {
           {formatPersianPrice(post.price)}
         </p>
       </div>
-    </Link>
+    </PostLink>
   );
 }

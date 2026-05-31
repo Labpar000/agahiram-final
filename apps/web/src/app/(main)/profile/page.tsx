@@ -33,5 +33,5 @@ export default function MyProfilePage() {
     };
   }, [user, isLoading, router, refetch]);
 
-  return <div className="p-8 text-center text-muted-foreground">در حال انتقال…</div>;
+  return null;
 }

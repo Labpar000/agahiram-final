@@ -1,11 +1,20 @@
 import { io, type Socket } from 'socket.io-client';
 import { SOCKET_EVENTS } from '@agahiram/shared';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
+const SOCKET_ENV = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
+
+export function resolveSocketOrigin(): string {
+  const env = SOCKET_ENV.trim();
+  if (!env || env === '/') {
+    if (typeof window !== 'undefined') return window.location.origin;
+    return 'http://localhost:4000';
+  }
+  return env.replace(/\/$/, '');
+}
 
 let socket: Socket | null = null;
 
-function getToken(): string | null {
+export function getAccessToken(): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(/(?:^|; )accessToken=([^;]*)/);
   return match ? decodeURIComponent(match[1]) : null;
@@ -13,9 +22,11 @@ function getToken(): string | null {
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io(SOCKET_URL, {
+    const origin = resolveSocketOrigin();
+    socket = io(`${origin}/messages`, {
+      path: '/socket.io',
       autoConnect: false,
-      auth: (cb) => cb({ token: getToken() }),
+      auth: (cb) => cb({ token: getAccessToken() }),
       transports: ['websocket', 'polling'],
     });
   }

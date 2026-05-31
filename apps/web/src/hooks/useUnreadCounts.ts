@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 
-const POLL_MS = 30_000;
+/** Fallback poll when socket is offline; socket drives updates via installUnreadRealtime (E2). */
+const POLL_MS = 120_000;
 
 /**
  * Single source of truth for the unread badges (notifications + messages).

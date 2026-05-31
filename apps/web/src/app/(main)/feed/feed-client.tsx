@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { Button, EmptyState, ErrorState, Skeleton, Spinner } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { fetchFeedPage } from '@/lib/query-definitions';
 import { PostCard } from '@/components/post-card';
 import { StoryBar } from '@/components/story-bar';
 
@@ -14,15 +14,7 @@ export function FeedClient() {
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
       queryKey: ['feed'],
-      queryFn: async ({ pageParam }) => {
-        const r = await apiClient.get<PaginatedResponse<PostSummary>>('/posts/feed', {
-          cursor: pageParam,
-        });
-        if (!r.success || !r.data) {
-          return { data: [], nextCursor: null, hasMore: false };
-        }
-        return r.data;
-      },
+      queryFn: ({ pageParam }) => fetchFeedPage(pageParam as string | undefined),
       getNextPageParam: (last) => last.nextCursor ?? undefined,
       initialPageParam: undefined as string | undefined,
     });
@@ -44,7 +36,7 @@ export function FeedClient() {
     <div className="bg-background">
       <StoryBar />
 
-      {isLoading ? (
+      {isLoading && !data ? (
         <FeedSkeleton />
       ) : isError ? (
         <ErrorState onRetry={() => void refetch()} />

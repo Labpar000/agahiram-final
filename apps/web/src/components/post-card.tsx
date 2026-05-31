@@ -1,9 +1,9 @@
 'use client';
 
 import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
   Award,
@@ -48,10 +48,14 @@ import {
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { handleEngagementError } from '@/lib/engagement-auth';
+import { useLikePost, useSavePost } from '@/hooks/usePosts';
+import { runEngagementAction } from '@/lib/inp';
+import { PostLink } from '@/components/post-link';
 import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
 import { CommentSection } from './comment-section';
+import { FeedPostVideo } from './feed-post-video';
 
 interface Props {
   post: PostSummary & { user: PostSummary['user'] & { phone?: string | null } };
@@ -59,6 +63,8 @@ interface Props {
   initialSaved?: boolean;
   /** Eager-load the first media (use only for the first above-the-fold card). */
   priority?: boolean;
+  /** When false, comments open only via dedicated page section (post detail). */
+  enableCommentsDrawer?: boolean;
 }
 
 export function PostCard({
@@ -66,20 +72,23 @@ export function PostCard({
   initialLiked = false,
   initialSaved = false,
   priority = false,
+  enableCommentsDrawer = true,
 }: Props) {
-  const qc = useQueryClient();
-  const [liked, setLiked] = useState(initialLiked);
-  const [saved, setSaved] = useState(initialSaved);
+  const router = useRouter();
+  const likeMutation = useLikePost();
+  const saveMutation = useSavePost();
+  const [liked, setLiked] = useState(initialLiked ?? post.isLiked ?? false);
+  const [saved, setSaved] = useState(initialSaved ?? post.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(post.likesCount);
   const [commentsOpen, setCommentsOpen] = useState(false);
 
   useEffect(() => {
-    setLiked(initialLiked);
-  }, [initialLiked]);
+    setLiked(initialLiked ?? post.isLiked ?? false);
+  }, [initialLiked, post.isLiked]);
 
   useEffect(() => {
-    setSaved(initialSaved);
-  }, [initialSaved]);
+    setSaved(initialSaved ?? post.isSaved ?? false);
+  }, [initialSaved, post.isSaved]);
 
   useEffect(() => {
     setLikeCount(post.likesCount);
@@ -133,7 +142,7 @@ export function PostCard({
   }, [embla]);
 
   const onLikeToggle = useCallback(
-    async (forceLike?: boolean) => {
+    (forceLike?: boolean) => {
       if (!isAuthenticated) {
         handleEngagementError({ success: false, statusCode: 401 }, 'like', logout);
         return;
@@ -142,39 +151,40 @@ export function PostCard({
       if (next === liked) return;
       setLiked(next);
       setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
-      const res = next
-        ? await apiClient.post<{ liked: boolean; likesCount: number }>(`/posts/${post.id}/like`, {})
-        : await apiClient.delete<{ liked: boolean; likesCount: number }>(`/posts/${post.id}/like`);
-      if (!res.success) {
-        setLiked(!next);
-        setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
-        handleEngagementError(res, 'like', logout);
-        return;
-      }
-      if (typeof res.data?.likesCount === 'number') {
-        setLikeCount(res.data.likesCount);
-      }
-      void qc.invalidateQueries({ queryKey: ['feed'] });
-      void qc.invalidateQueries({ queryKey: ['post', post.id] });
+      runEngagementAction(`like-${post.id}`, () => {
+        likeMutation.mutate(
+          { postId: post.id, like: next },
+          {
+            onSuccess: (data) => {
+              if (typeof data?.likesCount === 'number') setLikeCount(data.likesCount);
+            },
+            onError: () => {
+              setLiked(!next);
+              setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
+            },
+          },
+        );
+      });
     },
-    [liked, post.id, isAuthenticated, logout, qc],
+    [liked, post.id, isAuthenticated, logout, likeMutation],
   );
 
-  const onSaveToggle = useCallback(async () => {
+  const onSaveToggle = useCallback(() => {
     if (!isAuthenticated) {
       handleEngagementError({ success: false, statusCode: 401 }, 'save', logout);
       return;
     }
     const next = !saved;
     setSaved(next);
-    const res = next
-      ? await apiClient.post(`/posts/${post.id}/save`, {})
-      : await apiClient.delete(`/posts/${post.id}/save`);
-    if (!res.success) {
-      setSaved(!next);
-      handleEngagementError(res, 'save', logout);
-    }
-  }, [saved, post.id, isAuthenticated, logout]);
+    runEngagementAction(`save-${post.id}`, () => {
+      saveMutation.mutate(
+        { postId: post.id, save: next },
+        {
+          onError: () => setSaved(!next),
+        },
+      );
+    });
+  }, [saved, post.id, isAuthenticated, logout, saveMutation]);
 
   const onContact = useCallback(async () => {
     if (contactRevealed) {
@@ -238,14 +248,14 @@ export function PostCard({
         `/messages/start/${post.user.username}`,
       );
       if (r.success && r.data) {
-        window.location.href = `/messages/${r.data.conversationId}`;
+        router.push(`/messages/${r.data.conversationId}`);
       } else {
         toast.error(r.error ?? 'برای ارسال پیام ابتدا وارد شوید');
       }
     } finally {
       setMessaging(false);
     }
-  }, [messaging, post.user.username]);
+  }, [messaging, post.user.username, router]);
 
   return (
     <article className="border-b border-border bg-surface">
@@ -323,23 +333,33 @@ export function PostCard({
                 این آگهی رسانه‌ای ندارد
               </div>
             ) : (
-              post.media.map((m, i) =>
-                m.type === 'video' ? (
-                  <div key={m.id ?? i} className="relative h-full min-w-full">
-                    <video
-                      src={m.url}
+              post.media.map((m, i) => {
+                const inWindow = Math.abs(i - activeIndex) <= 1;
+                if (!inWindow) {
+                  return (
+                    <div
+                      key={m.id ?? i}
+                      className="relative h-full min-w-full shrink-0 bg-muted"
+                      aria-hidden
+                    />
+                  );
+                }
+                return m.type === 'video' ? (
+                  <div key={m.id ?? i} className="relative h-full min-w-full shrink-0">
+                    <FeedPostVideo
+                      hlsUrl={m.hlsUrl}
+                      mp4Url={m.url}
                       poster={m.thumbnailUrl ?? undefined}
                       className="size-full object-cover"
-                      controls
-                      playsInline
-                      preload="metadata"
+                      active={activeIndex === i}
                     />
                   </div>
                 ) : (
-                  <Link
+                  <PostLink
                     key={m.id ?? i}
-                    href={`/post/${post.id}`}
-                    className="relative h-full min-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    postId={post.id}
+                    post={post}
+                    className="relative h-full min-w-full shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     onClick={(e: MouseEvent<HTMLAnchorElement>) => {
                       if (Date.now() - lastTapRef.current < 320) {
                         e.preventDefault();
@@ -357,9 +377,9 @@ export function PostCard({
                       priority={priority && i === 0}
                       loading={priority && i === 0 ? 'eager' : 'lazy'}
                     />
-                  </Link>
-                ),
-              )
+                  </PostLink>
+                );
+              })
             )}
           </div>
           <HeartBurst trigger={burst} />
@@ -423,7 +443,16 @@ export function PostCard({
                 <IgHeart className="size-[var(--ig-icon)]" filled={liked} />
               </span>
             </ActionButton>
-            <ActionButton ariaLabel="نظرات" onClick={() => setCommentsOpen(true)}>
+            <ActionButton
+              ariaLabel="نظرات"
+              onClick={() => {
+                if (enableCommentsDrawer) {
+                  setCommentsOpen(true);
+                } else {
+                  document.getElementById('post-comments')?.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+            >
               <IgComment className="size-[var(--ig-icon)]" />
             </ActionButton>
             <ActionButton ariaLabel="اشتراک‌گذاری" onClick={onShare}>
@@ -459,22 +488,24 @@ export function PostCard({
             >
               {post.user.username}
             </Link>{' '}
-            <Link
-              href={`/post/${post.id}`}
+            <PostLink
+              postId={post.id}
+              post={post}
               className="tap-none hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {post.title}
-            </Link>
+            </PostLink>
           </p>
           <p className="font-semibold text-foreground">{formatPersianPrice(post.price)}</p>
           {post.description ? (
             <p className="text-muted-foreground">
-              <Link
-                href={`/post/${post.id}`}
+              <PostLink
+                postId={post.id}
+                post={post}
                 className="tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {post.description}
-              </Link>
+              </PostLink>
             </p>
           ) : null}
         </div>
@@ -487,12 +518,13 @@ export function PostCard({
         />
 
         {post.commentsCount > 0 ? (
-          <Link
-            href={`/post/${post.id}`}
+          <PostLink
+            postId={post.id}
+            post={post}
             className="block w-fit text-sm text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             مشاهده {formatPersianNumber(post.commentsCount)} نظر
-          </Link>
+          </PostLink>
         ) : null}
 
         <div className="flex gap-2 pt-1">
@@ -526,22 +558,24 @@ export function PostCard({
 
         <p className="text-[11px] text-muted-foreground">{formatRelativeTimeFa(post.createdAt)}</p>
       </div>
-      <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
-        <DrawerContent className="max-h-[85svh] overflow-hidden">
-          <DrawerHeader className="border-b border-border">
-            <DrawerTitle>نظرات</DrawerTitle>
-          </DrawerHeader>
-          {commentsOpen ? (
-            <div className="max-h-[72svh] overflow-y-auto">
-              <CommentSection
-                postId={post.id}
-                isOwner={isOwner}
-                commentsEnabled={post.commentsEnabled ?? true}
-              />
-            </div>
-          ) : null}
-        </DrawerContent>
-      </Drawer>
+      {enableCommentsDrawer ? (
+        <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
+          <DrawerContent className="max-h-[85svh] overflow-hidden">
+            <DrawerHeader className="border-b border-border">
+              <DrawerTitle>نظرات</DrawerTitle>
+            </DrawerHeader>
+            {commentsOpen ? (
+              <div className="max-h-[72svh] overflow-y-auto">
+                <CommentSection
+                  postId={post.id}
+                  isOwner={isOwner}
+                  commentsEnabled={post.commentsEnabled ?? true}
+                />
+              </div>
+            ) : null}
+          </DrawerContent>
+        </Drawer>
+      ) : null}
     </article>
   );
 }

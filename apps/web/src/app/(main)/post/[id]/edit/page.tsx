@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { Button, IconButton, Input, Label, LoadingState, Textarea, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -12,6 +12,7 @@ import type { PostDetail } from '../post-detail-client';
 export default function EditPostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['post', id],
     queryFn: async () => {
@@ -43,6 +44,9 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
       return r.data;
     },
     onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['post', id] });
+      void qc.invalidateQueries({ queryKey: ['feed'] });
+      void qc.invalidateQueries({ queryKey: ['explore'] });
       toast.success('آگهی با موفقیت ویرایش شد');
       router.push(`/post/${id}`);
     },

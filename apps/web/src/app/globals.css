@@ -21,8 +21,7 @@
 }
 
 .page-enter {
-  animation: page-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
-  will-change: opacity, transform;
+  animation: page-enter 0.1s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* Like button pop + like-count entrance (replaces framer-motion on PostCard). */
@@ -98,4 +97,16 @@
 .cv-row {
   content-visibility: auto;
   contain-intrinsic-size: auto 76px;
+}
+
+/* Reels: WebKit scroll-snap + momentum (Safari iOS 18+) */
+.reels-scroll {
+  scroll-snap-type: y proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.reels-scroll [data-reel-index] {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }

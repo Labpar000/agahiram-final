@@ -40,12 +40,23 @@ export class MessagesGateway implements OnGatewayConnection {
     const userId = socket.data.userId as string;
     if (!userId) return;
     const result = await this.service.send(userId, body);
+    this.broadcastMessage(result);
+  }
+
+  /** Push a new message to conversation participants (REST + WebSocket send paths). */
+  broadcastMessage(result: {
+    message: Record<string, unknown> & { senderId: string };
+    conversationId: string;
+    recipientUserId?: string | null;
+  }) {
+    const payload = {
+      ...result.message,
+      conversationId: result.conversationId,
+    };
     if (result.recipientUserId) {
-      this.server
-        .to(`user:${result.recipientUserId}`)
-        .emit(SOCKET_EVENTS.MESSAGE_RECEIVE, result.message);
+      this.server.to(`user:${result.recipientUserId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVE, payload);
     }
-    socket.emit(SOCKET_EVENTS.MESSAGE_RECEIVE, result.message);
+    this.server.to(`user:${result.message.senderId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVE, payload);
   }
 
   @SubscribeMessage(SOCKET_EVENTS.TYPING_START)

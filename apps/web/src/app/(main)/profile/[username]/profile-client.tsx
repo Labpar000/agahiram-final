@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Award,
   BookmarkCheck,
@@ -34,6 +35,7 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { PostLink } from '@/components/post-link';
 import { useAuth } from '@/hooks/useAuth';
 import { karmaTier } from '@/lib/reputation';
 
@@ -54,6 +56,8 @@ export interface Profile {
 }
 
 export function ProfileClient({ username }: { username: string }) {
+  const router = useRouter();
+  const qc = useQueryClient();
   const { user: me, logout } = useAuth();
   const [tab, setTab] = useState<'posts' | 'reels' | 'saved'>('posts');
 
@@ -89,6 +93,7 @@ export function ProfileClient({ username }: { username: string }) {
       return r.data?.data ?? [];
     },
     enabled: !!profile,
+    placeholderData: keepPreviousData,
   });
 
   const toggleFollow = async () => {
@@ -98,6 +103,7 @@ export function ProfileClient({ username }: { username: string }) {
       : await apiClient.post(`/users/${username}/follow`);
     if (res.success) {
       void refetch();
+      void qc.invalidateQueries({ queryKey: ['feed'] });
       toast.success(profile.isFollowing ? 'دنبال‌کردن لغو شد' : 'اکنون این کاربر را دنبال می‌کنید');
     } else {
       toast.error('برای دنبال‌کردن ابتدا وارد شوید');
@@ -107,13 +113,18 @@ export function ProfileClient({ username }: { username: string }) {
   const startChat = async () => {
     const r = await apiClient.post<{ conversationId: string }>(`/messages/start/${username}`);
     if (r.success && r.data) {
-      window.location.href = `/messages/${r.data.conversationId}`;
+      router.push(`/messages/${r.data.conversationId}`);
     } else {
       toast.error('برای ارسال پیام ابتدا وارد شوید');
     }
   };
 
-  if (profileLoading || !profile) return <ProfileSkeleton />;
+  if (profileLoading && !profile) return <ProfileSkeleton />;
+  if (!profile) {
+    return (
+      <EmptyState title="کاربر یافت نشد" description="این نام کاربری وجود ندارد یا حذف شده است." />
+    );
+  }
   const tier = karmaTier(profile.karma);
 
   return (
@@ -302,7 +313,7 @@ function PostsGrid({
   isLoading: boolean;
   tab: 'posts' | 'reels' | 'saved';
 }) {
-  if (isLoading) {
+  if (isLoading && posts.length === 0) {
     return (
       <div className="grid grid-cols-3 gap-0.5">
         {Array.from({ length: 9 }).map((_, i) => (
@@ -336,9 +347,10 @@ function PostsGrid({
   return (
     <div className="grid grid-cols-3 gap-0.5">
       {posts.map((p) => (
-        <Link
+        <PostLink
           key={p.id}
-          href={`/post/${p.id}`}
+          postId={p.id}
+          post={p}
           aria-label={p.title}
           className="cv-tile relative aspect-square overflow-hidden bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         >
@@ -351,7 +363,7 @@ function PostsGrid({
               className="object-cover"
             />
           ) : null}
-        </Link>
+        </PostLink>
       ))}
     </div>
   );

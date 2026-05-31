@@ -7,7 +7,7 @@ import { apiClient } from '@/lib/api';
 export function useSearch(filters: SearchFilters) {
   const q = filters.q ?? filters.query ?? '';
   return useInfiniteQuery({
-    queryKey: ['search', q, filters],
+    queryKey: ['explore', q, filters],
     queryFn: async ({ pageParam }) => {
       const { attributes: _a, ...rest } = filters;
       const res = await apiClient.get<PaginatedResponse<PostSummary>>(

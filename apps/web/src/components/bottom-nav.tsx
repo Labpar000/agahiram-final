@@ -1,7 +1,9 @@
 'use client';
 
+import { useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn, formatPersianNumber } from '@agahiram/shared';
 import { IgCreate, IgHome, IgReels, IgSearch, IgUser } from '@agahiram/ui';
 import { useUnreadNotifications } from '@/hooks/useUnreadCounts';
@@ -50,10 +52,45 @@ const items = [
   },
 ] as const;
 
+const TAB_PREFETCH: Record<string, 'feed' | 'explore' | 'reels' | 'profile' | undefined> = {
+  '/feed': 'feed',
+  '/explore': 'explore',
+  '/reels': 'reels',
+  '/profile': 'profile',
+};
+
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
+  const router = useRouter();
+  const qc = useQueryClient();
   const notifUnread = useUnreadNotifications();
   const myUsername = useAuthStore((s) => s.user?.username);
+  const prevPath = useRef(pathname);
+
+  const warmTab = useCallback(
+    (href: string) => {
+      const tab = TAB_PREFETCH[href];
+      if (!tab) return;
+      void router.prefetch(href === '/profile' && myUsername ? `/profile/${myUsername}` : href);
+      import('@/lib/tab-prefetch').then((m) => m.prefetchMainTab(qc, tab, myUsername ?? null));
+    },
+    [qc, router, myUsername],
+  );
+
+  useEffect(() => {
+    if (prevPath.current === pathname) return;
+    prevPath.current = pathname;
+    if (typeof performance === 'undefined') return;
+    performance.mark('tab-switch-start');
+    requestAnimationFrame(() => {
+      performance.mark('tab-content-visible');
+      try {
+        performance.measure('tab-switch', 'tab-switch-start', 'tab-content-visible');
+      } catch {
+        /* duplicate measure */
+      }
+    });
+  }, [pathname]);
 
   return (
     <nav
@@ -81,6 +118,8 @@ export function BottomNav() {
                   badge > 0 ? `${label} (${formatPersianNumber(badge)} اعلان جدید)` : label
                 }
                 prefetch
+                onPointerEnter={() => warmTab(href)}
+                onFocus={() => warmTab(href)}
                 className={cn(
                   'relative flex flex-col items-center justify-center gap-0.5 tap-none transition-colors duration-100',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',

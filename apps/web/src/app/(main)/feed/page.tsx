@@ -6,7 +6,7 @@ import { FeedClient } from './feed-client';
  * for a fresh upstream fetch (the feed is per-user, so it can't be cached),
  * which made tab switching feel sluggish. Instead the page returns the
  * client shell immediately, `loading.tsx` shows a skeleton during the brief
- * client transition, and React Query (with `staleTime: 30s`) keeps results
+ * client transition, and React Query (with `staleTime: 5min (providers)`) keeps results
  * warm so toggling back between tabs is instant.
  */
 export default function FeedPage() {

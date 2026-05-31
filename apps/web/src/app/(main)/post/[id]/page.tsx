@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import { serverApi } from '@/lib/server-api';
 import { PostDetailClient } from './post-detail-client';
 
 export async function generateMetadata({
@@ -8,34 +7,13 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  // Public fetch (no cookies) just for the shareable metadata.
-  const r = await serverApi<{
-    title?: string;
-    description?: string | null;
-    media?: Array<{ url: string; thumbnailUrl?: string | null }>;
-  }>(`/posts/${id}`, { forwardCookies: false });
-  const post = r.data;
-  if (!post?.title) {
-    return { title: 'آگهی یافت نشد' };
-  }
-  const ogTitle = `${post.title} | آگهی‌گرام`;
-  const description = post.description?.slice(0, 160) ?? 'آگهی در آگهی‌گرام';
-  const image = post.media?.[0]?.thumbnailUrl ?? post.media?.[0]?.url;
+  // Lightweight metadata — full post loads once on client (C1).
+  const title = 'جزئیات آگهی';
+  const description = 'آگهی در آگهی‌گرام';
   return {
-    title: post.title,
+    title,
     description,
-    openGraph: {
-      title: ogTitle,
-      description,
-      type: 'article',
-      images: image ? [{ url: image }] : undefined,
-    },
-    twitter: {
-      card: image ? 'summary_large_image' : 'summary',
-      title: ogTitle,
-      description,
-      images: image ? [image] : undefined,
-    },
+    openGraph: { title, description, type: 'article' },
   };
 }
 

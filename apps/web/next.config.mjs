@@ -44,13 +44,14 @@ const withPWA = withPWAInit({
       },
     },
     {
+      urlPattern: /\/api\/v1\/(posts|users|notifications|messages)\/.*/i,
+      handler: 'NetworkOnly',
+      options: { cacheName: 'api-fresh' },
+    },
+    {
       urlPattern: /^https?:\/\/.*\/api\/.*/i,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'api',
-        networkTimeoutSeconds: 10,
-        expiration: { maxEntries: 32, maxAgeSeconds: 24 * 60 * 60 },
-      },
+      handler: 'NetworkOnly',
+      options: { cacheName: 'api-fresh-all' },
     },
   ],
 });

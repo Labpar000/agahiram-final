@@ -2,8 +2,8 @@
 
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, Camera, MessageSquare, Mic, Send } from 'lucide-react';
+import { MessageType } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -16,51 +16,14 @@ import {
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ChatMessage } from '@/components/chat-message';
-
-interface Message {
-  id: string;
-  content: string;
-  type: string;
-  senderId: string;
-  createdAt: string;
-  sender: { id: string; username: string | null; avatar: string | null };
-}
-
-interface ConvHead {
-  id: string;
-  otherUser?: { id: string; username: string | null; avatar: string | null; isVerified?: boolean };
-}
+import { useConversation } from '@/hooks/useConversation';
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { uploadFile } = useUploadManager();
   const [text, setText] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [meId, setMeId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const { data: head } = useQuery({
-    queryKey: ['conv-head', id],
-    queryFn: async () => {
-      const r = await apiClient.get<ConvHead>(`/messages/conversations/${id}/head`);
-      return r.data;
-    },
-  });
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['chat', id],
-    queryFn: async () => {
-      const r = await apiClient.get<{ data: Message[]; meId?: string }>(
-        `/messages/conversations/${id}`,
-      );
-      if (r.data?.meId) setMeId(r.data.meId);
-      return r.data?.data ?? [];
-    },
-  });
-
-  useEffect(() => {
-    if (data) setMessages(data);
-  }, [data]);
+  const { head, messages, meId, isLoading, sendMessage } = useConversation(id);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -79,37 +42,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     });
   }, [messages, meId]);
 
-  const sendMessage = async (content: string, type: 'text' | 'image' | 'voice' = 'text') => {
-    const tempId = 'temp-' + Date.now();
-    setMessages((m) => [
-      ...m,
-      {
-        id: tempId,
-        content,
-        type,
-        senderId: 'me',
-        createdAt: new Date().toISOString(),
-        sender: { id: 'me', username: null, avatar: null },
-      },
-    ]);
-    const r = await apiClient.post<{ message: Message }>('/messages', {
-      conversationId: id,
-      content,
-      type,
-    });
-    if (r.success && r.data) {
-      setMessages((m) => m.map((x) => (x.id === tempId ? r.data!.message : x)));
-    } else {
-      setMessages((m) => m.filter((x) => x.id !== tempId));
-      toast.error(r.error ?? 'ارسال پیام ناموفق بود');
-    }
-  };
-
   const send = async () => {
     if (!text.trim()) return;
     const tmp = text;
     setText('');
-    await sendMessage(tmp, 'text');
+    const tempId = `temp-${Date.now()}`;
+    await sendMessage.mutateAsync({ content: tmp, type: MessageType.TEXT, tempId });
+  };
+
+  const sendMedia = async (publicUrl: string, type: MessageType.IMAGE | MessageType.VOICE) => {
+    const tempId = `temp-${Date.now()}`;
+    await sendMessage.mutateAsync({ content: publicUrl, type, tempId });
   };
 
   const sendImage = async (file: File) => {
@@ -130,7 +73,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     });
     if (!ok) return;
     await apiClient.post('/media/confirm', { key: presign.data.key });
-    await sendMessage(presign.data.publicUrl, 'image');
+    await sendMedia(presign.data.publicUrl, MessageType.IMAGE);
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -165,7 +108,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         });
         if (!ok) return;
         await apiClient.post('/media/confirm', { key: presign.data.key });
-        await sendMessage(presign.data.publicUrl, 'voice');
+        await sendMedia(presign.data.publicUrl, MessageType.VOICE);
       };
       mediaRecorderRef.current = rec;
       rec.start();
@@ -300,7 +243,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         <button
           type="submit"
           aria-label="ارسال"
-          disabled={!text.trim()}
+          disabled={!text.trim() || sendMessage.isPending}
           className="grid size-11 place-items-center rounded-full bg-primary text-primary-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <Send className="size-5 swap-x" aria-hidden />

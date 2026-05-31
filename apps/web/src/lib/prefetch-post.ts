@@ -34,7 +34,8 @@ export function prefetchPostBundle(qc: QueryClient, postId: string, post?: PostS
       return r.data ?? { data: [], hasMore: false, nextCursor: null };
     },
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => (last.hasMore ? (last.nextCursor ?? undefined) : undefined),
+    getNextPageParam: (last: CommentsPage) =>
+      last.hasMore ? (last.nextCursor ?? undefined) : undefined,
     staleTime: 60_000,
   });
 }

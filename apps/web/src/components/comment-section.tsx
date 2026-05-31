@@ -23,6 +23,13 @@ import {
   type MentionCandidate,
 } from '@/lib/comment-mentions';
 import { CommentContent } from '@/components/comment-content';
+import { runEngagementAction } from '@/lib/inp';
+import {
+  patchCommentInCache,
+  prependCommentToCache,
+  removeCommentFromCache,
+  type CommentRow,
+} from '@/lib/query-cache-comments';
 
 interface Comment {
   id: string;
@@ -135,7 +142,9 @@ function CommentReplies({ commentId, postId }: { commentId: string; postId: stri
                 id={r.id}
                 liked={!!r.isLikedByMe}
                 count={r.likesCount ?? 0}
-                onToggle={(p) => toggleLike.mutate(p)}
+                onToggle={(p) =>
+                  runEngagementAction(`comment-like-${p.id}`, () => toggleLike.mutate(p))
+                }
               />
             </div>
           </div>
@@ -299,18 +308,47 @@ export function CommentSection({
       if (!r.success) throw new Error(r.error);
       return r.data;
     },
-    onSuccess: (created, vars) => {
+    onMutate: async (payload) => {
+      await qc.cancelQueries({ queryKey: ['comments', postId] });
+      const tempId = `temp-comment-${Date.now()}`;
+      const optimistic: CommentRow = {
+        id: tempId,
+        content: payload.content,
+        createdAt: new Date().toISOString(),
+        user: {
+          id: me?.id ?? 'me',
+          username: me?.username ?? null,
+          name: me?.name ?? null,
+          avatar: me?.avatar ?? null,
+        },
+        likesCount: 0,
+        isLikedByMe: false,
+        _count: { replies: 0 },
+      };
+      if (!payload.parentId) prependCommentToCache(qc, postId, optimistic);
+      return { tempId, parentId: payload.parentId };
+    },
+    onSuccess: (created, vars, ctx) => {
       setText('');
       setReplyTo(null);
       setRecentSentId(created?.id ?? null);
       window.setTimeout(() => setRecentSentId(null), 1200);
-      qc.invalidateQueries({ queryKey: ['comments', postId] });
+      if (created && !vars.parentId && ctx?.tempId) {
+        removeCommentFromCache(qc, postId, ctx.tempId);
+        prependCommentToCache(qc, postId, created as CommentRow);
+      }
       if (vars.parentId) {
         qc.invalidateQueries({ queryKey: ['comment-replies', vars.parentId] });
         setExpandedReplies((s) => new Set(s).add(vars.parentId!));
       }
     },
-    onError: () => toast.error('برای ارسال نظر ابتدا وارد شوید'),
+    onError: (_e, _v, ctx) => {
+      if (ctx?.tempId && !ctx.parentId) removeCommentFromCache(qc, postId, ctx.tempId);
+      toast.error('برای ارسال نظر ابتدا وارد شوید');
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['comments', postId], refetchType: 'none' });
+    },
   });
 
   const toggleLike = useMutation({
@@ -319,10 +357,49 @@ export function CommentSection({
         ? await apiClient.delete<{ likesCount: number }>(`/comments/${id}/like`)
         : await apiClient.post<{ likesCount: number }>(`/comments/${id}/like`, {});
       if (!r.success) throw new Error(r.error);
-      return r.data;
+      return { id, liked, likesCount: r.data?.likesCount };
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['comments', postId] }),
-    onError: () => toast.error('برای لایک نظر ابتدا وارد شوید'),
+    onMutate: async ({ id, liked }) => {
+      await qc.cancelQueries({ queryKey: ['comments', postId] });
+      const pages = qc.getQueryData<{ pages: { data: Comment[] }[] }>(['comments', postId]);
+      let prev: { isLikedByMe?: boolean; likesCount?: number } | undefined;
+      for (const page of pages?.pages ?? []) {
+        const hit = page.data.find((c) => c.id === id);
+        if (hit) {
+          prev = { isLikedByMe: hit.isLikedByMe, likesCount: hit.likesCount };
+          break;
+        }
+      }
+      // `liked` = current state; API toggles to opposite.
+      const nextLiked = !liked;
+      patchCommentInCache(qc, postId, id, {
+        isLikedByMe: nextLiked,
+        likesCount: Math.max(0, (prev?.likesCount ?? 0) + (nextLiked ? 1 : -1)),
+      });
+      return { id, liked, prev };
+    },
+    onError: (_e, { id, liked }, ctx) => {
+      if (ctx?.prev) {
+        patchCommentInCache(qc, postId, id, {
+          isLikedByMe: ctx.prev.isLikedByMe,
+          likesCount: ctx.prev.likesCount,
+        });
+      } else {
+        patchCommentInCache(qc, postId, id, {
+          isLikedByMe: !liked,
+          likesCount: undefined,
+        });
+      }
+      toast.error('برای لایک نظر ابتدا وارد شوید');
+    },
+    onSuccess: (data) => {
+      if (typeof data?.likesCount === 'number') {
+        patchCommentInCache(qc, postId, data.id, {
+          isLikedByMe: !data.liked,
+          likesCount: data.likesCount,
+        });
+      }
+    },
   });
 
   const pin = useMutation({
@@ -443,7 +520,9 @@ export function CommentSection({
                         id={c.id}
                         liked={!!c.isLikedByMe}
                         count={c.likesCount ?? 0}
-                        onToggle={(p) => toggleLike.mutate(p)}
+                        onToggle={(p) =>
+                          runEngagementAction(`comment-like-${p.id}`, () => toggleLike.mutate(p))
+                        }
                       />
                       <button
                         type="button"

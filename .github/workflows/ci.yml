@@ -53,3 +53,7 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Verify media byte-range (optional)
+        if: vars.MEDIA_RANGE_TEST_URL != ''
+        run: bash scripts/check-media-range.sh "${{ vars.MEDIA_RANGE_TEST_URL }}"

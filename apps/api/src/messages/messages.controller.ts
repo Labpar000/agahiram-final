@@ -4,11 +4,15 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { MessagesService } from './messages.service';
+import { MessagesGateway } from './messages.gateway';
 
 @UseGuards(JwtAuthGuard)
 @Controller('messages')
 export class MessagesController {
-  constructor(private readonly service: MessagesService) {}
+  constructor(
+    private readonly service: MessagesService,
+    private readonly gateway: MessagesGateway,
+  ) {}
 
   @Get('unread-count')
   unreadCount(@CurrentUser('sub') userId: string) {
@@ -36,8 +40,10 @@ export class MessagesController {
 
   @Post()
   @UsePipes(new ZodValidationPipe(sendMessageSchema))
-  send(@CurrentUser('sub') userId: string, @Body() body: SendMessageInput) {
-    return this.service.send(userId, body);
+  async send(@CurrentUser('sub') userId: string, @Body() body: SendMessageInput) {
+    const result = await this.service.send(userId, body);
+    this.gateway.broadcastMessage(result);
+    return result;
   }
 
   @Post('start/:username')

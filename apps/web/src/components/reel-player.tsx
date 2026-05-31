@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { MessageSquare, Phone, Play, Volume2, VolumeX } from 'lucide-react';
@@ -22,11 +23,18 @@ import {
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { handleEngagementError } from '@/lib/engagement-auth';
+import { useLikePost, useSavePost } from '@/hooks/usePosts';
+import { PostLink } from '@/components/post-link';
 import { useAuthStore } from '@/lib/auth-store';
+import { runEngagementAction } from '@/lib/inp';
+import { setupVideoSource } from '@/lib/video-playback';
 
-export function ReelPlayer({ reel }: { reel: ReelItem }) {
+export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: boolean }) {
+  const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
+  const likeMutation = useLikePost();
+  const saveMutation = useSavePost();
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef(0);
@@ -46,37 +54,18 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
     setLikeCount(reel.likesCount);
   }, [reel.id, reel.isLiked, reel.isSaved, reel.likesCount]);
 
-  /* Try HLS first; fall back to MP4 if hls not supported */
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
-    const src = reel.hlsUrl ?? reel.media[0]?.url;
-    if (!src) return;
+    if (!video || !active) return;
+    return setupVideoSource(video, reel.hlsUrl ?? undefined, reel.media[0]?.url ?? undefined);
+  }, [active, reel.hlsUrl, reel.media, reel.id]);
 
-    if (reel.hlsUrl && !video.canPlayType('application/vnd.apple.mpegurl')) {
-      let hls: any;
-      let cancelled = false;
-      import('hls.js').then(({ default: Hls }) => {
-        if (cancelled || !video) return;
-        if (Hls.isSupported()) {
-          hls = new Hls({ maxBufferLength: 8 });
-          hls.loadSource(reel.hlsUrl!);
-          hls.attachMedia(video);
-        } else {
-          video.src = reel.media[0]?.url ?? reel.hlsUrl!;
-        }
-      });
-      return () => {
-        cancelled = true;
-        try {
-          hls?.destroy();
-        } catch {
-          /* noop */
-        }
-      };
+  useEffect(() => {
+    if (!active) {
+      videoRef.current?.pause();
+      setPlaying(false);
     }
-    video.src = src;
-  }, [reel.hlsUrl, reel.media]);
+  }, [active]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -85,6 +74,7 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
       (entries) => {
         const entry = entries[0];
         if (!entry) return;
+        if (!active) return;
         if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
           videoRef.current
             ?.play()
@@ -99,10 +89,10 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
     );
     obs.observe(node);
     return () => obs.disconnect();
-  }, []);
+  }, [active]);
 
   const onLikeToggle = useCallback(
-    async (forceLike?: boolean) => {
+    (forceLike?: boolean) => {
       if (!isAuthenticated) {
         handleEngagementError({ success: false, statusCode: 401 }, 'like', logout);
         return;
@@ -111,37 +101,35 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
       if (next === liked) return;
       setLiked(next);
       setLikeCount((c) => Math.max(0, c + (next ? 1 : -1)));
-      const res = next
-        ? await apiClient.post<{ liked: boolean; likesCount: number }>(`/posts/${reel.id}/like`, {})
-        : await apiClient.delete<{ liked: boolean; likesCount: number }>(`/posts/${reel.id}/like`);
-      if (!res.success) {
-        setLiked(!next);
-        setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
-        handleEngagementError(res, 'like', logout);
-        return;
-      }
-      if (typeof res.data?.likesCount === 'number') {
-        setLikeCount(res.data.likesCount);
-      }
+      runEngagementAction(`like-${reel.id}`, () => {
+        likeMutation.mutate(
+          { postId: reel.id, like: next },
+          {
+            onSuccess: (data) => {
+              if (typeof data?.likesCount === 'number') setLikeCount(data.likesCount);
+            },
+            onError: () => {
+              setLiked(!next);
+              setLikeCount((c) => Math.max(0, c + (next ? -1 : 1)));
+            },
+          },
+        );
+      });
     },
-    [liked, reel.id, isAuthenticated, logout],
+    [liked, reel.id, isAuthenticated, logout, likeMutation],
   );
 
-  const onSaveToggle = useCallback(async () => {
+  const onSaveToggle = useCallback(() => {
     if (!isAuthenticated) {
       handleEngagementError({ success: false, statusCode: 401 }, 'save', logout);
       return;
     }
     const next = !saved;
     setSaved(next);
-    const res = next
-      ? await apiClient.post(`/posts/${reel.id}/save`, {})
-      : await apiClient.delete(`/posts/${reel.id}/save`);
-    if (!res.success) {
-      setSaved(!next);
-      handleEngagementError(res, 'save', logout);
-    }
-  }, [saved, reel.id, isAuthenticated, logout]);
+    runEngagementAction(`save-${reel.id}`, () => {
+      saveMutation.mutate({ postId: reel.id, save: next }, { onError: () => setSaved(!next) });
+    });
+  }, [saved, reel.id, isAuthenticated, logout, saveMutation]);
 
   const onShare = useCallback(async () => {
     const url = `${window.location.origin}/post/${reel.id}`;
@@ -193,14 +181,14 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
         `/messages/start/${reel.user.username}`,
       );
       if (r.success && r.data) {
-        window.location.href = `/messages/${r.data.conversationId}`;
+        router.push(`/messages/${r.data.conversationId}`);
       } else {
         toast.error(r.error ?? 'برای ارسال پیام ابتدا وارد شوید');
       }
     } finally {
       setMessaging(false);
     }
-  }, [messaging, reel.user.username]);
+  }, [messaging, reel.user.username, router]);
 
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
@@ -244,7 +232,7 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
         playsInline
         preload="metadata"
         onClick={onTap}
-        className="absolute inset-0 size-full object-cover"
+        className="absolute inset-0 size-full object-cover select-none [-webkit-touch-callout:none]"
         poster={reel.media[0]?.thumbnailUrl ?? undefined}
       />
 
@@ -294,9 +282,9 @@ export function ReelPlayer({ reel }: { reel: ReelItem }) {
           </motion.span>
         </RailButton>
         <RailButton ariaLabel="نظرات" label={formatPersianNumber(reel.commentsCount)} asChild>
-          <Link href={`/post/${reel.id}`}>
+          <PostLink postId={reel.id} post={reel}>
             <IgComment className="size-8 drop-shadow-md" strokeWidth={2} />
-          </Link>
+          </PostLink>
         </RailButton>
         <RailButton ariaLabel="اشتراک‌گذاری" onClick={() => void onShare()}>
           <IgShare className="size-8 drop-shadow-md" strokeWidth={2} />
