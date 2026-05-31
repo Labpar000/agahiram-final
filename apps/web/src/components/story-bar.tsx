@@ -50,10 +50,10 @@ export function StoryBar() {
   }, [qc]);
 
   return (
-    <div className="border-b border-border bg-surface">
+    <div className="border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
       <ul
         aria-label="استوری‌ها"
-        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-[9px] py-2 scrollbar-hide"
+        className="mx-auto flex max-w-2xl gap-4 overflow-x-auto px-4 py-2 scrollbar-hide"
       >
         <li>
           <Link

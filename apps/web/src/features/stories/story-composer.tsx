@@ -7,10 +7,13 @@ import type { StoryOverlayDocument } from '@agahiram/shared';
 import { Button } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import { StoryOverlayEditor } from '@/components/story-overlay-editor';
+import {
+  StoryOverlayEditor,
+  type StoryOverlayEditorHandle,
+} from '@/components/story-overlay-editor';
 import { StoryStickerEditorPanel } from '@/features/stories/stickers/story-sticker-editor-panel';
 import { StoryStickerComposerPreview } from '@/features/stories/stickers/story-sticker-composer-preview';
-import { StoryMusicPicker, type StoryMusicSelection } from '@/features/stories/story-music-picker';
+import { StoryPublishPreview } from '@/features/stories/story-publish-preview';
 import { MAX_STORY_DURATION } from '@agahiram/shared';
 
 export type PublishSticker = {
@@ -20,6 +23,19 @@ export type PublishSticker = {
   y?: number;
   scale?: number;
   rotation?: number;
+};
+
+export type StoryComposerPayload = {
+  overlay?: StoryOverlayDocument;
+  audience: 'PUBLIC' | 'CLOSE_FRIENDS';
+  allowReplies: string;
+  linkedPostId?: string;
+  hashtag?: string;
+  cityId?: string;
+  stickers: PublishSticker[];
+  altText?: string;
+  scheduledAt?: string;
+  repost?: { type: 'post' | 'story'; id: string };
 };
 
 const STICKER_LABELS: Record<string, string> = {
@@ -55,32 +71,8 @@ export function StoryComposer({
   videoDurationMs?: number;
   isPublishing?: boolean;
   onCancel: () => void;
-  onPublish: (data: {
-    overlay?: StoryOverlayDocument;
-    audience: 'PUBLIC' | 'CLOSE_FRIENDS';
-    allowReplies: string;
-    linkedPostId?: string;
-    hashtag?: string;
-    cityId?: string;
-    stickers: PublishSticker[];
-    altText?: string;
-    music?: StoryMusicSelection;
-    scheduledAt?: string;
-    repost?: { type: 'post' | 'story'; id: string };
-  }) => void;
-  onAddSlide?: (data: {
-    overlay?: StoryOverlayDocument;
-    audience: 'PUBLIC' | 'CLOSE_FRIENDS';
-    allowReplies: string;
-    linkedPostId?: string;
-    hashtag?: string;
-    cityId?: string;
-    stickers: PublishSticker[];
-    altText?: string;
-    music?: StoryMusicSelection;
-    scheduledAt?: string;
-    repost?: { type: 'post' | 'story'; id: string };
-  }) => void;
+  onPublish: (data: StoryComposerPayload) => void;
+  onAddSlide?: (data: StoryComposerPayload) => void;
   slideIndex?: number;
   slideTotal?: number;
   defaultAudience?: 'PUBLIC' | 'CLOSE_FRIENDS';
@@ -91,6 +83,11 @@ export function StoryComposer({
 }) {
   const searchParams = useSearchParams();
   const linkedFromUrl = searchParams.get('linkedPostId') ?? undefined;
+  const [phase, setPhase] = useState<'edit' | 'preview'>('edit');
+  const [previewDraft, setPreviewDraft] = useState<StoryComposerPayload | null>(null);
+  const [editedOverlay, setEditedOverlay] = useState<StoryOverlayDocument | undefined>(
+    defaultOverlay,
+  );
   const [audience, setAudience] = useState<'PUBLIC' | 'CLOSE_FRIENDS'>(defaultAudience);
   const [allowReplies, setAllowReplies] = useState(defaultAllowReplies);
   const [linkedPostId, setLinkedPostId] = useState(defaultLinkedPostId ?? linkedFromUrl ?? '');
@@ -98,13 +95,14 @@ export function StoryComposer({
   const [showStickers, setShowStickers] = useState(false);
   const [filterId, setFilterId] = useState('none');
   const [altText, setAltText] = useState('');
-  const [music, setMusic] = useState<StoryMusicSelection | null>(null);
   const [scheduledAt, setScheduledAt] = useState('');
+  const editorRef = useRef<StoryOverlayEditorHandle>(null);
   const overlayRef = useRef<StoryOverlayDocument>(defaultOverlay ?? { layers: [] });
 
   useEffect(() => {
     if (defaultOverlay?.layers?.length) {
       overlayRef.current = defaultOverlay;
+      setEditedOverlay(defaultOverlay);
     }
   }, [defaultOverlay]);
 
@@ -125,7 +123,7 @@ export function StoryComposer({
     enabled: !!username,
   });
 
-  const collectPayload = () => ({
+  const collectPayload = (): StoryComposerPayload => ({
     overlay: overlayRef.current,
     audience,
     allowReplies,
@@ -134,14 +132,50 @@ export function StoryComposer({
     cityId: stickers.find((s) => s.type === 'LOCATION')?.payload?.cityId as string | undefined,
     stickers,
     altText: altText.trim() || undefined,
-    music: music ?? undefined,
     scheduledAt: scheduledAt || undefined,
     repost: defaultRepost,
   });
 
+  const goToPreview = () => {
+    const overlay = editorRef.current?.getDocument() ?? overlayRef.current;
+    overlayRef.current = overlay;
+    setPreviewDraft({ ...collectPayload(), overlay });
+    setPhase('preview');
+  };
+
   const removeSticker = (index: number) => {
     setStickers((prev) => prev.filter((_, i) => i !== index));
   };
+
+  if (phase === 'preview' && previewDraft) {
+    return (
+      <StoryPublishPreview
+        previewUrl={previewUrl}
+        mediaType={mediaType}
+        overlay={previewDraft.overlay}
+        stickers={previewDraft.stickers}
+        isPublishing={isPublishing}
+        publishLabel={onAddSlide ? 'انتشار همه اسلایدها' : 'انتشار'}
+        onBack={() => {
+          if (previewDraft.overlay) {
+            overlayRef.current = previewDraft.overlay;
+            setEditedOverlay(previewDraft.overlay);
+          }
+          setPhase('edit');
+        }}
+        onPublish={() => onPublish(previewDraft)}
+        onAddSlide={
+          onAddSlide
+            ? () => {
+                onAddSlide(previewDraft);
+                setPhase('edit');
+                setPreviewDraft(null);
+              }
+            : undefined
+        }
+      />
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -212,8 +246,6 @@ export function StoryComposer({
         <p className="text-[10px] text-muted-foreground">ویدیو حداکثر {MAX_STORY_DURATION} ثانیه</p>
       </div>
 
-      <StoryMusicPicker value={music} onChange={setMusic} />
-
       {showStickers ? (
         <StoryStickerEditorPanel onAdd={(s) => setStickers((prev) => [...prev, s])} />
       ) : null}
@@ -235,6 +267,7 @@ export function StoryComposer({
 
       <div className="relative">
         <StoryOverlayEditor
+          ref={editorRef}
           previewUrl={previewUrl}
           mediaType={mediaType}
           embedMode
@@ -244,27 +277,18 @@ export function StoryComposer({
           filterId={filterId}
           onFilterChange={setFilterId}
           onChange={handleOverlayChange}
+          defaultOverlay={editedOverlay}
         />
         <StoryStickerComposerPreview stickers={stickers} />
       </div>
 
       <div className="flex flex-col gap-2">
-        {onAddSlide ? (
-          <Button variant="outline" fullWidth onClick={() => onAddSlide(collectPayload())}>
-            افزودن اسلاید بعدی
-          </Button>
-        ) : null}
         <div className="flex gap-2">
           <Button variant="outline" fullWidth onClick={onCancel}>
             لغو
           </Button>
-          <Button
-            variant="brand"
-            fullWidth
-            isLoading={isPublishing}
-            onClick={() => onPublish(collectPayload())}
-          >
-            {onAddSlide ? 'انتشار همه اسلایدها' : 'انتشار'}
+          <Button variant="brand" fullWidth onClick={goToPreview}>
+            پیش‌نمایش
           </Button>
         </div>
       </div>

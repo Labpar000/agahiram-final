@@ -53,7 +53,7 @@ interface Neighborhood {
 
 export default function LocationsPage() {
   return (
-    <Shell>
+    <Shell adminOnly>
       <PageHeader title="مناطق" description="مدیریت استان‌ها، شهرها و محله‌ها" />
       <Tabs defaultValue="provinces">
         <TabsList className="mb-4">
@@ -228,6 +228,8 @@ function CitiesTab() {
     name: string;
     slug: string;
     provinceId: string;
+    lat?: string;
+    lng?: string;
   } | null>(null);
   const [del, setDel] = useState<City | null>(null);
 
@@ -248,8 +250,21 @@ function CitiesTab() {
   });
 
   const save = useMutation({
-    mutationFn: async (f: { id?: string; name: string; slug: string; provinceId: string }) => {
-      const body = { name: f.name.trim(), slug: f.slug.trim(), provinceId: f.provinceId };
+    mutationFn: async (f: {
+      id?: string;
+      name: string;
+      slug: string;
+      provinceId: string;
+      lat?: string;
+      lng?: string;
+    }) => {
+      const body = {
+        name: f.name.trim(),
+        slug: f.slug.trim(),
+        provinceId: f.provinceId,
+        lat: f.lat?.trim() ? Number(f.lat) : null,
+        lng: f.lng?.trim() ? Number(f.lng) : null,
+      };
       const r = f.id
         ? await apiClient.patch(`/admin/cities/${f.id}`, body)
         : await apiClient.post('/admin/cities', body);
@@ -315,6 +330,8 @@ function CitiesTab() {
                 name: '',
                 slug: '',
                 provinceId: provinceId || (provinces.data?.[0]?.id ?? ''),
+                lat: '',
+                lng: '',
               })
             }
           >
@@ -347,7 +364,14 @@ function CitiesTab() {
                   variant="ghost"
                   icon={<Pencil className="size-4" />}
                   onClick={() =>
-                    setForm({ id: c.id, name: c.name, slug: c.slug, provinceId: c.provinceId })
+                    setForm({
+                      id: c.id,
+                      name: c.name,
+                      slug: c.slug,
+                      provinceId: c.provinceId,
+                      lat: c.lat != null ? String(c.lat) : '',
+                      lng: c.lng != null ? String(c.lng) : '',
+                    })
                   }
                 />
                 <IconButton
@@ -399,6 +423,30 @@ function CitiesTab() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label>عرض جغرافیایی (lat)</Label>
+                  <Input
+                    dir="ltr"
+                    type="number"
+                    step="any"
+                    value={form.lat ?? ''}
+                    onChange={(e) => setForm({ ...form, lat: e.target.value })}
+                    placeholder="35.6892"
+                  />
+                </div>
+                <div>
+                  <Label>طول جغرافیایی (lng)</Label>
+                  <Input
+                    dir="ltr"
+                    type="number"
+                    step="any"
+                    value={form.lng ?? ''}
+                    onChange={(e) => setForm({ ...form, lng: e.target.value })}
+                    placeholder="51.3890"
+                  />
+                </div>
               </div>
             </div>
           ) : null}

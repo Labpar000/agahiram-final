@@ -19,11 +19,15 @@ import {
   IgComment,
   IgCopy,
   IgHeart,
-  IgMore,
+  IgMusic,
+  IgOptions,
   IgPhone,
+  IgPin,
   IgPlay,
+  IgPlus,
   IgSearch,
-  IgShare,
+  IgShare2026,
+  IgVerified,
   IgVolume,
   toast,
 } from '@agahiram/ui';
@@ -330,17 +334,22 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         <IgVolume muted={muted} className="size-5" strokeWidth={1.75} aria-hidden />
       </button>
 
-      <div className="absolute start-3 bottom-24 z-10 flex flex-col items-center gap-4 text-white">
-        <Link href={`/profile/${reel.user.username}`} className="relative">
-          <Avatar size="md" className="ring-2 ring-white">
+      <div className="absolute inset-inline-end-3 bottom-[calc(var(--safe-bottom)+5.5rem)] z-10 flex w-12 flex-col items-center gap-3 text-white">
+        <Link href={`/profile/${reel.user.username}`} className="relative mb-1 block">
+          <Avatar size="sm" className="size-9 ring-2 ring-white">
             {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
-            <AvatarFallback>{(reel.user.username ?? '?').slice(0, 2)}</AvatarFallback>
+            <AvatarFallback className="bg-white/20 text-[11px] text-white">
+              {(reel.user.username ?? '?').slice(0, 2).toUpperCase()}
+            </AvatarFallback>
           </Avatar>
           {!isOwnReel && isAuthenticated ? (
             <button
               type="button"
               aria-label={following ? 'لغو دنبال‌کردن' : 'دنبال‌کردن'}
-              className="absolute -bottom-1 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-white text-[10px] font-bold text-black"
+              className={cn(
+                'absolute -bottom-1.5 start-1/2 grid size-5 -translate-x-1/2 place-items-center rounded-full shadow-sm',
+                following ? 'bg-neutral-500 text-white' : 'bg-[#FF3040] text-white',
+              )}
               onClick={async (e) => {
                 e.preventDefault();
                 const r = following
@@ -349,14 +358,21 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                 if (r.success) setFollowing(!following);
               }}
             >
-              {following ? '✓' : '+'}
+              {following ? (
+                <span className="text-[10px] font-bold leading-none" aria-hidden>
+                  ✓
+                </span>
+              ) : (
+                <IgPlus className="size-3" strokeWidth={3} aria-hidden />
+              )}
             </button>
           ) : null}
         </Link>
+
         <RailButton
           ariaLabel={liked ? 'حذف لایک' : 'لایک'}
           onClick={() => onLikeToggle()}
-          label={formatPersianNumber(likeCount)}
+          label={likeCount > 0 ? formatPersianNumber(likeCount) : undefined}
         >
           <motion.span
             key={String(liked)}
@@ -365,35 +381,28 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
             className="inline-flex"
           >
-            <IgHeart
-              className={cn('size-8 drop-shadow-md', liked && 'text-[var(--like)]')}
-              filled={liked}
-              strokeWidth={2}
-            />
+            <IgHeart className="reel-action-icon" filled={liked} />
           </motion.span>
         </RailButton>
+
         <RailButton
           ariaLabel="نظرات"
-          label={formatPersianNumber(reel.commentsCount)}
+          label={reel.commentsCount > 0 ? formatPersianNumber(reel.commentsCount) : undefined}
           onClick={() => setCommentsOpen(true)}
         >
-          <IgComment className="size-8 drop-shadow-md" strokeWidth={2} />
+          <IgComment className="reel-action-icon" strokeWidth={2} />
         </RailButton>
+
         <RailButton ariaLabel="اشتراک‌گذاری" onClick={() => void onShare()}>
-          <IgShare className="size-8 drop-shadow-md" strokeWidth={2} />
+          <IgShare2026 className="reel-action-icon" strokeWidth={2} />
         </RailButton>
-        <Link
-          href={`/create/story?repostPost=${reel.id}`}
-          className="flex flex-col items-center gap-1 text-white tap-none"
-          aria-label="افزودن به استوری"
-        >
-          <span className="text-2xl drop-shadow-md" aria-hidden>
-            ⊕
-          </span>
-          <span className="text-[10px] font-semibold drop-shadow-md">استوری</span>
-        </Link>
+
         <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
-          <IgMore className="size-8 drop-shadow-md" strokeWidth={2} />
+          <IgOptions className="reel-action-icon-wide" />
+        </RailButton>
+
+        <RailButton ariaLabel="موسیقی">
+          <IgMusic className="reel-action-icon" strokeWidth={2} />
         </RailButton>
       </div>
 
@@ -440,9 +449,22 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             <button
               type="button"
               className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
-              onClick={() => void onSaveToggle()}
+              onClick={() => {
+                setMoreOpen(false);
+                void onSaveToggle();
+              }}
             >
               {saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
+            </button>
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => {
+                setMoreOpen(false);
+                router.push(`/create/story?repostPost=${reel.id}`);
+              }}
+            >
+              افزودن به استوری
             </button>
             <button
               type="button"
@@ -465,33 +487,25 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         </div>
       ) : null}
 
-      {/* Bottom meta — start aligned content (right of avatar in RTL feels natural) */}
-      <div className="absolute inset-x-0 bottom-0 pe-20 ps-4 pb-4 text-white">
+      {/* Bottom meta — IG Reels caption overlay */}
+      <div className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.75rem)] pe-[4.75rem] ps-3 text-white">
         <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black/80 via-black/40 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
           aria-hidden
         />
-        <div className="relative flex flex-col gap-2">
+        <div className="relative flex flex-col gap-1.5">
           <Link
             href={`/profile/${reel.user.username}`}
-            className="inline-flex w-fit items-center gap-2 rounded-full tap-none"
+            className="inline-flex w-fit items-center gap-1.5 tap-none"
           >
-            <Avatar
-              size="sm"
-              ring="brand"
-              verified={reel.user.isVerified}
-              className="ring-1 ring-white/30"
-            >
-              {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
-              <AvatarFallback className="bg-white/20 text-white">
-                {(reel.user.username ?? '?').slice(0, 2)}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-semibold drop-shadow-md">{reel.user.username}</span>
+            <span className="text-sm font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+              {reel.user.username}
+            </span>
+            {reel.user.isVerified ? <IgVerified className="size-3.5 shrink-0" aria-hidden /> : null}
           </Link>
           <h3
             className={cn(
-              'text-base font-bold leading-snug drop-shadow-md',
+              'text-sm font-normal leading-snug drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]',
               expanded ? '' : 'line-clamp-2',
             )}
             onClick={() => setExpanded((e) => !e)}
@@ -499,15 +513,20 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             {reel.title}
           </h3>
           {reel.city?.name ? (
-            <p className="text-xs text-white/80 drop-shadow-md">📍 {reel.city.name}</p>
+            <p className="inline-flex items-center gap-1 text-xs text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+              <IgPin className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+              {reel.city.name}
+            </p>
           ) : null}
-          <p className="text-sm font-extrabold drop-shadow-md">{formatPersianPrice(reel.price)}</p>
-          <div className="inline-flex flex-wrap gap-1 rounded-full bg-black/45 p-1 backdrop-blur-sm">
+          <p className="text-sm font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            {formatPersianPrice(reel.price)}
+          </p>
+          <div className="mt-0.5 inline-flex flex-wrap gap-1.5">
             <Button
               variant={contactRevealed ? 'outline' : 'secondary'}
               size="sm"
               leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
-              className="h-7 rounded-full border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
+              className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
               onClick={() => void onContact()}
               aria-live="polite"
             >
@@ -523,7 +542,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
               variant="secondary"
               size="sm"
               leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
-              className="h-7 rounded-full border-white/20 bg-white/10 px-3 text-white hover:bg-white/20"
+              className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
               onClick={() => void onSendMessage()}
               isLoading={messaging}
               aria-label="ارسال پیام به فروشنده"
@@ -551,25 +570,48 @@ function RailButton({
   asChild?: boolean;
 }) {
   const base =
-    'inline-flex flex-col items-center gap-1 rounded-md tap-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white';
+    'inline-flex w-12 flex-col items-center gap-1 tap-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80';
+  const content = (
+    <>
+      <span className="grid size-8 place-items-center">{children}</span>
+      <span
+        className={cn(
+          'min-h-[13px] text-center text-[11px] font-semibold leading-none tracking-[0.01375rem] drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]',
+          !label && 'invisible',
+        )}
+        aria-hidden={!label}
+      >
+        {label ?? '·'}
+      </span>
+    </>
+  );
+
   if (asChild && React.isValidElement(children)) {
-    return React.cloneElement(children as React.ReactElement<any>, {
+    const child = children as React.ReactElement<any>;
+    const icon = child.props.children;
+    return React.cloneElement(child, {
       'aria-label': ariaLabel,
-      className: cn(base, (children as any).props.className),
+      className: cn(base, child.props.className),
       children: (
         <>
-          <span className="grid size-11 place-items-center">
-            {(children as any).props.children}
+          <span className="grid size-8 place-items-center">{icon}</span>
+          <span
+            className={cn(
+              'min-h-[13px] text-center text-[11px] font-semibold leading-none tracking-[0.01375rem] drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]',
+              !label && 'invisible',
+            )}
+            aria-hidden={!label}
+          >
+            {label ?? '·'}
           </span>
-          {label ? <span className="text-[11px] font-medium drop-shadow-md">{label}</span> : null}
         </>
       ),
     });
   }
+
   return (
     <button type="button" aria-label={ariaLabel} onClick={onClick} className={base}>
-      <span className="grid size-11 place-items-center">{children}</span>
-      {label ? <span className="text-[11px] font-medium drop-shadow-md">{label}</span> : null}
+      {content}
     </button>
   );
 }

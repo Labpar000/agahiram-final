@@ -29,6 +29,8 @@ interface PlatformSettings {
   maintenanceMessage?: string | null;
   maxPostsPerDay?: number;
   defaultPostExpiryDays?: number;
+  privacyContent?: string | null;
+  termsContent?: string | null;
 }
 
 export default function SettingsPage() {
@@ -50,6 +52,8 @@ export default function SettingsPage() {
         contactEmail: form.contactEmail?.trim() || null,
         supportPhone: form.supportPhone?.trim() || null,
         maintenanceMessage: form.maintenanceMessage?.trim() || null,
+        privacyContent: form.privacyContent?.trim() || null,
+        termsContent: form.termsContent?.trim() || null,
       };
       const r = await apiClient.post('/admin/settings', payload);
       if (!r.success) throw new Error(r.error ?? 'خطا');
@@ -66,7 +70,7 @@ export default function SettingsPage() {
     setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
-    <Shell>
+    <Shell adminOnly>
       <div className="mb-6">
         <h1 className="text-h2 font-extrabold tracking-tight">تنظیمات پلتفرم</h1>
         <p className="mt-1 text-sm text-muted-foreground">پیکربندی عمومی، محتوا و دسترسی‌ها</p>
@@ -205,6 +209,31 @@ export default function SettingsPage() {
               label="پلن‌های نردبان"
             />
           </div>
+        </SectionCard>
+
+        <SectionCard
+          icon={<Tag className="size-5" aria-hidden />}
+          title="صفحات قانونی"
+          description="محتوای حریم خصوصی و شرایط استفاده (CMS)"
+        >
+          <FormField id="privacyContent" label="حریم خصوصی">
+            <Textarea
+              id="privacyContent"
+              rows={8}
+              value={form.privacyContent ?? ''}
+              onChange={(e) => set('privacyContent', e.target.value || null)}
+              placeholder="متن صفحه حریم خصوصی…"
+            />
+          </FormField>
+          <FormField id="termsContent" label="شرایط استفاده">
+            <Textarea
+              id="termsContent"
+              rows={8}
+              value={form.termsContent ?? ''}
+              onChange={(e) => set('termsContent', e.target.value || null)}
+              placeholder="متن صفحه شرایط استفاده…"
+            />
+          </FormField>
         </SectionCard>
 
         <SectionCard

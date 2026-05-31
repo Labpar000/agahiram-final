@@ -12,11 +12,12 @@ import {
   Trash2,
 } from 'lucide-react';
 import { formatPersianNumber } from '@agahiram/shared';
-import { Badge, Button, Card, CardContent, Spinner, toast } from '@agahiram/ui';
+import { Badge, Button, Card, CardContent, ErrorState, Spinner, toast } from '@agahiram/ui';
 import Shell from '../layout-shell';
 import { PageHeader } from '@/components/page-header';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { useState } from 'react';
+import { adminFetch, isForbiddenError } from '@/lib/admin-api';
 import { apiClient } from '@/lib/api';
 
 interface QueueStatus {
@@ -46,11 +47,11 @@ interface SystemStatus {
 
 export default function SystemPage() {
   const qc = useQueryClient();
-  const [confirm, setConfirm] = useState<null | 'reindex' | 'clean'>(null);
+  const [confirm, setConfirm] = useState<null | 'reindex' | 'reindexStories' | 'clean'>(null);
 
   const status = useQuery({
     queryKey: ['admin', 'system'],
-    queryFn: async () => (await apiClient.get<SystemStatus>('/admin/system/status')).data,
+    queryFn: () => adminFetch(() => apiClient.get<SystemStatus>('/admin/system/status')),
     refetchInterval: 10_000,
   });
 
@@ -62,6 +63,20 @@ export default function SystemPage() {
     },
     onSuccess: (r) => {
       toast.success(`${formatPersianNumber(r.queued)} آگهی برای ایندکس صف شد`);
+      setConfirm(null);
+      qc.invalidateQueries({ queryKey: ['admin', 'system'] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const reindexStories = useMutation({
+    mutationFn: async () => {
+      const r = await apiClient.post<{ queued: number }>('/admin/system/reindex-stories');
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+      return r.data!;
+    },
+    onSuccess: (r) => {
+      toast.success(`${formatPersianNumber(r.queued)} استوری برای ایندکس صف شد`);
       setConfirm(null);
       qc.invalidateQueries({ queryKey: ['admin', 'system'] });
     },
@@ -83,9 +98,9 @@ export default function SystemPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
-  if (status.isLoading || !status.data) {
+  if (status.isLoading) {
     return (
-      <Shell>
+      <Shell adminOnly>
         <div className="grid place-items-center py-16">
           <Spinner className="size-8" />
         </div>
@@ -93,11 +108,26 @@ export default function SystemPage() {
     );
   }
 
-  const s = status.data;
+  if (status.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader
+          title="وضعیت سیستم"
+          description="مانیتورینگ صف‌های BullMQ، MeiliSearch و رسانه‌ها"
+        />
+        <ErrorState
+          title={isForbiddenError(status.error) ? 'دسترسی محدود' : undefined}
+          onRetry={() => void status.refetch()}
+        />
+      </Shell>
+    );
+  }
+
+  const s = status.data!;
   const memMB = (n: number) => Math.round(n / 1024 / 1024);
 
   return (
-    <Shell>
+    <Shell adminOnly>
       <PageHeader
         title="وضعیت سیستم"
         description="مانیتورینگ صف‌های BullMQ، MeiliSearch و رسانه‌ها"
@@ -115,9 +145,17 @@ export default function SystemPage() {
               size="sm"
               variant="outline"
               leftIcon={<Search className="size-4" />}
+              onClick={() => setConfirm('reindexStories')}
+            >
+              ایندکس استوری‌ها
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              leftIcon={<Search className="size-4" />}
               onClick={() => setConfirm('reindex')}
             >
-              ایندکس مجدد
+              ایندکس آگهی‌ها
             </Button>
             <Button
               size="sm"
@@ -265,6 +303,16 @@ export default function SystemPage() {
         tone="brand"
         isLoading={reindex.isPending}
         onConfirm={() => reindex.mutate()}
+      />
+      <ConfirmDialog
+        open={confirm === 'reindexStories'}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title="ایندکس مجدد استوری‌ها"
+        description="همه‌ی استوری‌های فعال به صف ایندکس MeiliSearch اضافه می‌شوند."
+        confirmLabel="شروع"
+        tone="brand"
+        isLoading={reindexStories.isPending}
+        onConfirm={() => reindexStories.mutate()}
       />
       <ConfirmDialog
         open={confirm === 'clean'}

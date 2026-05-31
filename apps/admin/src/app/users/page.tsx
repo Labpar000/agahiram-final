@@ -3,13 +3,16 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BadgeCheck, Ban, Check, Search, Shield, Store, UserRound } from 'lucide-react';
+import { BadgeCheck, Ban, Check, Search, Shield, Store, UserRound, XCircle } from 'lucide-react';
 import { formatJalaliDate, formatPhoneFa } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Badge,
+  Button,
+  Card,
+  CardContent,
   IconButton,
   Input,
   toast,
@@ -37,14 +40,37 @@ interface User {
 
 const PAGE_SIZE = 20;
 
+const ROLE_OPTIONS = [
+  { value: '', label: 'همه نقش‌ها' },
+  { value: 'user', label: 'کاربر' },
+  { value: 'moderator', label: 'ناظر' },
+  { value: 'admin', label: 'ادمین' },
+];
+
+const BOOL_FILTER_OPTIONS = [
+  { value: '', label: 'همه' },
+  { value: 'true', label: 'بله' },
+  { value: 'false', label: 'خیر' },
+];
+
+function roleLabel(role: string) {
+  if (role === 'admin') return 'ادمین';
+  if (role === 'moderator') return 'ناظر';
+  return 'کاربر';
+}
+
 export default function UsersPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
+  const [role, setRole] = useState('');
+  const [isBanned, setIsBanned] = useState('');
+  const [isVerified, setIsVerified] = useState('');
+  const [isBusiness, setIsBusiness] = useState('');
   const [banConfirm, setBanConfirm] = useState<User | null>(null);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin', 'users', q, page],
+    queryKey: ['admin', 'users', q, page, role, isBanned, isVerified, isBusiness],
     queryFn: async () =>
       (
         await apiClient.get<{ data: User[]; total?: number; page?: number; pageSize?: number }>(
@@ -53,6 +79,10 @@ export default function UsersPage() {
             q,
             page,
             pageSize: PAGE_SIZE,
+            role: role || undefined,
+            isBanned: isBanned === '' ? undefined : isBanned === 'true',
+            isVerified: isVerified === '' ? undefined : isVerified === 'true',
+            isBusiness: isBusiness === '' ? undefined : isBusiness === 'true',
           },
         )
       ).data,
@@ -66,7 +96,7 @@ export default function UsersPage() {
       reason,
     }: {
       id: string;
-      kind: 'ban' | 'unban' | 'verify' | 'business';
+      kind: 'ban' | 'unban' | 'verify' | 'unverify' | 'business';
       value?: boolean;
       reason?: string;
     }) => {
@@ -74,6 +104,8 @@ export default function UsersPage() {
       if (kind === 'ban') r = await apiClient.post(`/admin/users/${id}/ban`, { reason });
       else if (kind === 'unban') r = await apiClient.post(`/admin/users/${id}/unban`);
       else if (kind === 'verify') r = await apiClient.post(`/admin/users/${id}/verify`);
+      else if (kind === 'unverify')
+        r = await apiClient.patch(`/admin/users/${id}`, { isVerified: false });
       else r = await apiClient.post(`/admin/users/${id}/business`, { value });
       if (!r.success) throw new Error(r.error ?? 'خطا');
     },
@@ -106,6 +138,8 @@ export default function UsersPage() {
                 ) : null}
                 {u.role === 'admin' ? (
                   <Shield className="size-3.5 text-primary" aria-hidden />
+                ) : u.role === 'moderator' ? (
+                  <Shield className="size-3.5 text-warning-foreground" aria-hidden />
                 ) : null}
               </div>
               <div className="text-xs text-muted-foreground">@{u.username ?? '—'}</div>
@@ -128,8 +162,11 @@ export default function UsersPage() {
         header: 'نقش',
         hideOnMobile: true,
         cell: (u) => (
-          <Badge tone={u.role === 'admin' ? 'brand' : 'neutral'} size="sm">
-            {u.role === 'admin' ? 'ادمین' : 'کاربر'}
+          <Badge
+            tone={u.role === 'admin' ? 'brand' : u.role === 'moderator' ? 'warning' : 'neutral'}
+            size="sm"
+          >
+            {roleLabel(u.role)}
           </Badge>
         ),
       },
@@ -200,7 +237,23 @@ export default function UsersPage() {
                 </TooltipTrigger>
                 <TooltipContent>تأیید کاربر</TooltipContent>
               </Tooltip>
-            ) : null}
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <IconButton
+                    aria-label="لغو تأیید"
+                    size="sm"
+                    variant="ghost"
+                    icon={<XCircle className="size-4" aria-hidden />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      action.mutate({ id: u.id, kind: 'unverify' });
+                    }}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>لغو تأیید</TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger asChild>
                 <IconButton
@@ -246,6 +299,91 @@ export default function UsersPage() {
           />
         </div>
       </div>
+
+      <Card className="mb-4">
+        <CardContent className="!p-4">
+          <div className="flex flex-wrap items-end gap-2">
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={role}
+              onChange={(e) => {
+                setRole(e.target.value);
+                setPage(1);
+              }}
+              aria-label="فیلتر نقش"
+            >
+              {ROLE_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={isBanned}
+              onChange={(e) => {
+                setIsBanned(e.target.value);
+                setPage(1);
+              }}
+              aria-label="فیلتر مسدود"
+            >
+              <option value="">مسدود: همه</option>
+              {BOOL_FILTER_OPTIONS.filter((o) => o.value).map((o) => (
+                <option key={o.value} value={o.value}>
+                  مسدود: {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={isVerified}
+              onChange={(e) => {
+                setIsVerified(e.target.value);
+                setPage(1);
+              }}
+              aria-label="فیلتر تأییدشده"
+            >
+              <option value="">تأیید: همه</option>
+              {BOOL_FILTER_OPTIONS.filter((o) => o.value).map((o) => (
+                <option key={o.value} value={o.value}>
+                  تأیید: {o.label}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={isBusiness}
+              onChange={(e) => {
+                setIsBusiness(e.target.value);
+                setPage(1);
+              }}
+              aria-label="فیلتر فروشگاهی"
+            >
+              <option value="">فروشگاهی: همه</option>
+              {BOOL_FILTER_OPTIONS.filter((o) => o.value).map((o) => (
+                <option key={o.value} value={o.value}>
+                  فروشگاهی: {o.label}
+                </option>
+              ))}
+            </select>
+            {role || isBanned || isVerified || isBusiness ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setRole('');
+                  setIsBanned('');
+                  setIsVerified('');
+                  setIsBusiness('');
+                  setPage(1);
+                }}
+              >
+                پاک‌سازی فیلترها
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
       <DataTable
         columns={columns}

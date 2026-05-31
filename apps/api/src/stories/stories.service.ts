@@ -17,7 +17,6 @@ import {
   buildRepostAttributionOverlay,
   extractStorySearchableText,
   mergeStoryOverlays,
-  STORY_MUSIC_TRACKS,
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../media/minio.service';
@@ -35,7 +34,7 @@ type CanViewOptions = { discover?: boolean };
 const STORY_IMAGE_MS = 5_000;
 
 export type CreateStoryInput = {
-  mediaKey: string;
+  mediaKey?: string;
   type: 'image' | 'video';
   linkedPostId?: string;
   overlayJson?: Record<string, unknown>;
@@ -55,7 +54,6 @@ export type CreateStoryInput = {
     scale?: number;
     rotation?: number;
   }>;
-  music?: { trackId: string; startMs?: number; displayMode?: string };
   repost?: { type: 'post' | 'story'; id: string };
   publishAt?: Date;
 };
@@ -105,10 +103,6 @@ export class StoriesService {
         input.repost?.type === 'post' ? 'اشتراک آگهی' : 'اشتراک استوری',
       );
       overlayJson = mergeStoryOverlays(input.overlayJson, attribution) as Record<string, unknown>;
-    }
-
-    if (input.music?.trackId && !STORY_MUSIC_TRACKS.some((t) => t.id === input.music!.trackId)) {
-      throw new BadRequestException('ترک موسیقی نامعتبر است');
     }
 
     const hashtagSticker = input.stickers?.find((s) => s.type === 'HASHTAG');
@@ -173,17 +167,6 @@ export class StoriesService {
           });
         }
       }
-    }
-
-    if (input.music) {
-      await this.prisma.storyMusic.create({
-        data: {
-          storyId: story.id,
-          trackId: input.music.trackId,
-          startMs: input.music.startMs ?? 0,
-          displayMode: input.music.displayMode ?? 'minimal',
-        },
-      });
     }
 
     void this.mediaQueue.add('story-media', { storyId: story.id }, { removeOnComplete: true });
@@ -382,7 +365,7 @@ export class StoriesService {
   async getStoryById(id: string) {
     return this.prisma.story.findUnique({
       where: { id },
-      include: { stickers: true, music: true },
+      include: { stickers: true },
     });
   }
 
@@ -460,7 +443,6 @@ export class StoriesService {
       include: {
         user: { select: { id: true, username: true, avatar: true, isVerified: true } },
         stickers: true,
-        music: true,
         ...(viewerId
           ? {
               views: {
@@ -500,7 +482,6 @@ export class StoriesService {
         durationMs: s.durationMs ?? STORY_IMAGE_MS,
         overlayJson: s.overlayJson ?? null,
         stickers: serializeStickersForViewer(s.stickers, viewerId, uId),
-        music: s.music,
         altText: s.altText,
         hashtag: s.hashtag,
         thumbnailUrl: s.thumbnailUrl,
@@ -540,7 +521,6 @@ export class StoriesService {
         user: { select: { id: true, username: true, avatar: true, isVerified: true } },
         views: { where: { userId }, select: { id: true, replayCount: true } },
         stickers: true,
-        music: true,
         _count: { select: { views: true, comments: true, reactions: true } },
       },
       orderBy: [{ userId: 'asc' }, { sequenceIndex: 'asc' }, { createdAt: 'asc' }],
@@ -577,7 +557,6 @@ export class StoriesService {
         durationMs: s.durationMs ?? STORY_IMAGE_MS,
         overlayJson: s.overlayJson ?? null,
         stickers: serializeStickersForViewer(s.stickers, userId, uId),
-        music: s.music,
         altText: s.altText,
         hashtag: s.hashtag,
         thumbnailUrl: s.thumbnailUrl,
@@ -874,6 +853,34 @@ export class StoriesService {
     const story = await this.prisma.story.findUnique({ where: { id } });
     if (!story) throw new NotFoundException();
     return this.removeStory(story);
+  }
+
+  async adminGet(id: string) {
+    const story = await this.prisma.story.findUnique({
+      where: { id },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            name: true,
+            avatar: true,
+            phone: true,
+            isVerified: true,
+          },
+        },
+        stickers: true,
+        city: { select: { id: true, name: true } },
+        _count: { select: { views: true, reactions: true, comments: true } },
+      },
+    });
+    if (!story) throw new NotFoundException();
+    const reports = await this.prisma.report.findMany({
+      where: { targetType: 'story', targetId: id, status: 'pending' },
+      include: { reporter: { select: { id: true, username: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { ...story, reports };
   }
 
   async adminList(page = 1, pageSize = 20, q?: string, reportedOnly?: boolean) {

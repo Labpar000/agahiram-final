@@ -73,7 +73,8 @@
   --story-ring-mid: oklch(0.62 0.24 350); /* pink */
   --story-ring-to: oklch(0.5 0.22 305); /* violet */
   --story-ring-viewed: #dbdbdb;
-  --ig-badge: #ed4956; /* notification dot */
+  --ig-badge: #ff0034; /* Figma UI Kit 4.0 notification dot */
+  --ig-tab-border: #dbdfe4; /* Figma tab bar top border */
   --ig-bubble-sent: var(--ig-link);
   --ig-bubble-sent-foreground: var(--ig-link-foreground);
   --text-username: 0.875rem; /* 14px semibold */
@@ -118,11 +119,12 @@
   --duration-base: 220ms;
   --duration-slow: 380ms;
 
-  /* Layout — IG mobile chrome (~44px header, ~49px tab bar) */
+  /* Layout — IG mobile chrome (~44px header, ~51px tab row + safe-bottom) */
   --header-height: 2.75rem;
-  --bottom-nav: 3.0625rem;
+  --bottom-nav: 3.1875rem; /* 51px tab row (Figma UI Kit 4.0; home indicator via safe-bottom) */
   --ig-action: 2.5rem; /* 40px tap target for post action icons */
   --ig-icon: 1.5rem; /* 24px action / nav icons */
+  --ig-reel-icon: 2rem; /* 32px reels side-rail icons */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
 
@@ -147,6 +149,7 @@
   --chrome: oklch(0 0 0);
   --ig-link: oklch(0.68 0.17 237);
   --story-ring-viewed: #363636;
+  --ig-tab-border: oklch(0.28 0.006 280);
 
   --card: var(--surface);
   --card-foreground: var(--foreground);

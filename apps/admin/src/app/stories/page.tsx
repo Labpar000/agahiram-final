@@ -1,14 +1,17 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import Shell from '../layout-shell';
 import { PageHeader } from '@/components/page-header';
 import { DataTable } from '@/components/data-table';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { Button, Input, toast } from '@agahiram/ui';
+import { Button, ErrorState, Input, toast } from '@agahiram/ui';
+import { ExternalLink } from 'lucide-react';
 import { formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
+import { adminFetch } from '@/lib/admin-api';
 import { apiClient } from '@/lib/api';
 
 interface AdminStory {
@@ -25,6 +28,8 @@ interface AdminStory {
   commentCount: number;
 }
 
+const PAGE_SIZE = 20;
+
 export default function AdminStoriesPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
@@ -32,23 +37,22 @@ export default function AdminStoriesPage() {
   const [reportedOnly, setReportedOnly] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'stories', page, q, reportedOnly],
-    queryFn: async () => {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: '20',
-        ...(q ? { q } : {}),
-        ...(reportedOnly ? { reported: '1' } : {}),
-      });
-      const r = await apiClient.get<{
-        data: AdminStory[];
-        total: number;
-        page: number;
-        pageSize: number;
-      }>(`/admin/stories?${params}`);
-      return r.data ?? { data: [], total: 0, page: 1, pageSize: 20 };
-    },
+    queryFn: () =>
+      adminFetch(() =>
+        apiClient.get<{
+          data: AdminStory[];
+          total: number;
+          page: number;
+          pageSize: number;
+        }>('/admin/stories', {
+          page,
+          pageSize: PAGE_SIZE,
+          q: q || undefined,
+          reported: reportedOnly ? '1' : undefined,
+        }),
+      ),
   });
 
   const remove = useMutation({
@@ -63,6 +67,15 @@ export default function AdminStoriesPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  if (isError) {
+    return (
+      <Shell>
+        <PageHeader title="مدیریت استوری‌ها" description="لیست استوری‌های فعال و گزارش‌شده" />
+        <ErrorState onRetry={() => void refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell>
@@ -93,6 +106,10 @@ export default function AdminStoriesPage() {
           isLoading={isLoading}
           rowKey={(row) => row.id}
           rows={data?.data ?? []}
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={data?.total ?? 0}
+          onPageChange={setPage}
           columns={[
             {
               key: 'media',
@@ -106,7 +123,11 @@ export default function AdminStoriesPage() {
             {
               key: 'user',
               header: 'کاربر',
-              cell: (row: AdminStory) => row.user.username ?? '—',
+              cell: (row: AdminStory) => (
+                <Link href={`/users/${row.user.id}`} className="hover:underline text-primary">
+                  @{row.user.username ?? '—'}
+                </Link>
+              ),
             },
             {
               key: 'stats',
@@ -123,37 +144,25 @@ export default function AdminStoriesPage() {
               key: 'actions',
               header: '',
               cell: (row: AdminStory) => (
-                <Button size="sm" variant="destructive" onClick={() => setDeleteId(row.id)}>
-                  حذف
-                </Button>
+                <div className="flex gap-1">
+                  <Link href={`/stories/${row.id}`}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      leftIcon={<ExternalLink className="size-3.5" />}
+                    >
+                      جزئیات
+                    </Button>
+                  </Link>
+                  <Button size="sm" variant="destructive" onClick={() => setDeleteId(row.id)}>
+                    حذف
+                  </Button>
+                </div>
               ),
             },
           ]}
           emptyTitle="استوری یافت نشد"
         />
-        <div className="flex justify-between text-sm text-muted-foreground">
-          <span>
-            {formatPersianNumber(data?.total ?? 0)} مورد · صفحه {formatPersianNumber(page)}
-          </span>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              قبلی
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={(data?.data.length ?? 0) < 20}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              بعدی
-            </Button>
-          </div>
-        </div>
         <ConfirmDialog
           open={!!deleteId}
           onOpenChange={(o) => !o && setDeleteId(null)}

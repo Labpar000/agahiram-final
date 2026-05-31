@@ -110,3 +110,16 @@
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
+
+/* IG Reels side-rail icons — 32px + drop shadow (Figma UI Kit 4.0) */
+.reel-action-icon {
+  width: var(--ig-reel-icon);
+  height: var(--ig-reel-icon);
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.3));
+}
+
+.reel-action-icon-wide {
+  width: 1.625rem;
+  height: 0.375rem;
+  filter: drop-shadow(0 0 3px rgb(0 0 0 / 0.3));
+}

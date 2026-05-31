@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Check, Clock, ExternalLink, X } from 'lucide-react';
-import { formatJalaliDate, formatPersianPrice } from '@agahiram/shared';
+import { formatJalaliDate, formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -33,6 +33,12 @@ interface PendingPost {
   createdAt: string;
 }
 
+interface PendingPage {
+  data: PendingPost[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export default function PendingPage() {
   const qc = useQueryClient();
   const [confirm, setConfirm] = useState<
@@ -41,11 +47,20 @@ export default function PendingPage() {
   const [focusIdx, setFocusIdx] = useState(0);
   const cardRefs = useRef<Map<string, HTMLElement | null>>(new Map());
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['admin', 'pending'],
-    queryFn: async () =>
-      (await apiClient.get<{ data: PendingPost[] }>('/admin/posts/pending')).data?.data ?? [],
-  });
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['admin', 'pending'],
+      queryFn: async ({ pageParam }) => {
+        const r = await apiClient.get<PendingPage>('/admin/posts/pending', {
+          cursor: pageParam,
+        });
+        return r.data ?? { data: [], nextCursor: null, hasMore: false };
+      },
+      initialPageParam: undefined as string | undefined,
+      getNextPageParam: (last) => (last.hasMore && last.nextCursor ? last.nextCursor : undefined),
+    });
+
+  const items = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
 
   const approve = useMutation({
     mutationFn: async (id: string) => {
@@ -78,36 +93,42 @@ export default function PendingPage() {
   /* j/k for next/prev, a/r to approve/reject focused card. Modal-open swallows
    * keys (the dialog has its own focus trap). */
   useEffect(() => {
-    if (!data || data.length === 0 || confirm) return;
+    if (items.length === 0 || confirm) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && /input|textarea|select/i.test(e.target.tagName))
         return;
       if (e.key === 'j' || e.key === 'ArrowDown') {
         e.preventDefault();
-        setFocusIdx((i) => Math.min(data.length - 1, i + 1));
+        setFocusIdx((i) => Math.min(items.length - 1, i + 1));
       } else if (e.key === 'k' || e.key === 'ArrowUp') {
         e.preventDefault();
         setFocusIdx((i) => Math.max(0, i - 1));
-      } else if (e.key === 'a' && data[focusIdx]) {
-        setConfirm({ type: 'approve', post: data[focusIdx]! });
-      } else if (e.key === 'r' && data[focusIdx]) {
-        setConfirm({ type: 'reject', post: data[focusIdx]! });
+      } else if (e.key === 'a' && items[focusIdx]) {
+        setConfirm({ type: 'approve', post: items[focusIdx]! });
+      } else if (e.key === 'r' && items[focusIdx]) {
+        setConfirm({ type: 'reject', post: items[focusIdx]! });
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [data, focusIdx, confirm]);
+  }, [items, focusIdx, confirm]);
 
   useEffect(() => {
-    if (!data) return;
-    const post = data[focusIdx];
+    if (items.length === 0) return;
+    const post = items[focusIdx];
     if (!post) return;
     const el = cardRefs.current.get(post.id);
     if (el) {
       el.focus();
       el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [focusIdx, data]);
+  }, [focusIdx, items]);
+
+  useEffect(() => {
+    if (focusIdx >= items.length && items.length > 0) {
+      setFocusIdx(items.length - 1);
+    }
+  }, [items.length, focusIdx]);
 
   return (
     <Shell>
@@ -122,9 +143,10 @@ export default function PendingPage() {
             <kbd className="rounded border border-border bg-muted px-1 text-[10px]">r</kbd> رد
           </p>
         </div>
-        {data ? (
+        {!isLoading ? (
           <Badge tone="warning" icon={<Clock className="size-3.5" aria-hidden />}>
-            {data.length} مورد
+            {formatPersianNumber(items.length)} مورد
+            {hasNextPage ? '+' : ''}
           </Badge>
         ) : null}
       </div>
@@ -147,7 +169,7 @@ export default function PendingPage() {
         </div>
       ) : isError ? (
         <ErrorState onRetry={() => refetch()} />
-      ) : (data ?? []).length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState
           icon={<Check className="size-7" aria-hidden />}
           title="صف خالی است"
@@ -155,7 +177,7 @@ export default function PendingPage() {
         />
       ) : (
         <div className="space-y-3">
-          {data!.map((p, i) => (
+          {items.map((p, i) => (
             <article
               key={p.id}
               ref={(el) => {
@@ -246,6 +268,19 @@ export default function PendingPage() {
               </div>
             </article>
           ))}
+
+          {hasNextPage ? (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                isLoading={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              >
+                بارگذاری بیشتر
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
 

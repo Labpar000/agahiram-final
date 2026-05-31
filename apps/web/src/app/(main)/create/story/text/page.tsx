@@ -32,6 +32,7 @@ export default function CreateTextStoryPage() {
   const [color, setColor] = useState('#ffffff');
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   const [animation, setAnimation] = useState<'none' | 'bounce'>('none');
+  const [phase, setPhase] = useState<'edit' | 'preview'>('edit');
   const [stickers, setStickers] = useState<
     Array<{
       type: string;
@@ -153,7 +154,7 @@ export default function CreateTextStoryPage() {
       <div
         className={cn(
           'relative mb-4 aspect-[9/16] overflow-hidden rounded-2xl',
-          animation === 'bounce' && 'animate-pulse',
+          animation === 'bounce' && phase === 'preview' && 'animate-pulse',
         )}
         style={{ background: bg }}
       >
@@ -176,75 +177,99 @@ export default function CreateTextStoryPage() {
         </div>
         <StoryStickerComposerPreview stickers={stickers} />
       </div>
-      <button
-        type="button"
-        className="mb-3 text-xs text-ig-link"
-        onClick={() => setBgIndex((i) => (i + 1) % STORY_CREATE_BACKGROUNDS.length)}
-      >
-        تغییر پس‌زمینه ({bgIndex + 1}/{STORY_CREATE_BACKGROUNDS.length})
-      </button>
-      <Input
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="متن استوری"
-        className="mb-3"
-      />
-      <div className="mb-3 flex flex-wrap gap-1">
-        {FONTS.map((f) => (
+      {phase === 'edit' ? (
+        <>
           <button
-            key={f.id}
             type="button"
-            onClick={() => setFont(f.id)}
-            className={cn(
-              'rounded-md border px-2 py-1 text-xs',
-              font === f.id && 'border-primary bg-accent',
-            )}
+            className="mb-3 text-xs text-ig-link"
+            onClick={() => setBgIndex((i) => (i + 1) % STORY_CREATE_BACKGROUNDS.length)}
           >
-            {f.label}
+            تغییر پس‌زمینه ({bgIndex + 1}/{STORY_CREATE_BACKGROUNDS.length})
           </button>
-        ))}
-      </div>
-      <div className="mb-3 flex gap-1">
-        {TEXT_COLORS.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setColor(c)}
-            className={cn('size-8 rounded-full border-2', color === c && 'border-primary')}
-            style={{ backgroundColor: c }}
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="متن استوری"
+            className="mb-3"
           />
-        ))}
-      </div>
-      <div className="mb-3 flex gap-1">
-        {(['right', 'center', 'left'] as const).map((a) => (
-          <button
-            key={a}
-            type="button"
-            onClick={() => setAlign(a)}
-            className={cn('flex-1 rounded border py-1 text-xs', align === a && 'border-primary')}
-          >
-            {a === 'center' ? 'وسط' : a === 'right' ? 'راست' : 'چپ'}
-          </button>
-        ))}
-      </div>
-      <label className="mb-3 flex items-center gap-2 text-xs">
-        <input
-          type="checkbox"
-          checked={animation === 'bounce'}
-          onChange={(e) => setAnimation(e.target.checked ? 'bounce' : 'none')}
-        />
-        انیمیشن پرش
-      </label>
-      <StoryStickerEditorPanel onAdd={(s) => setStickers((p) => [...p, s])} />
-      <Button
-        variant="brand"
-        fullWidth
-        className="mt-4"
-        isLoading={publish.isPending}
-        onClick={() => publish.mutate()}
-      >
-        انتشار
-      </Button>
+          <div className="mb-3 flex flex-wrap gap-1">
+            {FONTS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFont(f.id)}
+                className={cn(
+                  'rounded-md border px-2 py-1 text-xs',
+                  font === f.id && 'border-primary bg-accent',
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          <div className="mb-3 flex gap-1">
+            {TEXT_COLORS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={cn('size-8 rounded-full border-2', color === c && 'border-primary')}
+                style={{ backgroundColor: c }}
+              />
+            ))}
+          </div>
+          <div className="mb-3 flex gap-1">
+            {(['right', 'center', 'left'] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setAlign(a)}
+                className={cn(
+                  'flex-1 rounded border py-1 text-xs',
+                  align === a && 'border-primary',
+                )}
+              >
+                {a === 'center' ? 'وسط' : a === 'right' ? 'راست' : 'چپ'}
+              </button>
+            ))}
+          </div>
+          <label className="mb-3 flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={animation === 'bounce'}
+              onChange={(e) => setAnimation(e.target.checked ? 'bounce' : 'none')}
+            />
+            انیمیشن پرش
+          </label>
+        </>
+      ) : null}
+      {phase === 'edit' ? (
+        <>
+          <StoryStickerEditorPanel onAdd={(s) => setStickers((p) => [...p, s])} />
+          <Button variant="brand" fullWidth className="mt-4" onClick={() => setPhase('preview')}>
+            پیش‌نمایش
+          </Button>
+        </>
+      ) : (
+        <>
+          <p className="mb-3 text-center text-sm text-muted-foreground">
+            پیش‌نمایش — دقیقاً همین‌طور منتشر می‌شود
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" fullWidth onClick={() => setPhase('edit')}>
+              بازگشت به ویرایش
+            </Button>
+            <Button
+              variant="brand"
+              fullWidth
+              isLoading={publish.isPending}
+              onClick={() => publish.mutate()}
+            >
+              انتشار
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

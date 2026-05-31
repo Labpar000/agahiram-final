@@ -344,7 +344,7 @@ export default function CategoriesPage() {
   };
 
   return (
-    <Shell>
+    <Shell adminOnly>
       <PageHeader
         title="دسته‌بندی‌ها"
         description="مدیریت سلسله‌مراتب دسته‌ها و ویژگی‌های اختصاصی هر دسته"

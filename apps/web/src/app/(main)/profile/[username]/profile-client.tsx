@@ -19,7 +19,7 @@ import {
   IgMore,
   IgReels,
   IgSettings,
-  IgShare,
+  IgShare2026,
   Skeleton,
   Tabs,
   TabsContent,
@@ -221,7 +221,7 @@ export function ProfileClient({ username }: { username: string }) {
                 fullWidth
                 size="sm"
                 className="h-8 rounded-lg text-sm font-semibold"
-                leftIcon={<IgShare className="size-4" strokeWidth={1.75} aria-hidden />}
+                leftIcon={<IgShare2026 className="size-4" strokeWidth={2} aria-hidden />}
                 onClick={() => void shareProfile()}
               >
                 اشتراک‌گذاری پروفایل
@@ -288,23 +288,33 @@ export function ProfileClient({ username }: { username: string }) {
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as typeof tab)}
-        className="border-t border-border bg-surface"
+        className="border-t-[0.5px] border-[var(--ig-tab-border)] bg-surface"
       >
-        <TabsList variant="underline" className="h-11 w-full">
+        <TabsList variant="underline" className="h-12 w-full">
           <TabsTrigger
             variant="underline"
             value="posts"
             className="flex-1"
             aria-label={isMe ? 'آگهی‌های من' : 'آگهی‌ها'}
           >
-            <IgGrid className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
+            <IgGrid
+              className="size-[var(--ig-icon)]"
+              filled={tab === 'posts'}
+              strokeWidth={2}
+              aria-hidden
+            />
           </TabsTrigger>
           <TabsTrigger variant="underline" value="reels" className="flex-1" aria-label="ریلز">
-            <IgReels className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
+            <IgReels className="size-[var(--ig-icon)]" filled={tab === 'reels'} aria-hidden />
           </TabsTrigger>
           {isMe ? (
             <TabsTrigger variant="underline" value="saved" className="flex-1" aria-label="ذخیره‌ها">
-              <IgBookmark className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
+              <IgBookmark
+                className="size-[var(--ig-icon)]"
+                filled={tab === 'saved'}
+                strokeWidth={2}
+                aria-hidden
+              />
             </TabsTrigger>
           ) : null}
         </TabsList>

@@ -14,8 +14,12 @@ import {
   Flag,
   Pencil,
   Shield,
+  Star,
   Store,
+  Trash2,
+  UserMinus,
   Wallet,
+  XCircle,
 } from 'lucide-react';
 import {
   formatJalaliDate,
@@ -70,6 +74,7 @@ interface UserDetail {
     isVerified: boolean;
     isBusiness: boolean;
     isBanned: boolean;
+    karma?: number;
     role: 'user' | 'admin' | 'moderator';
     defaultCity: { id: string; name: string } | null;
     createdAt: string;
@@ -124,6 +129,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
     amount: string;
     reason: string;
   }>(null);
+  const [karmaForm, setKarmaForm] = useState<null | { karma: string; reason: string }>(null);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin', 'user', id] });
 
@@ -150,6 +156,7 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       setUnbanConfirm(false);
       refresh();
     },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   const toggleVerify = useMutation({
@@ -161,6 +168,18 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       toast.success('تأیید شد');
       refresh();
     },
+  });
+
+  const unverify = useMutation({
+    mutationFn: async () => {
+      const r = await apiClient.patch(`/admin/users/${id}`, { isVerified: false });
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('تأیید لغو شد');
+      refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   const toggleBusiness = useMutation({
@@ -218,6 +237,86 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
       refresh();
     },
     onError: (e) => toast.error((e as Error).message),
+  });
+
+  const adjustKarma = useMutation({
+    mutationFn: async (input: { karma: number; reason: string }) => {
+      const r = await apiClient.patch(`/admin/users/${id}/karma`, input);
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('کارما به‌روز شد');
+      setKarmaForm(null);
+      refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const blocks = useQuery({
+    queryKey: ['admin', 'user', id, 'blocks'],
+    queryFn: async () =>
+      (
+        await apiClient.get<{
+          blocked: Array<{
+            id: string;
+            blocked: { id: string; username: string | null; name: string | null };
+          }>;
+          blocking: Array<{
+            id: string;
+            blocker: { id: string; username: string | null; name: string | null };
+          }>;
+        }>(`/admin/users/${id}/blocks`)
+      ).data,
+  });
+
+  const followers = useQuery({
+    queryKey: ['admin', 'user', id, 'followers'],
+    queryFn: async () =>
+      (
+        await apiClient.get<{
+          data: Array<{
+            id: string;
+            follower: { id: string; username: string | null; name: string | null };
+          }>;
+        }>(`/admin/users/${id}/followers`)
+      ).data?.data ?? [],
+  });
+
+  const following = useQuery({
+    queryKey: ['admin', 'user', id, 'following'],
+    queryFn: async () =>
+      (
+        await apiClient.get<{
+          data: Array<{
+            id: string;
+            following: { id: string; username: string | null; name: string | null };
+          }>;
+        }>(`/admin/users/${id}/following`)
+      ).data?.data ?? [],
+  });
+
+  const removeBlock = useMutation({
+    mutationFn: async (blockId: string) => {
+      const r = await apiClient.delete(`/admin/blocks/${blockId}`);
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('بلاک حذف شد');
+      qc.invalidateQueries({ queryKey: ['admin', 'user', id, 'blocks'] });
+    },
+  });
+
+  const removeFollow = useMutation({
+    mutationFn: async (followId: string) => {
+      const r = await apiClient.delete(`/admin/follows/${followId}`);
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('فالو حذف شد');
+      qc.invalidateQueries({ queryKey: ['admin', 'user', id, 'followers'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'user', id, 'following'] });
+      refresh();
+    },
   });
 
   if (isLoading) {
@@ -291,6 +390,26 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
               >
                 تأیید
               </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<XCircle className="size-4" />}
+                onClick={() => unverify.mutate()}
+                isLoading={unverify.isPending}
+              >
+                لغو تأیید
+              </Button>
+            )}
+            {isAdmin ? (
+              <Button
+                size="sm"
+                variant="outline"
+                leftIcon={<Star className="size-4" />}
+                onClick={() => setKarmaForm({ karma: String(u.karma ?? 0), reason: '' })}
+              >
+                کارما
+              </Button>
             ) : null}
             <Button
               size="sm"
@@ -363,6 +482,14 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                 />
                 <Row label="نقش" value={roleLabel} />
                 <Row
+                  label="کارما"
+                  value={
+                    <span className="font-mono tabular-nums">
+                      {formatPersianNumber(u.karma ?? 0)}
+                    </span>
+                  }
+                />
+                <Row
                   label="کیف پول"
                   value={
                     <span className="font-mono tabular-nums">
@@ -410,9 +537,12 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
 
         <div className="lg:col-span-2">
           <Tabs defaultValue="posts">
-            <TabsList className="mb-3">
+            <TabsList className="mb-3 flex-wrap h-auto">
               <TabsTrigger value="posts">آگهی‌های اخیر</TabsTrigger>
               <TabsTrigger value="payments">پرداخت‌ها</TabsTrigger>
+              <TabsTrigger value="blocks">بلاک‌ها</TabsTrigger>
+              <TabsTrigger value="followers">دنبال‌کنندگان</TabsTrigger>
+              <TabsTrigger value="following">دنبال‌شده‌ها</TabsTrigger>
             </TabsList>
             <TabsContent value="posts">
               <Card>
@@ -506,6 +636,124 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                       نمایش همه‌ی پرداخت‌ها →
                     </Link>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="blocks">
+              <Card>
+                <CardContent className="!p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold mb-2">
+                      بلاک کرده ({formatPersianNumber(blocks.data?.blocked.length ?? 0)})
+                    </h3>
+                    <ul className="space-y-1">
+                      {(blocks.data?.blocked ?? []).map((b) => (
+                        <li
+                          key={b.id}
+                          className="flex items-center justify-between rounded-md border border-border p-2 text-sm"
+                        >
+                          <Link href={`/users/${b.blocked.id}`} className="hover:underline">
+                            @{b.blocked.username ?? b.blocked.name ?? '—'}
+                          </Link>
+                          <IconButton
+                            aria-label="حذف بلاک"
+                            size="sm"
+                            variant="ghost"
+                            icon={<Trash2 className="size-4" />}
+                            onClick={() => removeBlock.mutate(b.id)}
+                          />
+                        </li>
+                      ))}
+                      {(blocks.data?.blocked ?? []).length === 0 ? (
+                        <li className="text-sm text-muted-foreground py-2">خالی</li>
+                      ) : null}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold mb-2">
+                      بلاک شده توسط ({formatPersianNumber(blocks.data?.blocking.length ?? 0)})
+                    </h3>
+                    <ul className="space-y-1">
+                      {(blocks.data?.blocking ?? []).map((b) => (
+                        <li
+                          key={b.id}
+                          className="flex items-center justify-between rounded-md border border-border p-2 text-sm"
+                        >
+                          <Link href={`/users/${b.blocker.id}`} className="hover:underline">
+                            @{b.blocker.username ?? b.blocker.name ?? '—'}
+                          </Link>
+                          <IconButton
+                            aria-label="حذف بلاک"
+                            size="sm"
+                            variant="ghost"
+                            icon={<Trash2 className="size-4" />}
+                            onClick={() => removeBlock.mutate(b.id)}
+                          />
+                        </li>
+                      ))}
+                      {(blocks.data?.blocking ?? []).length === 0 ? (
+                        <li className="text-sm text-muted-foreground py-2">خالی</li>
+                      ) : null}
+                    </ul>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="followers">
+              <Card>
+                <CardContent className="!p-3 space-y-1">
+                  {followers.data?.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      دنبال‌کننده‌ای ندارد.
+                    </div>
+                  ) : (
+                    followers.data?.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between rounded-md p-2 hover:bg-muted/50"
+                      >
+                        <Link href={`/users/${f.follower.id}`} className="text-sm hover:underline">
+                          @{f.follower.username ?? f.follower.name ?? '—'}
+                        </Link>
+                        <IconButton
+                          aria-label="حذف فالو"
+                          size="sm"
+                          variant="ghost"
+                          icon={<UserMinus className="size-4" />}
+                          onClick={() => removeFollow.mutate(f.id)}
+                        />
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="following">
+              <Card>
+                <CardContent className="!p-3 space-y-1">
+                  {following.data?.length === 0 ? (
+                    <div className="py-6 text-center text-sm text-muted-foreground">
+                      کسی را دنبال نمی‌کند.
+                    </div>
+                  ) : (
+                    following.data?.map((f) => (
+                      <div
+                        key={f.id}
+                        className="flex items-center justify-between rounded-md p-2 hover:bg-muted/50"
+                      >
+                        <Link href={`/users/${f.following.id}`} className="text-sm hover:underline">
+                          @{f.following.username ?? f.following.name ?? '—'}
+                        </Link>
+                        <IconButton
+                          aria-label="حذف فالو"
+                          size="sm"
+                          variant="ghost"
+                          icon={<UserMinus className="size-4" />}
+                          onClick={() => removeFollow.mutate(f.id)}
+                        />
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -660,6 +908,53 @@ export default function UserDetailPage({ params }: { params: Promise<{ id: strin
                   type: walletForm.type,
                   amount: Number(walletForm.amount),
                   reason: walletForm.reason,
+                })
+              }
+            >
+              ذخیره
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!karmaForm} onOpenChange={(o) => !o && setKarmaForm(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>تنظیم کارما</DialogTitle>
+          </DialogHeader>
+          {karmaForm ? (
+            <div className="space-y-3">
+              <div>
+                <Label required>مقدار کارما</Label>
+                <Input
+                  type="number"
+                  value={karmaForm.karma}
+                  onChange={(e) => setKarmaForm({ ...karmaForm, karma: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label required>دلیل</Label>
+                <Textarea
+                  rows={3}
+                  value={karmaForm.reason}
+                  onChange={(e) => setKarmaForm({ ...karmaForm, reason: e.target.value })}
+                />
+              </div>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setKarmaForm(null)}>
+              انصراف
+            </Button>
+            <Button
+              variant="brand"
+              isLoading={adjustKarma.isPending}
+              disabled={!karmaForm?.karma || !karmaForm?.reason}
+              onClick={() =>
+                karmaForm &&
+                adjustKarma.mutate({
+                  karma: Number(karmaForm.karma),
+                  reason: karmaForm.reason,
                 })
               }
             >

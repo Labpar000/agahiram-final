@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import type { StoryOverlayDocument, StoryOverlayLayer } from '@agahiram/shared';
 import { Button } from '@agahiram/ui';
 import { parseStoryOverlay } from '@/features/stories/story-media-utils';
@@ -14,35 +14,58 @@ import type { PublishSticker } from '@/features/stories/story-composer';
 export type { StoryOverlayLayer, StoryOverlayDocument };
 export { parseStoryOverlay };
 
-export function StoryOverlayEditor({
-  previewUrl,
-  mediaType,
-  onPublish,
-  onCancel,
-  isPublishing,
-  embedMode = false,
-  stickers = [],
-  onStickersChange,
-  filterId: filterIdProp,
-  onFilterChange,
-  onChange,
-}: {
-  previewUrl: string;
-  mediaType: 'image' | 'video';
-  onPublish?: (overlay: StoryOverlayDocument) => void;
-  onCancel?: () => void;
-  isPublishing?: boolean;
-  /** When true, parent provides publish/cancel (e.g. StoryComposer). */
-  embedMode?: boolean;
-  stickers?: PublishSticker[];
-  onStickersChange?: (s: PublishSticker[]) => void;
-  filterId?: string;
-  onFilterChange?: (id: string) => void;
-  onChange?: (doc: StoryOverlayDocument) => void;
-}) {
-  const [layers, setLayers] = useState<StoryOverlayLayer[]>([]);
+export type StoryOverlayEditorHandle = {
+  getDocument: () => StoryOverlayDocument;
+};
+
+function layersFromDefault(doc?: StoryOverlayDocument): StoryOverlayLayer[] {
+  return doc?.layers?.filter((l) => l.type !== 'filter') ?? [];
+}
+
+function filterFromDefault(doc?: StoryOverlayDocument): string {
+  const f = doc?.layers?.find((l) => l.type === 'filter');
+  return f?.type === 'filter' ? f.name : 'none';
+}
+
+export const StoryOverlayEditor = forwardRef<
+  StoryOverlayEditorHandle,
+  {
+    previewUrl: string;
+    mediaType: 'image' | 'video';
+    onPublish?: (overlay: StoryOverlayDocument) => void;
+    onCancel?: () => void;
+    isPublishing?: boolean;
+    /** When true, parent provides publish/cancel (e.g. StoryComposer). */
+    embedMode?: boolean;
+    stickers?: PublishSticker[];
+    onStickersChange?: (s: PublishSticker[]) => void;
+    filterId?: string;
+    onFilterChange?: (id: string) => void;
+    onChange?: (doc: StoryOverlayDocument) => void;
+    defaultOverlay?: StoryOverlayDocument;
+  }
+>(function StoryOverlayEditor(
+  {
+    previewUrl,
+    mediaType,
+    onPublish,
+    onCancel,
+    isPublishing,
+    embedMode = false,
+    stickers = [],
+    onStickersChange,
+    filterId: filterIdProp,
+    onFilterChange,
+    onChange,
+    defaultOverlay,
+  },
+  ref,
+) {
+  const [layers, setLayers] = useState<StoryOverlayLayer[]>(() =>
+    layersFromDefault(defaultOverlay),
+  );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [filterId, setFilterId] = useState(filterIdProp ?? 'none');
+  const [filterId, setFilterId] = useState(() => filterIdProp ?? filterFromDefault(defaultOverlay));
   const [tool, setTool] = useState<'text' | 'sticker' | 'draw'>('text');
   const [drawTool, setDrawTool] = useState<DrawTool>('pen');
   const [color, setColor] = useState('#ffffff');
@@ -61,6 +84,15 @@ export function StoryOverlayEditor({
     }
     return doc;
   }, [layers, activeFilter]);
+
+  useImperativeHandle(ref, () => ({ getDocument: buildDocument }), [buildDocument]);
+
+  useEffect(() => {
+    if (defaultOverlay?.layers?.length) {
+      setLayers(layersFromDefault(defaultOverlay));
+      if (!filterIdProp) setFilterId(filterFromDefault(defaultOverlay));
+    }
+  }, [defaultOverlay, filterIdProp]);
 
   useEffect(() => {
     onChangeRef.current?.(buildDocument());
@@ -155,7 +187,9 @@ export function StoryOverlayEditor({
       ) : null}
     </div>
   );
-}
+});
+
+StoryOverlayEditor.displayName = 'StoryOverlayEditor';
 
 /** Expose document builder for embed mode parent publish */
 export function useStoryOverlayState() {

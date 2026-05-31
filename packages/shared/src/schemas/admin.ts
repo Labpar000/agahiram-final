@@ -10,6 +10,8 @@ export const adminSettingsSchema = z.object({
   maintenanceMessage: z.string().max(500).nullable().optional(),
   maxPostsPerDay: z.number().int().min(1).max(1000).optional(),
   defaultPostExpiryDays: z.number().int().min(1).max(365).optional(),
+  privacyContent: z.string().max(50000).nullable().optional(),
+  termsContent: z.string().max(50000).nullable().optional(),
 });
 export type AdminSettingsInput = z.infer<typeof adminSettingsSchema>;
 
@@ -51,10 +53,49 @@ export const rejectPostSchema = z.object({
 export type RejectPostInput = z.infer<typeof rejectPostSchema>;
 
 export const resolveReportSchema = z.object({
-  action: z.enum(['dismiss', 'remove']),
+  action: z.enum([
+    'dismiss',
+    'remove',
+    'banUser',
+    'deleteStory',
+    'deleteComment',
+    'deleteStoryComment',
+  ]),
   reason: z.string().max(500).optional(),
 });
 export type ResolveReportInput = z.infer<typeof resolveReportSchema>;
+
+export const resolveReportByTargetSchema = z.object({
+  targetType: z.enum(['post', 'story', 'user', 'comment', 'storyComment']),
+  targetId: z.string().uuid(),
+  action: resolveReportSchema.shape.action,
+  reason: z.string().max(500).optional(),
+});
+export type ResolveReportByTargetInput = z.infer<typeof resolveReportByTargetSchema>;
+
+export const karmaAdjustSchema = z.object({
+  karma: z.number().int().min(-10000).max(100000),
+  reason: z.string().min(3).max(300),
+});
+export type KarmaAdjustInput = z.infer<typeof karmaAdjustSchema>;
+
+export const systemNotificationSchema = z.object({
+  title: z.string().min(3).max(120),
+  body: z.string().min(3).max(500),
+  userId: z.string().uuid().optional(),
+});
+export type SystemNotificationInput = z.infer<typeof systemNotificationSchema>;
+
+export const payoutRejectSchema = z.object({
+  reason: z.string().min(3).max(500),
+});
+export type PayoutRejectInput = z.infer<typeof payoutRejectSchema>;
+
+export const highlightUpsertSchema = z.object({
+  title: z.string().min(1).max(80),
+  coverUrl: z.string().url().nullable().optional(),
+});
+export type HighlightUpsertInput = z.infer<typeof highlightUpsertSchema>;
 
 export const adminUpdatePostSchema = z.object({
   title: z.string().min(3).max(120).optional(),

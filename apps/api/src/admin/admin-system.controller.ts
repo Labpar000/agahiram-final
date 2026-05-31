@@ -2,7 +2,7 @@ import { Controller, Get, Logger, Post, Req, UseGuards } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import type { FastifyRequest } from 'fastify';
-import { BULL_QUEUES, UserRole } from '@agahiram/shared';
+import { BULL_QUEUES, UserRole, MEILI_INDEX_STORIES } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -110,6 +110,21 @@ export class AdminSystemController {
       queued: approved.length,
     });
     return { queued: approved.length };
+  }
+
+  @Post('reindex-stories')
+  async reindexStories(@Req() req: FastifyRequest) {
+    const active = await this.prisma.story.findMany({
+      where: { expiresAt: { gt: new Date() } },
+      select: { id: true },
+    });
+    for (const s of active) {
+      await this.searchQueue.add('index-story', { storyId: s.id, index: MEILI_INDEX_STORIES });
+    }
+    await this.audit.record(AuditLogService.fromRequest(req), 'system.reindex-stories', null, {
+      queued: active.length,
+    });
+    return { queued: active.length };
   }
 
   @Post('queues/clean')

@@ -92,7 +92,7 @@ export default function BoostPlansPage() {
   });
 
   return (
-    <Shell>
+    <Shell adminOnly>
       <PageHeader
         title="پلن‌های نردبان"
         description="پلن‌های ارتقاء آگهی که در زمان پرداخت به کاربر نمایش داده می‌شوند"

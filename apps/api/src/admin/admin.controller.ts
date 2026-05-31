@@ -18,10 +18,15 @@ import {
   banUserSchema,
   broadcastSchema,
   editUserSchema,
+  highlightUpsertSchema,
+  karmaAdjustSchema,
+  payoutRejectSchema,
   refundPaymentSchema,
   rejectPostSchema,
   resolveReportSchema,
+  resolveReportByTargetSchema,
   setRoleSchema,
+  systemNotificationSchema,
   UserRole,
   walletOpSchema,
   type AdminSettingsInput,
@@ -29,10 +34,15 @@ import {
   type BanUserInput,
   type BroadcastInput,
   type EditUserInput,
+  type HighlightUpsertInput,
+  type KarmaAdjustInput,
+  type PayoutRejectInput,
   type RefundPaymentInput,
   type RejectPostInput,
   type ResolveReportInput,
+  type ResolveReportByTargetInput,
   type SetRoleInput,
+  type SystemNotificationInput,
   type WalletOpInput,
 } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -89,6 +99,7 @@ export class AdminController {
     @Query('pageSize') pageSize?: string,
     @Query('q') q?: string,
     @Query('status') status?: string,
+    @Query('type') type?: string,
     @Query('categoryId') categoryId?: string,
     @Query('cityId') cityId?: string,
     @Query('userId') userId?: string,
@@ -101,6 +112,7 @@ export class AdminController {
       pageSize: pageSize ? Number(pageSize) : undefined,
       q,
       status,
+      type,
       categoryId,
       cityId,
       userId,
@@ -179,6 +191,11 @@ export class AdminController {
       q,
       reported === '1' || reported === 'true',
     );
+  }
+
+  @Get('stories/:id')
+  getStory(@Param('id') id: string) {
+    return this.stories.adminGet(id);
   }
 
   @Delete('stories/:id')
@@ -287,6 +304,18 @@ export class AdminController {
     return this.service.groupedReports();
   }
 
+  @Post('reports/resolve-target')
+  @UsePipes(new ZodValidationPipe(resolveReportByTargetSchema))
+  resolveReportByTarget(@Body() body: ResolveReportByTargetInput, @Req() req: FastifyRequest) {
+    return this.service.resolveReportByTarget(
+      body.targetType,
+      body.targetId,
+      body.action,
+      body.reason,
+      AuditLogService.fromRequest(req),
+    );
+  }
+
   @Post('reports/:id/resolve')
   @UsePipes(new ZodValidationPipe(resolveReportSchema))
   resolveReport(
@@ -382,5 +411,307 @@ export class AdminController {
       action,
       target,
     });
+  }
+
+  /* ──────────── story comments ──────────── */
+
+  @Get('story-comments')
+  listStoryComments(
+    @Query('q') q?: string,
+    @Query('userId') userId?: string,
+    @Query('storyId') storyId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listStoryComments({
+      q,
+      userId,
+      storyId,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Delete('story-comments/:id')
+  deleteStoryComment(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.deleteStoryComment(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── blocks ──────────── */
+
+  @Get('users/:id/blocks')
+  userBlocks(@Param('id') id: string) {
+    return this.service.listUserBlocks(id);
+  }
+
+  @Delete('blocks/:id')
+  removeBlock(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.removeBlock(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── messages ──────────── */
+
+  @Get('conversations')
+  listConversations(
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listConversations({
+      q,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Get('conversations/:id')
+  getConversation(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.getConversation(
+      id,
+      page ? Number(page) : 1,
+      pageSize ? Number(pageSize) : 50,
+    );
+  }
+
+  @Delete('messages/:id')
+  deleteMessage(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.deleteMessage(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── notifications ──────────── */
+
+  @Get('notifications')
+  listNotifications(
+    @Query('userId') userId?: string,
+    @Query('type') type?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listNotifications({
+      userId,
+      type,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Delete('notifications/:id')
+  deleteNotification(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.deleteNotification(id, AuditLogService.fromRequest(req));
+  }
+
+  @Post('notifications/system')
+  @Roles(UserRole.ADMIN)
+  @UsePipes(new ZodValidationPipe(systemNotificationSchema))
+  sendSystemNotification(@Body() body: SystemNotificationInput, @Req() req: FastifyRequest) {
+    return this.service.sendSystemNotification(body, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── push ──────────── */
+
+  @Get('push/subscriptions')
+  @Roles(UserRole.ADMIN)
+  listPushSubscriptions(
+    @Query('userId') userId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listPushSubscriptions({
+      userId,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Delete('push/subscriptions/:id')
+  @Roles(UserRole.ADMIN)
+  revokePush(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.revokePushSubscription(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── highlights ──────────── */
+
+  @Get('highlights')
+  listHighlights(
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listHighlights({
+      q,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Patch('highlights/:id')
+  @Roles(UserRole.ADMIN)
+  @UsePipes(new ZodValidationPipe(highlightUpsertSchema))
+  updateHighlight(
+    @Param('id') id: string,
+    @Body() body: HighlightUpsertInput,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.updateHighlight(id, body, AuditLogService.fromRequest(req));
+  }
+
+  @Delete('highlights/:id')
+  @Roles(UserRole.ADMIN)
+  deleteHighlight(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.deleteHighlight(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── search alerts ──────────── */
+
+  @Get('search-alerts')
+  listSearchAlerts(
+    @Query('userId') userId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listSearchAlerts({
+      userId,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Delete('search-alerts/:id')
+  deleteSearchAlert(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.deleteSearchAlert(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── social graph ──────────── */
+
+  @Get('users/:id/followers')
+  userFollowers(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listFollows(
+      id,
+      'followers',
+      page ? Number(page) : 1,
+      pageSize ? Number(pageSize) : 30,
+    );
+  }
+
+  @Get('users/:id/following')
+  userFollowing(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listFollows(
+      id,
+      'following',
+      page ? Number(page) : 1,
+      pageSize ? Number(pageSize) : 30,
+    );
+  }
+
+  @Delete('follows/:id')
+  removeFollow(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.removeFollow(id, AuditLogService.fromRequest(req));
+  }
+
+  @Get('posts/:id/likes')
+  postLikes(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listPostLikes(
+      id,
+      page ? Number(page) : 1,
+      pageSize ? Number(pageSize) : 30,
+    );
+  }
+
+  @Delete('likes/:id')
+  removeLike(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.removeLike(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── live ──────────── */
+
+  @Get('live')
+  listLive(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listLiveStreams({
+      status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Post('live/:id/end')
+  @Roles(UserRole.ADMIN)
+  forceEndLive(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.forceEndLive(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── payouts ──────────── */
+
+  @Get('payouts')
+  @Roles(UserRole.ADMIN)
+  listPayouts(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.service.listPayouts({
+      status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @Post('payouts/:id/approve')
+  @Roles(UserRole.ADMIN)
+  approvePayout(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.approvePayout(id, AuditLogService.fromRequest(req));
+  }
+
+  @Post('payouts/:id/reject')
+  @Roles(UserRole.ADMIN)
+  @UsePipes(new ZodValidationPipe(payoutRejectSchema))
+  rejectPayout(
+    @Param('id') id: string,
+    @Body() body: PayoutRejectInput,
+    @Req() req: FastifyRequest,
+  ) {
+    return this.service.rejectPayout(id, body.reason, AuditLogService.fromRequest(req));
+  }
+
+  @Post('payouts/:id/paid')
+  @Roles(UserRole.ADMIN)
+  markPayoutPaid(@Param('id') id: string, @Req() req: FastifyRequest) {
+    return this.service.markPayoutPaid(id, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── karma ──────────── */
+
+  @Patch('users/:id/karma')
+  @Roles(UserRole.ADMIN)
+  @UsePipes(new ZodValidationPipe(karmaAdjustSchema))
+  adjustKarma(@Param('id') id: string, @Body() body: KarmaAdjustInput, @Req() req: FastifyRequest) {
+    return this.service.adjustKarma(id, body, AuditLogService.fromRequest(req));
+  }
+
+  /* ──────────── media stats ──────────── */
+
+  @Get('media/stats')
+  @Roles(UserRole.ADMIN)
+  mediaStats() {
+    return this.service.listMediaStats();
   }
 }

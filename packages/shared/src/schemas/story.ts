@@ -45,13 +45,6 @@ export const createStorySchema = z
     hashtag: z.string().max(100).optional(),
     cityId: z.string().uuid().optional(),
     stickers: z.array(createStoryStickerSchema).optional(),
-    music: z
-      .object({
-        trackId: z.string(),
-        startMs: z.number().int().min(0).optional(),
-        displayMode: z.enum(['minimal', 'album', 'lyrics']).optional(),
-      })
-      .optional(),
     repost: z
       .object({
         type: z.enum(['post', 'story']),

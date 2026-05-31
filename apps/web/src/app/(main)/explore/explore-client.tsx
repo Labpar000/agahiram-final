@@ -202,7 +202,7 @@ export function ExploreClient({
 
   return (
     <div className="bg-background">
-      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-3 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-2">
         <div className="mx-auto flex max-w-2xl items-center gap-2">
           <div className="flex-1">
             <Input

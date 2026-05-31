@@ -5,7 +5,16 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@agahiram/shared';
-import { IgCreate, IgHome, IgReels, IgSearch, IgUser } from '@agahiram/ui';
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  IgCreate,
+  IgHome,
+  IgReels,
+  IgSearch,
+  IgUser,
+} from '@agahiram/ui';
 import { useAuthStore } from '@/lib/auth-store';
 
 const items = [
@@ -38,6 +47,7 @@ const items = [
     label: 'پروفایل',
     Icon: IgUser,
     filledWhenActive: true,
+    useAvatar: true,
   },
 ] as const;
 
@@ -53,6 +63,7 @@ export function BottomNav() {
   const router = useRouter();
   const qc = useQueryClient();
   const myUsername = useAuthStore((s) => s.user?.username);
+  const myAvatar = useAuthStore((s) => s.user?.avatar);
   const prevPath = useRef(pathname);
 
   const warmTab = useCallback(
@@ -83,10 +94,12 @@ export function BottomNav() {
   return (
     <nav
       aria-label="ناوبری اصلی"
-      className="glass fixed inset-x-0 bottom-0 z-40 border-t border-border-subtle pb-safe"
+      className="glass fixed inset-x-0 bottom-0 z-40 border-t-[0.5px] border-[var(--ig-tab-border)] pb-safe"
     >
-      <ul className="mx-auto grid h-[var(--bottom-nav)] max-w-2xl grid-cols-5 items-center">
-        {items.map(({ href, label, Icon, filledWhenActive }) => {
+      <ul className="mx-auto grid h-[var(--bottom-nav)] max-w-2xl grid-cols-5 items-start pt-2">
+        {items.map((item) => {
+          const { href, label, Icon, filledWhenActive } = item;
+          const useAvatar = 'useAvatar' in item && item.useAvatar;
           const resolvedHref = href === '/profile' && myUsername ? `/profile/${myUsername}` : href;
           const active =
             href === '/feed'
@@ -95,6 +108,7 @@ export function BottomNav() {
                 ? pathname === '/profile' || pathname.startsWith('/profile/')
                 : pathname === href || pathname.startsWith(`${href}/`);
           const filled = filledWhenActive && active;
+          const showAvatar = useAvatar && myUsername;
 
           return (
             <li key={href} className="contents">
@@ -112,12 +126,26 @@ export function BottomNav() {
                 )}
               >
                 <span className="relative inline-flex items-center justify-center">
-                  <Icon
-                    className="size-[var(--ig-icon)]"
-                    filled={filled}
-                    strokeWidth={active ? 2.1 : 1.75}
-                    aria-hidden
-                  />
+                  {showAvatar ? (
+                    <Avatar
+                      className={cn(
+                        'size-[1.375rem] ring-2 ring-offset-1 ring-offset-surface',
+                        active ? 'ring-foreground' : 'ring-transparent',
+                      )}
+                    >
+                      {myAvatar ? <AvatarImage src={myAvatar} alt="" /> : null}
+                      <AvatarFallback className="text-[8px] font-semibold">
+                        {(myUsername ?? '?').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <Icon
+                      className="size-[var(--ig-icon)]"
+                      filled={filled}
+                      strokeWidth={active ? 2.1 : 1.75}
+                      aria-hidden
+                    />
+                  )}
                 </span>
                 <span className="sr-only">{label}</span>
               </Link>

@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import type { MouseEvent } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, ExternalLink, Filter, Search, Sparkles, Trash2, X } from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
@@ -32,6 +33,7 @@ interface Post {
   title: string;
   price: number | string | null;
   status: string;
+  type?: string;
   isPromoted: boolean;
   viewCount: number;
   createdAt: string;
@@ -54,11 +56,17 @@ const STATUS_OPTIONS = [
 
 const PAGE_SIZE = 20;
 
-export default function PostsPage() {
+function PostsInner() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const initialUserId = searchParams.get('userId') ?? '';
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  const [type, setType] = useState<'' | 'post' | 'reel'>('');
+  const [userId, setUserId] = useState(initialUserId);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [promoted, setPromoted] = useState<'' | 'true' | 'false'>('');
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<
@@ -66,7 +74,7 @@ export default function PostsPage() {
   >(null);
 
   const list = useQuery({
-    queryKey: ['admin', 'posts', { page, q, status, promoted }],
+    queryKey: ['admin', 'posts', { page, q, status, type, promoted, userId, dateFrom, dateTo }],
     queryFn: async () =>
       (
         await apiClient.get<{
@@ -79,7 +87,11 @@ export default function PostsPage() {
           pageSize: PAGE_SIZE,
           q,
           status,
+          type: type || undefined,
           promoted: promoted || undefined,
+          userId: userId || undefined,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
         })
       ).data,
   });
@@ -179,6 +191,11 @@ export default function PostsPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-sm font-semibold">
                 <span className="truncate group-hover:underline">{p.title}</span>
+                {p.type === 'reel' ? (
+                  <Badge tone="brand" size="sm">
+                    ریل
+                  </Badge>
+                ) : null}
                 {p.isPromoted ? (
                   <Sparkles className="size-3.5 text-warning-foreground" aria-hidden />
                 ) : null}
@@ -308,6 +325,18 @@ export default function PostsPage() {
             </div>
             <select
               className="rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={type}
+              onChange={(e) => {
+                setType(e.target.value as '' | 'post' | 'reel');
+                setPage(1);
+              }}
+            >
+              <option value="">همه انواع</option>
+              <option value="post">آگهی</option>
+              <option value="reel">ریل</option>
+            </select>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm"
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
@@ -320,6 +349,37 @@ export default function PostsPage() {
                 </option>
               ))}
             </select>
+            <Input
+              size="sm"
+              className="w-40"
+              value={userId}
+              onChange={(e) => {
+                setUserId(e.target.value);
+                setPage(1);
+              }}
+              placeholder="شناسه کاربر"
+              dir="ltr"
+            />
+            <Input
+              size="sm"
+              type="date"
+              value={dateFrom}
+              onChange={(e) => {
+                setDateFrom(e.target.value);
+                setPage(1);
+              }}
+              aria-label="از تاریخ"
+            />
+            <Input
+              size="sm"
+              type="date"
+              value={dateTo}
+              onChange={(e) => {
+                setDateTo(e.target.value);
+                setPage(1);
+              }}
+              aria-label="تا تاریخ"
+            />
             <select
               className="rounded-md border border-border bg-background px-3 py-2 text-sm"
               value={promoted}
@@ -329,7 +389,7 @@ export default function PostsPage() {
               <option value="true">فقط نردبان‌شده</option>
               <option value="false">بدون نردبان</option>
             </select>
-            {(q || status || promoted) && (
+            {(q || status || type || promoted || userId || dateFrom || dateTo) && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -337,7 +397,11 @@ export default function PostsPage() {
                 onClick={() => {
                   setQ('');
                   setStatus('');
+                  setType('');
                   setPromoted('');
+                  setUserId('');
+                  setDateFrom('');
+                  setDateTo('');
                   setPage(1);
                 }}
               >
@@ -419,5 +483,13 @@ export default function PostsPage() {
         }}
       />
     </Shell>
+  );
+}
+
+export default function PostsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PostsInner />
+    </Suspense>
   );
 }

@@ -4,7 +4,16 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Filter, Flag, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  Ban,
+  ExternalLink,
+  Filter,
+  Flag,
+  MessageSquare,
+  Search,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber } from '@agahiram/shared';
 import {
   Badge,
@@ -66,6 +75,127 @@ interface GroupedReport {
 }
 
 const PAGE_SIZE = 30;
+
+type ReportAction =
+  | 'dismiss'
+  | 'remove'
+  | 'banUser'
+  | 'deleteStory'
+  | 'deleteComment'
+  | 'deleteStoryComment';
+
+const ACTION_META: Record<
+  ReportAction,
+  {
+    label: string;
+    confirmTitle: string;
+    confirmDescription: string;
+    confirmLabel: string;
+    tone: 'primary' | 'destructive' | 'brand';
+    reasonRequired?: boolean;
+    reasonLabel?: string;
+  }
+> = {
+  dismiss: {
+    label: 'رد گزارش',
+    confirmTitle: 'رد گزارش',
+    confirmDescription: 'این گزارش بدون اقدام بسته می‌شود.',
+    confirmLabel: 'رد گزارش',
+    tone: 'primary',
+  },
+  remove: {
+    label: 'حذف آگهی',
+    confirmTitle: 'حذف آگهی گزارش‌شده',
+    confirmDescription: 'آگهی حذف می‌شود، از موتور جستجو پاک می‌شود و کاربر اعلان می‌گیرد.',
+    confirmLabel: 'حذف',
+    tone: 'destructive',
+    reasonRequired: true,
+    reasonLabel: 'دلیل حذف',
+  },
+  banUser: {
+    label: 'مسدود کاربر',
+    confirmTitle: 'مسدودسازی کاربر',
+    confirmDescription: 'کاربر گزارش‌شده مسدود می‌شود و گزارش‌های مرتبط بسته می‌شوند.',
+    confirmLabel: 'مسدود',
+    tone: 'destructive',
+    reasonRequired: true,
+    reasonLabel: 'دلیل مسدودسازی',
+  },
+  deleteStory: {
+    label: 'حذف استوری',
+    confirmTitle: 'حذف استوری',
+    confirmDescription: 'استوری برای همه کاربران حذف می‌شود.',
+    confirmLabel: 'حذف',
+    tone: 'destructive',
+  },
+  deleteComment: {
+    label: 'حذف نظر',
+    confirmTitle: 'حذف نظر',
+    confirmDescription: 'نظر حذف می‌شود و گزارش‌های مرتبط بسته می‌شوند.',
+    confirmLabel: 'حذف',
+    tone: 'destructive',
+  },
+  deleteStoryComment: {
+    label: 'حذف کامنت استوری',
+    confirmTitle: 'حذف کامنت استوری',
+    confirmDescription: 'کامنت استوری حذف می‌شود.',
+    confirmLabel: 'حذف',
+    tone: 'destructive',
+  },
+};
+
+function primaryActionForTarget(targetType: string): ReportAction | null {
+  switch (targetType) {
+    case 'post':
+      return 'remove';
+    case 'story':
+      return 'deleteStory';
+    case 'user':
+      return 'banUser';
+    case 'comment':
+      return 'deleteComment';
+    case 'storyComment':
+      return 'deleteStoryComment';
+    default:
+      return null;
+  }
+}
+
+function ReportActionButtons({
+  targetType,
+  onAction,
+}: {
+  targetType: string;
+  onAction: (action: ReportAction) => void;
+}) {
+  const primary = primaryActionForTarget(targetType);
+  return (
+    <div className="flex flex-wrap gap-2 md:shrink-0">
+      {primary ? (
+        <Button
+          size="sm"
+          variant="outline"
+          leftIcon={
+            primary === 'banUser' ? (
+              <Ban className="size-4" />
+            ) : primary === 'deleteComment' || primary === 'deleteStoryComment' ? (
+              <MessageSquare className="size-4" />
+            ) : (
+              <Trash2 className="size-4" />
+            )
+          }
+          className="border-destructive/30 text-destructive hover:bg-destructive/10"
+          onClick={() => onAction(primary)}
+        >
+          {ACTION_META[primary].label}
+        </Button>
+      ) : null}
+      <Button size="sm" variant="ghost" onClick={() => onAction('dismiss')}>
+        {ACTION_META.dismiss.label}
+      </Button>
+    </div>
+  );
+}
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<'pending' | 'grouped' | 'resolved' | 'dismissed'>('pending');
@@ -136,9 +266,7 @@ function ListView({
   onPageChange: (p: number) => void;
 }) {
   const qc = useQueryClient();
-  const [pending, setPending] = useState<{ type: 'remove' | 'dismiss'; report: Report } | null>(
-    null,
-  );
+  const [pending, setPending] = useState<{ action: ReportAction; report: Report } | null>(null);
 
   const list = useQuery({
     queryKey: ['admin', 'reports', status, reason, page],
@@ -160,7 +288,7 @@ function ListView({
       reason: r,
     }: {
       id: string;
-      action: 'dismiss' | 'remove';
+      action: ReportAction;
       reason?: string;
     }) => {
       const r2 = await apiClient.post(`/admin/reports/${id}/resolve`, { action, reason: r });
@@ -237,7 +365,34 @@ function ListView({
                     {!r.post ? (
                       <p className="text-sm text-muted-foreground">
                         هدف: {r.targetType} —{' '}
-                        <span className="font-mono text-xs">{r.targetId}</span>
+                        {r.targetType === 'story' ? (
+                          <Link
+                            href={`/stories/${r.targetId}`}
+                            className="text-primary hover:underline"
+                          >
+                            مشاهده استوری
+                          </Link>
+                        ) : r.targetType === 'user' ? (
+                          <Link
+                            href={`/users/${r.targetId}`}
+                            className="text-primary hover:underline"
+                          >
+                            @{r.targetId.slice(0, 8)}…
+                          </Link>
+                        ) : r.targetType === 'comment' ? (
+                          <Link
+                            href={`/comments?q=${encodeURIComponent(r.details ?? r.targetId.slice(0, 8))}`}
+                            className="text-primary hover:underline"
+                          >
+                            مشاهده در کامنت‌ها
+                          </Link>
+                        ) : r.targetType === 'storyComment' ? (
+                          <Link href="/story-comments" className="text-primary hover:underline">
+                            مشاهده کامنت استوری
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-xs">{r.targetId}</span>
+                        )}
                       </p>
                     ) : null}
                     {r.post ? (
@@ -272,24 +427,10 @@ function ListView({
                     ) : null}
                   </div>
                   {r.status === 'pending' ? (
-                    <div className="flex gap-2 md:shrink-0">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        leftIcon={<Trash2 className="size-4" />}
-                        className="border-destructive/30 text-destructive hover:bg-destructive/10"
-                        onClick={() => setPending({ type: 'remove', report: r })}
-                      >
-                        حذف آگهی
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setPending({ type: 'dismiss', report: r })}
-                      >
-                        رد گزارش
-                      </Button>
-                    </div>
+                    <ReportActionButtons
+                      targetType={r.targetType}
+                      onAction={(action) => setPending({ action, report: r })}
+                    />
                   ) : null}
                 </div>
               </CardContent>
@@ -326,20 +467,17 @@ function ListView({
       <ConfirmDialog
         open={!!pending}
         onOpenChange={(o) => !o && setPending(null)}
-        title={pending?.type === 'remove' ? 'حذف آگهی گزارش‌شده' : 'رد گزارش'}
-        description={
-          pending?.type === 'remove'
-            ? 'آگهی حذف می‌شود، از موتور جستجو پاک می‌شود و کاربر اعلان می‌گیرد.'
-            : 'این گزارش بدون اقدام بسته می‌شود.'
-        }
-        confirmLabel={pending?.type === 'remove' ? 'حذف' : 'رد گزارش'}
-        tone={pending?.type === 'remove' ? 'destructive' : 'primary'}
-        reasonLabel={pending?.type === 'remove' ? 'دلیل حذف' : undefined}
-        reasonRequired={pending?.type === 'remove'}
+        title={pending ? ACTION_META[pending.action].confirmTitle : ''}
+        description={pending ? ACTION_META[pending.action].confirmDescription : undefined}
+        confirmLabel={pending ? ACTION_META[pending.action].confirmLabel : 'تأیید'}
+        tone={pending?.action === 'dismiss' ? 'primary' : 'destructive'}
+        reasonLabel={pending ? ACTION_META[pending.action].reasonLabel : undefined}
+        reasonRequired={pending ? ACTION_META[pending.action].reasonRequired : false}
         isLoading={resolve.isPending}
         onConfirm={(reason) => {
           if (!pending) return;
-          resolve.mutate({ id: pending.report.id, action: pending.type, reason });
+          if (ACTION_META[pending.action].reasonRequired && !reason) return;
+          resolve.mutate({ id: pending.report.id, action: pending.action, reason });
         }}
       />
     </>
@@ -347,10 +485,47 @@ function ListView({
 }
 
 function GroupedView() {
+  const qc = useQueryClient();
+  const [pending, setPending] = useState<{
+    action: ReportAction;
+    targetType: string;
+    targetId: string;
+  } | null>(null);
+
   const list = useQuery({
     queryKey: ['admin', 'reports-grouped'],
     queryFn: async () =>
       (await apiClient.get<GroupedReport[]>('/admin/reports/grouped')).data ?? [],
+  });
+
+  const resolve = useMutation({
+    mutationFn: async ({
+      targetType,
+      targetId,
+      action,
+      reason,
+    }: {
+      targetType: string;
+      targetId: string;
+      action: ReportAction;
+      reason?: string;
+    }) => {
+      const r2 = await apiClient.post('/admin/reports/resolve-target', {
+        targetType,
+        targetId,
+        action,
+        reason,
+      });
+      if (!r2.success) throw new Error(r2.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('گزارش رسیدگی شد');
+      setPending(null);
+      qc.invalidateQueries({ queryKey: ['admin', 'reports'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'reports-grouped'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'stats'] });
+    },
+    onError: (e) => toast.error((e as Error).message),
   });
 
   if (list.isLoading) {
@@ -376,79 +551,121 @@ function GroupedView() {
     );
   }
   return (
-    <ul className="space-y-3">
-      {(list.data ?? []).map((g) => (
-        <li key={`${g.targetType}-${g.targetId}`}>
-          <Card>
-            <CardContent className="!p-4">
-              <div className="flex items-center gap-3">
-                <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted">
-                  {g.post?.media?.[0] ? (
-                    <Image
-                      src={g.post.media[0].thumbnailUrl ?? g.post.media[0].url}
-                      alt=""
-                      fill
-                      sizes="56px"
-                      className="object-cover"
-                    />
-                  ) : g.preview?.mediaUrl && typeof g.preview.mediaUrl === 'string' ? (
-                    <Image
-                      src={g.preview.mediaUrl}
-                      alt=""
-                      fill
-                      sizes="56px"
-                      className="object-cover"
-                    />
-                  ) : null}
-                </div>
-                <div className="flex-1 min-w-0">
-                  {g.kind === 'post' && g.postId ? (
-                    <Link
-                      href={`/posts/${g.postId}`}
-                      className="font-semibold text-sm hover:underline truncate inline-block"
-                    >
-                      {g.post?.title ?? '—'}
-                    </Link>
-                  ) : (
-                    <p className="font-semibold text-sm truncate">
-                      {g.targetType === 'user'
-                        ? `@${String(g.preview?.username ?? g.targetId)}`
-                        : g.targetType === 'comment'
-                          ? `نظر: ${String(g.preview?.content ?? '—')}`
-                          : g.targetType === 'story'
-                            ? `استوری @${String(g.preview?.username ?? '—')}`
-                            : `${g.targetType}`}
-                    </p>
-                  )}
-                  <div className="text-[11px] text-muted-foreground">
-                    آخرین گزارش {formatJalaliDate(g.latestAt, 'dateTime')}
-                  </div>
-                </div>
-                <Badge tone="destructive">{formatPersianNumber(g.count)} گزارش</Badge>
-              </div>
-              {g.post?.reports?.length ? (
-                <ul className="mt-3 space-y-1">
-                  {g.post.reports.map((r, i) => (
-                    <li
-                      key={i}
-                      className="rounded-md border border-border bg-background px-3 py-1.5 text-xs"
-                    >
-                      <span className="font-semibold">{r.reason}</span>
-                      <span className="text-muted-foreground">
-                        {' '}
-                        — @{r.reporter.username ?? '—'} · {formatJalaliDate(r.createdAt, 'short')}
-                      </span>
-                      {r.details ? (
-                        <div className="mt-0.5 text-muted-foreground">{r.details}</div>
+    <>
+      <ul className="space-y-3">
+        {(list.data ?? []).map((g) => (
+          <li key={`${g.targetType}-${g.targetId}`}>
+            <Card>
+              <CardContent className="!p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-muted">
+                      {g.post?.media?.[0] ? (
+                        <Image
+                          src={g.post.media[0].thumbnailUrl ?? g.post.media[0].url}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          className="object-cover"
+                        />
+                      ) : g.preview?.mediaUrl && typeof g.preview.mediaUrl === 'string' ? (
+                        <Image
+                          src={g.preview.mediaUrl}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          className="object-cover"
+                        />
                       ) : null}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </CardContent>
-          </Card>
-        </li>
-      ))}
-    </ul>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {g.kind === 'post' && g.postId ? (
+                        <Link
+                          href={`/posts/${g.postId}`}
+                          className="font-semibold text-sm hover:underline truncate inline-block"
+                        >
+                          {g.post?.title ?? '—'}
+                        </Link>
+                      ) : (
+                        <p className="font-semibold text-sm truncate">
+                          {g.targetType === 'user' ? (
+                            <Link href={`/users/${g.targetId}`} className="hover:underline">
+                              @{String(g.preview?.username ?? g.targetId)}
+                            </Link>
+                          ) : g.targetType === 'comment' ? (
+                            <Link
+                              href={`/comments?q=${encodeURIComponent(String(g.preview?.content ?? ''))}`}
+                              className="hover:underline"
+                            >
+                              نظر: {String(g.preview?.content ?? '—')}
+                            </Link>
+                          ) : g.targetType === 'story' ? (
+                            <Link href={`/stories/${g.targetId}`} className="hover:underline">
+                              استوری @{String(g.preview?.username ?? '—')}
+                            </Link>
+                          ) : (
+                            `${g.targetType}`
+                          )}
+                        </p>
+                      )}
+                      <div className="text-[11px] text-muted-foreground">
+                        آخرین گزارش {formatJalaliDate(g.latestAt, 'dateTime')}
+                      </div>
+                    </div>
+                    <Badge tone="destructive">{formatPersianNumber(g.count)} گزارش</Badge>
+                  </div>
+                  <ReportActionButtons
+                    targetType={g.targetType}
+                    onAction={(action) =>
+                      setPending({ action, targetType: g.targetType, targetId: g.targetId })
+                    }
+                  />
+                </div>
+                {g.post?.reports?.length ? (
+                  <ul className="mt-3 space-y-1">
+                    {g.post.reports.map((r, i) => (
+                      <li
+                        key={i}
+                        className="rounded-md border border-border bg-background px-3 py-1.5 text-xs"
+                      >
+                        <span className="font-semibold">{r.reason}</span>
+                        <span className="text-muted-foreground">
+                          {' '}
+                          — @{r.reporter.username ?? '—'} · {formatJalaliDate(r.createdAt, 'short')}
+                        </span>
+                        {r.details ? (
+                          <div className="mt-0.5 text-muted-foreground">{r.details}</div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </CardContent>
+            </Card>
+          </li>
+        ))}
+      </ul>
+      <ConfirmDialog
+        open={!!pending}
+        onOpenChange={(o) => !o && setPending(null)}
+        title={pending ? ACTION_META[pending.action].confirmTitle : ''}
+        description={pending ? ACTION_META[pending.action].confirmDescription : undefined}
+        confirmLabel={pending ? ACTION_META[pending.action].confirmLabel : 'تأیید'}
+        tone={pending?.action === 'dismiss' ? 'primary' : 'destructive'}
+        reasonLabel={pending ? ACTION_META[pending.action].reasonLabel : undefined}
+        reasonRequired={pending ? ACTION_META[pending.action].reasonRequired : false}
+        isLoading={resolve.isPending}
+        onConfirm={(reason) => {
+          if (!pending) return;
+          if (ACTION_META[pending.action].reasonRequired && !reason) return;
+          resolve.mutate({
+            targetType: pending.targetType === 'post' ? 'post' : pending.targetType,
+            targetId: pending.targetId,
+            action: pending.action,
+            reason,
+          });
+        }}
+      />
+    </>
   );
 }

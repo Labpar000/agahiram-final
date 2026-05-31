@@ -31,7 +31,6 @@ import {
 import { StoryViewerOptions } from '@/features/stories/story-viewer-options';
 import { ShareStoryDmDialog } from '@/features/stories/share-story-dm-dialog';
 import { StoryMentionsDialog } from '@/features/stories/story-mentions-dialog';
-import { StoryMusicBadge } from '@/features/stories/story-music-badge';
 import { connectStorySocket, SOCKET_EVENTS } from '@/lib/story-socket';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -62,7 +61,6 @@ interface StoryGroup {
     durationMs?: number;
     overlayJson?: unknown;
     stickers?: ApiStorySticker[];
-    music?: { trackId: string; startMs?: number; displayMode?: string } | null;
     allowReplies?: string;
   }>;
   isMe?: boolean;
@@ -476,14 +474,6 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
             storyOwnerId={userId}
             ownerResults={isOwner ? stickerResultsQuery.data : undefined}
           />
-          {current.music?.trackId ? (
-            <StoryMusicBadge
-              trackId={current.music.trackId}
-              startMs={current.music.startMs}
-              displayMode={current.music.displayMode}
-              playing={!paused}
-            />
-          ) : null}
         </div>
 
         {/* Link to post */}

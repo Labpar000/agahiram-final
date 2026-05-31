@@ -37,7 +37,7 @@ import {
   IgHeart,
   IgMore,
   IgPhone,
-  IgShare,
+  IgShare2026,
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -254,9 +254,9 @@ export function PostCard({
   }, [messaging, post.user.username, router]);
 
   return (
-    <article className="border-b border-border bg-surface">
+    <article className="border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
       {/* Header — IG-minimal: avatar + username + more */}
-      <header className="flex items-center gap-3 px-3 py-2">
+      <header className="flex items-center gap-3 px-4 py-2">
         <Link
           href={`/profile/${post.user.username}`}
           aria-label={`پروفایل ${post.user.username}`}
@@ -414,9 +414,9 @@ export function PostCard({
       </div>
 
       {/* Actions */}
-      <div className="px-3 pb-3 pt-1">
+      <div className="px-4 pb-3 pt-1">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1">
+          <div className="flex items-center">
             <ActionButton
               ariaLabel={liked ? 'حذف لایک' : 'لایک'}
               onClick={() => onLikeToggle()}
@@ -443,7 +443,7 @@ export function PostCard({
               <IgComment className="size-[var(--ig-icon)]" />
             </ActionButton>
             <ActionButton ariaLabel="اشتراک‌گذاری" onClick={onShare}>
-              <IgShare className="size-[var(--ig-icon)]" />
+              <IgShare2026 className="size-[var(--ig-icon)]" strokeWidth={2} />
             </ActionButton>
           </div>
           <ActionButton

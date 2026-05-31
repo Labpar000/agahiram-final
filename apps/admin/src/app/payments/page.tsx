@@ -73,10 +73,12 @@ function PaymentsInner() {
   const [status, setStatus] = useState('');
   const [purpose, setPurpose] = useState('');
   const [userId, setUserId] = useState(initialUserId);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [refundFor, setRefundFor] = useState<Payment | null>(null);
 
   const list = useQuery({
-    queryKey: ['admin', 'payments', { page, status, purpose, userId }],
+    queryKey: ['admin', 'payments', { page, status, purpose, userId, dateFrom, dateTo }],
     queryFn: async () =>
       (
         await apiClient.get<{
@@ -89,6 +91,8 @@ function PaymentsInner() {
           status,
           purpose,
           userId,
+          dateFrom: dateFrom || undefined,
+          dateTo: dateTo || undefined,
         })
       ).data,
   });
@@ -257,7 +261,33 @@ function PaymentsInner() {
                 leadingIcon={<Search className="size-4" />}
               />
             </div>
-            {status || purpose || userId ? (
+            <div>
+              <Input
+                size="sm"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="از تاریخ"
+                dir="ltr"
+              />
+            </div>
+            <div>
+              <Input
+                size="sm"
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="تا تاریخ"
+                dir="ltr"
+              />
+            </div>
+            {status || purpose || userId || dateFrom || dateTo ? (
               <Button
                 size="sm"
                 variant="ghost"
@@ -266,6 +296,8 @@ function PaymentsInner() {
                   setStatus('');
                   setPurpose('');
                   setUserId('');
+                  setDateFrom('');
+                  setDateTo('');
                   setPage(1);
                 }}
               >

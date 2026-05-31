@@ -28,6 +28,7 @@ interface Stats {
   totalRevenue: number;
   dau: number;
   mau: number;
+  activeStories?: number;
   trends?: {
     users?: number[];
     posts?: number[];
@@ -116,6 +117,22 @@ export default function Dashboard() {
           tone="neutral"
           series={data?.trends?.dau}
           isLoading={isLoading}
+        />
+        <StatCard
+          label="کاربران فعال ماهانه"
+          value={data?.mau}
+          delta={data?.deltas?.mau}
+          icon={<Users className="size-5" aria-hidden />}
+          tone="brand"
+          isLoading={isLoading}
+        />
+        <StatCard
+          label="استوری‌های فعال"
+          value={data?.activeStories}
+          icon={<TrendingUp className="size-5" aria-hidden />}
+          tone="success"
+          isLoading={isLoading}
+          href="/stories"
         />
       </div>
 

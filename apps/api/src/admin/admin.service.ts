@@ -7,12 +7,16 @@ import {
   type AdminUpdatePostInput,
   type BroadcastInput,
   type EditUserInput,
+  type HighlightUpsertInput,
+  type KarmaAdjustInput,
+  type SystemNotificationInput,
   type WalletOpInput,
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MeiliService } from '../search/meili.service';
 import { AuditLogService, type AuditContext } from './audit-log.service';
+import { StoriesService } from '../stories/stories.service';
 
 const DAY_MS = 86_400_000;
 
@@ -70,6 +74,7 @@ export class AdminService {
     private readonly notifications: NotificationsService,
     private readonly meili: MeiliService,
     private readonly audit: AuditLogService,
+    private readonly stories: StoriesService,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
   ) {}
 
@@ -193,6 +198,7 @@ export class AdminService {
     pageSize?: number;
     q?: string;
     status?: string;
+    type?: string;
     categoryId?: string;
     cityId?: string;
     userId?: string;
@@ -204,6 +210,7 @@ export class AdminService {
     const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 20));
     const where: Record<string, unknown> = {};
     if (params.status) where.status = params.status;
+    if (params.type) where.type = params.type;
     if (params.categoryId) where.categoryId = params.categoryId;
     if (params.cityId) where.cityId = params.cityId;
     if (params.userId) where.userId = params.userId;
@@ -705,18 +712,25 @@ export class AdminService {
 
   async resolveReport(
     id: string,
-    action: 'dismiss' | 'remove',
+    action:
+      | 'dismiss'
+      | 'remove'
+      | 'banUser'
+      | 'deleteStory'
+      | 'deleteComment'
+      | 'deleteStoryComment',
     reason: string | undefined,
     ctx: AuditContext,
   ) {
     const report = await this.prisma.report.findUnique({ where: { id } });
     if (!report) throw new NotFoundException();
 
-    if (action === 'remove') {
-      /* Previously, action='remove' with a null postId silently fell through to
-       * the dismiss branch but the audit log still recorded `report.remove`,
-       * making it look like a post had been removed when it hadn't. Reject the
-       * call explicitly so the moderator knows nothing actionable happened. */
+    if (action === 'dismiss') {
+      await this.prisma.report.update({
+        where: { id },
+        data: { status: 'dismissed' },
+      });
+    } else if (action === 'remove') {
       const resolvedPostId =
         report.postId ?? (report.targetType === 'post' ? report.targetId : null);
       if (!resolvedPostId) {
@@ -731,19 +745,69 @@ export class AdminService {
         reason: reason ?? null,
       });
       await this.meili.deletePost(post.id).catch(() => null);
-      /* Auto-resolve other pending reports for the same post too. */
-      await this.prisma.report.updateMany({
-        where: { postId: resolvedPostId, status: 'pending' },
-        data: { status: 'resolved' },
-      });
-    } else {
-      await this.prisma.report.update({
-        where: { id },
-        data: { status: 'dismissed' },
-      });
+      await this.resolveReportsForTarget('post', resolvedPostId);
+    } else if (action === 'banUser') {
+      if (report.targetType !== 'user') {
+        throw new BadRequestException('این گزارش مربوط به کاربر نیست');
+      }
+      if (!reason) throw new BadRequestException('دلیل مسدودسازی لازم است');
+      await this.banUser(report.targetId, reason, ctx);
+      await this.resolveReportsForTarget('user', report.targetId);
+    } else if (action === 'deleteStory') {
+      if (report.targetType !== 'story') {
+        throw new BadRequestException('این گزارش مربوط به استوری نیست');
+      }
+      await this.stories.adminForceDelete(report.targetId);
+      await this.resolveReportsForTarget('story', report.targetId);
+    } else if (action === 'deleteComment') {
+      if (report.targetType !== 'comment') {
+        throw new BadRequestException('این گزارش مربوط به کامنت نیست');
+      }
+      await this.deleteComment(report.targetId, ctx);
+      await this.resolveReportsForTarget('comment', report.targetId);
+    } else if (action === 'deleteStoryComment') {
+      const sc = await this.prisma.storyComment.findUnique({ where: { id: report.targetId } });
+      if (!sc) throw new NotFoundException('کامنت استوری یافت نشد');
+      await this.prisma.storyComment.delete({ where: { id: report.targetId } });
+      await this.audit.record(ctx, 'storyComment.delete', `storyComment:${report.targetId}`);
+      await this.resolveReportsForTarget(report.targetType, report.targetId);
     }
+
     await this.audit.record(ctx, `report.${action}`, `report:${id}`, { reason });
     return { ok: true };
+  }
+
+  async resolveReportByTarget(
+    targetType: string,
+    targetId: string,
+    action:
+      | 'dismiss'
+      | 'remove'
+      | 'banUser'
+      | 'deleteStory'
+      | 'deleteComment'
+      | 'deleteStoryComment',
+    reason: string | undefined,
+    ctx: AuditContext,
+  ) {
+    const report = await this.prisma.report.findFirst({
+      where: (targetType === 'post'
+        ? {
+            status: 'pending',
+            OR: [{ targetType: 'post', targetId }, { postId: targetId }],
+          }
+        : { targetType: targetType as never, targetId, status: 'pending' }) as never,
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!report) throw new NotFoundException('گزارش pending برای این هدف یافت نشد');
+    return this.resolveReport(report.id, action, reason, ctx);
+  }
+
+  private async resolveReportsForTarget(targetType: string, targetId: string) {
+    await this.prisma.report.updateMany({
+      where: { targetType: targetType as never, targetId, status: 'pending' },
+      data: { status: 'resolved' },
+    });
   }
 
   /* ────────────────────────── comments moderation ────────────────────────── */
@@ -922,5 +986,483 @@ export class AdminService {
       title: input.title,
     });
     return { sent, dryRun: false, audienceCount: users.length };
+  }
+
+  /* ────────────────────────── extended admin modules ────────────────────────── */
+
+  async listStoryComments(params: {
+    q?: string;
+    userId?: string;
+    storyId?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.q) where.content = { contains: params.q, mode: 'insensitive' };
+    if (params.userId) where.userId = params.userId;
+    if (params.storyId) where.storyId = params.storyId;
+
+    const [total, data] = await Promise.all([
+      this.prisma.storyComment.count({ where: where as never }),
+      this.prisma.storyComment.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, name: true, avatar: true } },
+          story: {
+            select: {
+              id: true,
+              user: { select: { id: true, username: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async deleteStoryComment(id: string, ctx: AuditContext) {
+    await this.prisma.storyComment.delete({ where: { id } });
+    await this.audit.record(ctx, 'storyComment.delete', `storyComment:${id}`);
+    return { ok: true };
+  }
+
+  async listUserBlocks(userId: string) {
+    const [blocked, blocking] = await Promise.all([
+      this.prisma.block.findMany({
+        where: { blockerId: userId },
+        include: {
+          blocked: { select: { id: true, username: true, name: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.block.findMany({
+        where: { blockedId: userId },
+        include: {
+          blocker: { select: { id: true, username: true, name: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    return { blocked, blocking };
+  }
+
+  async removeBlock(id: string, ctx: AuditContext) {
+    await this.prisma.block.delete({ where: { id } });
+    await this.audit.record(ctx, 'block.remove', `block:${id}`);
+    return { ok: true };
+  }
+
+  async listConversations(params: { q?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.q) {
+      where.participants = {
+        some: {
+          user: {
+            OR: [
+              { username: { contains: params.q, mode: 'insensitive' } },
+              { name: { contains: params.q, mode: 'insensitive' } },
+              { phone: { contains: params.q } },
+            ],
+          },
+        },
+      };
+    }
+
+    const [total, data] = await Promise.all([
+      this.prisma.conversation.count({ where: where as never }),
+      this.prisma.conversation.findMany({
+        where: where as never,
+        include: {
+          participants: {
+            include: {
+              user: { select: { id: true, username: true, name: true, avatar: true } },
+            },
+          },
+          messages: { take: 1, orderBy: { createdAt: 'desc' } },
+        },
+        orderBy: { updatedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async getConversation(id: string, page = 1, pageSize = 50) {
+    const convo = await this.prisma.conversation.findUnique({
+      where: { id },
+      include: {
+        participants: {
+          include: {
+            user: { select: { id: true, username: true, name: true, avatar: true, phone: true } },
+          },
+        },
+      },
+    });
+    if (!convo) throw new NotFoundException();
+
+    const take = Math.min(100, Math.max(10, pageSize));
+    const skip = (Math.max(1, page) - 1) * take;
+    const [total, messages] = await Promise.all([
+      this.prisma.message.count({ where: { conversationId: id } }),
+      this.prisma.message.findMany({
+        where: { conversationId: id },
+        include: {
+          sender: { select: { id: true, username: true, name: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+    ]);
+    return { conversation: convo, messages: messages.reverse(), page, pageSize: take, total };
+  }
+
+  async deleteMessage(id: string, ctx: AuditContext) {
+    await this.prisma.message.delete({ where: { id } });
+    await this.audit.record(ctx, 'message.delete', `message:${id}`);
+    return { ok: true };
+  }
+
+  async listNotifications(params: {
+    userId?: string;
+    type?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.userId) where.userId = params.userId;
+    if (params.type) where.type = params.type;
+
+    const [total, data] = await Promise.all([
+      this.prisma.notification.count({ where: where as never }),
+      this.prisma.notification.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async deleteNotification(id: string, ctx: AuditContext) {
+    await this.prisma.notification.delete({ where: { id } });
+    await this.audit.record(ctx, 'notification.delete', `notification:${id}`);
+    return { ok: true };
+  }
+
+  async sendSystemNotification(input: SystemNotificationInput, ctx: AuditContext) {
+    if (input.userId) {
+      await this.notifications.create(input.userId, NotificationType.SYSTEM_ANNOUNCEMENT, {
+        title: input.title,
+        body: input.body,
+      });
+      await this.audit.record(ctx, 'notification.system', `user:${input.userId}`, input as never);
+      return { sent: 1 };
+    }
+    const users = await this.prisma.user.findMany({
+      where: { isBanned: false },
+      select: { id: true },
+      take: 50_000,
+    });
+    const BATCH = 200;
+    let sent = 0;
+    for (let i = 0; i < users.length; i += BATCH) {
+      const slice = users.slice(i, i + BATCH);
+      await Promise.all(
+        slice.map((u) =>
+          this.notifications.create(u.id, NotificationType.SYSTEM_ANNOUNCEMENT, {
+            title: input.title,
+            body: input.body,
+          }),
+        ),
+      );
+      sent += slice.length;
+    }
+    await this.audit.record(ctx, 'notification.system', null, { ...input, recipients: sent });
+    return { sent };
+  }
+
+  async listPushSubscriptions(params: { userId?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.userId) where.userId = params.userId;
+
+    const [total, data] = await Promise.all([
+      this.prisma.pushSubscription.count({ where: where as never }),
+      this.prisma.pushSubscription.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, name: true, phone: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async revokePushSubscription(id: string, ctx: AuditContext) {
+    await this.prisma.pushSubscription.delete({ where: { id } });
+    await this.audit.record(ctx, 'push.revoke', `push:${id}`);
+    return { ok: true };
+  }
+
+  async listHighlights(params: { q?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.q) {
+      where.OR = [
+        { title: { contains: params.q, mode: 'insensitive' } },
+        { user: { username: { contains: params.q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const [total, data] = await Promise.all([
+      this.prisma.highlight.count({ where: where as never }),
+      this.prisma.highlight.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, avatar: true } },
+          _count: { select: { stories: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async updateHighlight(id: string, input: HighlightUpsertInput, ctx: AuditContext) {
+    const h = await this.prisma.highlight.update({
+      where: { id },
+      data: input as never,
+    });
+    await this.audit.record(ctx, 'highlight.update', `highlight:${id}`, input as never);
+    return h;
+  }
+
+  async deleteHighlight(id: string, ctx: AuditContext) {
+    await this.prisma.highlight.delete({ where: { id } });
+    await this.audit.record(ctx, 'highlight.delete', `highlight:${id}`);
+    return { ok: true };
+  }
+
+  async listSearchAlerts(params: { userId?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.userId) where.userId = params.userId;
+
+    const [total, data] = await Promise.all([
+      this.prisma.searchAlert.count({ where: where as never }),
+      this.prisma.searchAlert.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async deleteSearchAlert(id: string, ctx: AuditContext) {
+    await this.prisma.searchAlert.delete({ where: { id } });
+    await this.audit.record(ctx, 'searchAlert.delete', `searchAlert:${id}`);
+    return { ok: true };
+  }
+
+  async listFollows(userId: string, direction: 'followers' | 'following', page = 1, pageSize = 30) {
+    const skip = (Math.max(1, page) - 1) * pageSize;
+    const take = Math.min(100, Math.max(5, pageSize));
+    if (direction === 'followers') {
+      const [total, data] = await Promise.all([
+        this.prisma.follow.count({ where: { followingId: userId } }),
+        this.prisma.follow.findMany({
+          where: { followingId: userId },
+          include: {
+            follower: { select: { id: true, username: true, name: true, avatar: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take,
+        }),
+      ]);
+      return { data, total, page, pageSize: take };
+    }
+    const [total, data] = await Promise.all([
+      this.prisma.follow.count({ where: { followerId: userId } }),
+      this.prisma.follow.findMany({
+        where: { followerId: userId },
+        include: {
+          following: { select: { id: true, username: true, name: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+    ]);
+    return { data, total, page, pageSize: take };
+  }
+
+  async removeFollow(id: string, ctx: AuditContext) {
+    await this.prisma.follow.delete({ where: { id } });
+    await this.audit.record(ctx, 'follow.remove', `follow:${id}`);
+    return { ok: true };
+  }
+
+  async listPostLikes(postId: string, page = 1, pageSize = 30) {
+    const skip = (Math.max(1, page) - 1) * pageSize;
+    const take = Math.min(100, Math.max(5, pageSize));
+    const [total, data] = await Promise.all([
+      this.prisma.like.count({ where: { postId } }),
+      this.prisma.like.findMany({
+        where: { postId },
+        include: {
+          user: { select: { id: true, username: true, name: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+    ]);
+    return { data, total, page, pageSize: take };
+  }
+
+  async removeLike(id: string, ctx: AuditContext) {
+    await this.prisma.like.delete({ where: { id } });
+    await this.audit.record(ctx, 'like.remove', `like:${id}`);
+    return { ok: true };
+  }
+
+  async listLiveStreams(params: { status?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.status) where.status = params.status;
+
+    const [total, data] = await Promise.all([
+      this.prisma.liveStream.count({ where: where as never }),
+      this.prisma.liveStream.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, name: true, avatar: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async forceEndLive(id: string, ctx: AuditContext) {
+    const stream = await this.prisma.liveStream.update({
+      where: { id },
+      data: { status: 'ended', endedAt: new Date() },
+    });
+    await this.audit.record(ctx, 'live.end', `live:${id}`);
+    return stream;
+  }
+
+  async listPayouts(params: { status?: string; page?: number; pageSize?: number }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(5, params.pageSize ?? 30));
+    const where: Record<string, unknown> = {};
+    if (params.status) where.status = params.status;
+
+    const [total, data] = await Promise.all([
+      this.prisma.payout.count({ where: where as never }),
+      this.prisma.payout.findMany({
+        where: where as never,
+        include: {
+          user: { select: { id: true, username: true, name: true, phone: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return { data, page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  }
+
+  async approvePayout(id: string, ctx: AuditContext) {
+    const payout = await this.prisma.payout.findUnique({ where: { id } });
+    if (!payout) throw new NotFoundException();
+    if (payout.status !== 'pending')
+      throw new BadRequestException('فقط درخواست‌های pending قابل تأیید‌اند');
+
+    await this.prisma.$transaction(async (tx) => {
+      const debit = await tx.user.updateMany({
+        where: { id: payout.userId, walletBalance: { gte: payout.amount } },
+        data: { walletBalance: { decrement: payout.amount } },
+      });
+      if (debit.count === 0) throw new BadRequestException('موجودی کیف پول کافی نیست');
+      await tx.payout.update({
+        where: { id },
+        data: { status: 'approved' },
+      });
+    });
+    await this.audit.record(ctx, 'payout.approve', `payout:${id}`);
+    return { ok: true };
+  }
+
+  async rejectPayout(id: string, reason: string, ctx: AuditContext) {
+    await this.prisma.payout.update({
+      where: { id },
+      data: { status: 'rejected', rejectReason: reason },
+    });
+    await this.audit.record(ctx, 'payout.reject', `payout:${id}`, { reason });
+    return { ok: true };
+  }
+
+  async markPayoutPaid(id: string, ctx: AuditContext) {
+    await this.prisma.payout.update({
+      where: { id },
+      data: { status: 'paid' },
+    });
+    await this.audit.record(ctx, 'payout.paid', `payout:${id}`);
+    return { ok: true };
+  }
+
+  async adjustKarma(userId: string, input: KarmaAdjustInput, ctx: AuditContext) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: { karma: input.karma },
+    });
+    await this.audit.record(ctx, 'user.karma', `user:${userId}`, input as never);
+    return user;
+  }
+
+  async listMediaStats() {
+    const [posts, avatars, stories, reels, messages, temp] = await Promise.all([
+      this.prisma.postMedia.count(),
+      this.prisma.user.count({ where: { avatar: { not: null } } }),
+      this.prisma.story.count(),
+      this.prisma.postMedia.count({ where: { post: { type: 'reel' } } }),
+      this.prisma.message.count({ where: { type: { in: ['image', 'voice'] } } }),
+      this.prisma.post.count({ where: { status: 'draft' } }),
+    ]);
+    return { posts, avatars, stories, reels, messages, draftPosts: temp };
   }
 }

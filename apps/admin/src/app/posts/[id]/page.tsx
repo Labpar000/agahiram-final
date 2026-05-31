@@ -8,11 +8,12 @@ import {
   ArrowLeft,
   Check,
   Clock,
-  ExternalLink,
   Eye,
   Flag,
   Hourglass,
+  Pencil,
   Sparkles,
+  Tag,
   Trash2,
   X,
 } from 'lucide-react';
@@ -25,8 +26,16 @@ import {
   Button,
   Card,
   CardContent,
-  IconButton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
   Spinner,
+  Textarea,
   toast,
 } from '@agahiram/ui';
 import Shell from '../../layout-shell';
@@ -93,6 +102,16 @@ interface PostDetail {
   _count: { likes: number; comments: number; saves: number };
 }
 
+const POST_STATUS_OPTIONS = [
+  { value: 'draft', label: 'پیش‌نویس' },
+  { value: 'pendingReview', label: 'در انتظار تأیید' },
+  { value: 'approved', label: 'منتشرشده' },
+  { value: 'rejected', label: 'رد شده' },
+  { value: 'sold', label: 'فروخته‌شده' },
+  { value: 'expired', label: 'منقضی' },
+  { value: 'deleted', label: 'حذف‌شده' },
+];
+
 export default function PostDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const qc = useQueryClient();
@@ -104,6 +123,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     | { type: 'expire' }
     | null
   >(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    price: '',
+    status: '',
+  });
+  const [promoteHours, setPromoteHours] = useState('24');
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'post', id],
@@ -145,10 +172,71 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     onSuccess: () => {
       toast.success('نردبان فعال شد');
       setConfirm(null);
+      setPromoteHours('24');
       refresh();
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const patchPost = useMutation({
+    mutationFn: async (body: {
+      title?: string;
+      description?: string | null;
+      price?: number | null;
+      status?: string;
+    }) => {
+      const r = await apiClient.patch(`/admin/posts/${id}`, body);
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('ذخیره شد');
+      setEditOpen(false);
+      refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const markSold = useMutation({
+    mutationFn: async () => {
+      const r = await apiClient.patch(`/admin/posts/${id}`, { status: 'sold' });
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('وضعیت به «فروخته‌شده» تغییر کرد');
+      refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const openEdit = () => {
+    if (!data) return;
+    setEditForm({
+      title: data.title,
+      description: data.description ?? '',
+      price: data.price != null ? String(Number(data.price)) : '',
+      status: data.status,
+    });
+    setEditOpen(true);
+  };
+
+  const submitEdit = () => {
+    const title = editForm.title.trim();
+    if (title.length < 3) {
+      toast.error('عنوان باید حداقل ۳ کاراکتر باشد');
+      return;
+    }
+    const price = editForm.price.trim() === '' ? null : Number.parseInt(editForm.price, 10);
+    if (editForm.price.trim() !== '' && (Number.isNaN(price) || price! < 0)) {
+      toast.error('قیمت نامعتبر است');
+      return;
+    }
+    patchPost.mutate({
+      title,
+      description: editForm.description.trim() || null,
+      price,
+      status: editForm.status,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -203,6 +291,14 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         }
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Pencil className="size-4" />}
+              onClick={openEdit}
+            >
+              ویرایش
+            </Button>
             {data.status === 'pendingReview' ? (
               <Button
                 variant="brand"
@@ -242,6 +338,17 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
                 onClick={() => setConfirm({ type: 'expire' })}
               >
                 منقضی
+              </Button>
+            ) : null}
+            {data.status === 'approved' ? (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<Tag className="size-4" />}
+                isLoading={markSold.isPending}
+                onClick={() => markSold.mutate()}
+              >
+                فروخته شد
               </Button>
             ) : null}
             <Button
@@ -529,16 +636,128 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
         isLoading={action.isPending}
         onConfirm={(reason) => reason && action.mutate({ type: 'delete', reason })}
       />
-      <ConfirmDialog
+      <Dialog
         open={confirm?.type === 'promote'}
-        onOpenChange={(o) => !o && setConfirm(null)}
-        title="فعال‌سازی نردبان"
-        description="نردبان به مدت ۲۴ ساعت برای این آگهی فعال می‌شود."
-        confirmLabel="فعال‌سازی"
-        tone="brand"
-        isLoading={promote.isPending}
-        onConfirm={() => promote.mutate(24)}
-      />
+        onOpenChange={(o) => {
+          if (!o) {
+            setConfirm(null);
+            setPromoteHours('24');
+          }
+        }}
+      >
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>فعال‌سازی نردبان</DialogTitle>
+            <DialogDescription>
+              مدت زمان نردبان را به ساعت وارد کنید. پیش‌فرض ۲۴ ساعت است.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="promote-hours" required>
+              مدت (ساعت)
+            </Label>
+            <Input
+              id="promote-hours"
+              type="number"
+              min={1}
+              max={8760}
+              value={promoteHours}
+              onChange={(e) => setPromoteHours(e.target.value)}
+              dir="ltr"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setConfirm(null);
+                setPromoteHours('24');
+              }}
+              disabled={promote.isPending}
+            >
+              انصراف
+            </Button>
+            <Button
+              variant="brand"
+              isLoading={promote.isPending}
+              disabled={!promoteHours || Number(promoteHours) < 1}
+              onClick={() => promote.mutate(Number(promoteHours))}
+            >
+              فعال‌سازی
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>ویرایش آگهی</DialogTitle>
+            <DialogDescription>عنوان، توضیحات، قیمت و وضعیت آگهی را ویرایش کنید.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title" required>
+                عنوان
+              </Label>
+              <Input
+                id="edit-title"
+                value={editForm.title}
+                onChange={(e) => setEditForm((f) => ({ ...f, title: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">توضیحات</Label>
+              <Textarea
+                id="edit-description"
+                autoGrow
+                rows={4}
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-price">قیمت (تومان)</Label>
+              <Input
+                id="edit-price"
+                type="number"
+                min={0}
+                placeholder="خالی = توافقی"
+                value={editForm.price}
+                onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
+                dir="ltr"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-status">وضعیت</Label>
+              <select
+                id="edit-status"
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={editForm.status}
+                onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))}
+              >
+                {POST_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => setEditOpen(false)}
+              disabled={patchPost.isPending}
+            >
+              انصراف
+            </Button>
+            <Button variant="brand" isLoading={patchPost.isPending} onClick={submitEdit}>
+              ذخیره
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ConfirmDialog
         open={confirm?.type === 'expire'}
         onOpenChange={(o) => !o && setConfirm(null)}

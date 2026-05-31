@@ -321,6 +321,8 @@ export interface PlatformSettings {
   maintenanceMessage: string | null;
   maxPostsPerDay: number;
   defaultPostExpiryDays: number;
+  privacyContent: string | null;
+  termsContent: string | null;
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -333,6 +335,8 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   maintenanceMessage: null,
   maxPostsPerDay: 10,
   defaultPostExpiryDays: 30,
+  privacyContent: null,
+  termsContent: null,
 };
 
 export interface AuditLogEntry {

@@ -41,16 +41,20 @@ export default function CommentsPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
   const [q, setQ] = useState('');
+  const [userId, setUserId] = useState('');
+  const [postId, setPostId] = useState('');
   const [del, setDel] = useState<Comment | null>(null);
 
   const list = useQuery({
-    queryKey: ['admin', 'comments', { page, q }],
+    queryKey: ['admin', 'comments', { page, q, userId, postId }],
     queryFn: async () =>
       (
         await apiClient.get<{ data: Comment[]; total: number }>('/admin/comments', {
           page,
           pageSize: PAGE_SIZE,
           q,
+          userId: userId || undefined,
+          postId: postId || undefined,
         })
       ).data,
   });
@@ -144,7 +148,7 @@ export default function CommentsPage() {
       <Card className="mb-4">
         <CardContent className="!p-4">
           <div className="flex flex-wrap items-end gap-2">
-            <div className="flex-1 min-w-[240px]">
+            <div className="flex-1 min-w-[200px]">
               <Input
                 size="sm"
                 value={q}
@@ -156,13 +160,39 @@ export default function CommentsPage() {
                 leadingIcon={<Search className="size-4" />}
               />
             </div>
-            {q ? (
+            <div className="min-w-[160px]">
+              <Input
+                size="sm"
+                value={userId}
+                onChange={(e) => {
+                  setUserId(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="شناسه کاربر"
+                dir="ltr"
+              />
+            </div>
+            <div className="min-w-[160px]">
+              <Input
+                size="sm"
+                value={postId}
+                onChange={(e) => {
+                  setPostId(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="شناسه آگهی"
+                dir="ltr"
+              />
+            </div>
+            {q || userId || postId ? (
               <Button
                 size="sm"
                 variant="ghost"
                 leftIcon={<X className="size-4" />}
                 onClick={() => {
                   setQ('');
+                  setUserId('');
+                  setPostId('');
                   setPage(1);
                 }}
               >

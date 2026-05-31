@@ -97,10 +97,10 @@ export default function NotificationsPage() {
               aria-selected={tab === t.key}
               onClick={() => setTab(t.key)}
               className={
-                'shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ' +
+                'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ' +
                 (tab === t.key
                   ? 'bg-foreground text-background'
-                  : 'bg-muted text-foreground hover:bg-muted/80')
+                  : 'bg-muted/80 text-foreground hover:bg-muted')
               }
             >
               {t.label}

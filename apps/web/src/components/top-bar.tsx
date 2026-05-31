@@ -6,7 +6,16 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { SearchSuggestionItem } from '@agahiram/shared';
 import { formatPersianNumber, normalizePersianText } from '@agahiram/shared';
-import { IgActivity, IgClose, IgDirect, IgSearch, Input } from '@agahiram/ui';
+import {
+  IgActivity,
+  IgClose,
+  IgDirect,
+  IgMoon,
+  IgSearch,
+  IgSun,
+  Input,
+  useTheme,
+} from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useUnreadMessages, useUnreadNotifications } from '@/hooks/useUnreadCounts';
 
@@ -82,7 +91,7 @@ export function TopBar() {
   return (
     <>
       <header className="glass sticky top-0 z-30 border-b border-border-subtle pt-safe">
-        <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center justify-between gap-2 px-3 sm:px-4">
+        <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center justify-between gap-2 px-4 py-2">
           <Link
             href="/feed"
             aria-label="آگهی‌گرام — صفحه اصلی"
@@ -99,6 +108,7 @@ export function TopBar() {
               onClick={() => setSearchOpen(true)}
               icon={<IgSearch className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
             />
+            <ThemeButton />
             <HeaderIconLink
               href="/notifications"
               label="فعالیت"
@@ -107,7 +117,6 @@ export function TopBar() {
                 <IgActivity
                   className="size-[var(--ig-icon)]"
                   filled={notifUnread > 0}
-                  strokeWidth={1.75}
                   aria-hidden
                 />
               }
@@ -125,7 +134,7 @@ export function TopBar() {
       {searchOpen ? (
         <div className="fixed inset-0 z-50 bg-surface">
           <div className="glass border-b border-border-subtle pt-safe">
-            <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center gap-2 px-3 sm:px-4">
+            <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center gap-2 px-4 py-2">
               <div className="flex-1">
                 <Input
                   autoFocus
@@ -216,6 +225,29 @@ export function TopBar() {
 const headerIconClass =
   'grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-muted/60 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
 
+function ThemeButton() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  const isDark = mounted ? resolvedTheme === 'dark' : false;
+  return (
+    <button
+      type="button"
+      aria-label={isDark ? 'تغییر به حالت روشن' : 'تغییر به حالت تیره'}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      className={headerIconClass}
+    >
+      {isDark ? (
+        <IgSun className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
+      ) : (
+        <IgMoon className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
+      )}
+    </button>
+  );
+}
+
 function HeaderIconButton({
   label,
   onClick,
@@ -253,7 +285,7 @@ function HeaderIconLink({
       {badge > 0 ? (
         <span
           aria-hidden
-          className="absolute end-1.5 top-1.5 size-2 rounded-full bg-ig-badge ring-2 ring-surface"
+          className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[var(--ig-badge)] ring-2 ring-surface"
         />
       ) : null}
     </Link>

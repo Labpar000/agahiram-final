@@ -15,15 +15,18 @@ import {
   MAX_VIDEO_UPLOAD_BYTES,
 } from '@agahiram/shared';
 import type { StoryOverlayDocument } from '@agahiram/shared';
-import type { StoryMusicSelection } from '@/features/stories/story-music-picker';
 import { Button, IconButton, IgArrowBack, Spinner, toast } from '@agahiram/ui';
+import { StoryBatchPublishPreview } from '@/features/stories/story-batch-publish-preview';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
-import { StoryComposer } from '@/features/stories/story-composer';
-import type { PublishSticker } from '@/features/stories/story-composer';
+import {
+  StoryComposer,
+  type PublishSticker,
+  type StoryComposerPayload,
+} from '@/features/stories/story-composer';
 import { StoryCamera, type CapturedMedia } from '@/features/stories/camera/story-camera';
 import { StoryLayoutCollage } from '@/features/stories/camera/story-layout-collage';
-type Step = 'pick' | 'camera' | 'layout' | 'edit';
+type Step = 'pick' | 'camera' | 'layout' | 'edit' | 'previewBatch';
 
 type SessionPrefs = {
   audience: 'PUBLIC' | 'CLOSE_FRIENDS';
@@ -44,7 +47,6 @@ type PendingSlide = {
   cityId?: string;
   stickers: PublishSticker[];
   altText?: string;
-  music?: StoryMusicSelection;
   scheduledAt?: string;
   repost?: { type: 'post' | 'story'; id: string };
 };
@@ -194,7 +196,6 @@ export default function CreateStoryPage() {
           cityId: s.cityId,
           stickers: s.stickers,
           altText: s.altText,
-          music: s.music,
           repost: s.repost,
           sequenceIndex: i,
           sessionId,
@@ -207,7 +208,8 @@ export default function CreateStoryPage() {
       if (!r.success) throw new Error(r.error ?? 'خطا در انتشار استوری');
       return r.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, queue) => {
+      for (const s of queue) revokePreviewUrl(s.previewUrl);
       void qc.invalidateQueries({ queryKey: ['stories', 'feed'] });
       const scheduled =
         data &&
@@ -296,19 +298,11 @@ export default function CreateStoryPage() {
     }
   };
 
-  const finalizeSlide = (payload: {
-    overlay?: StoryOverlayDocument;
-    audience: 'PUBLIC' | 'CLOSE_FRIENDS';
-    allowReplies: string;
-    linkedPostId?: string;
-    hashtag?: string;
-    cityId?: string;
-    stickers: PublishSticker[];
-    altText?: string;
-    music?: StoryMusicSelection;
-    scheduledAt?: string;
-    repost?: { type: 'post' | 'story'; id: string };
-  }) => {
+  const revokePreviewUrl = (url: string) => {
+    if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+  };
+
+  const finalizeSlide = (payload: StoryComposerPayload) => {
     if (!current) return null;
     return {
       ...current,
@@ -400,13 +394,12 @@ export default function CreateStoryPage() {
               </label>
             </div>
             {slides.length >= MAX_STORY_SLIDES_PER_BATCH ? (
-              <Button
-                variant="brand"
-                fullWidth
-                onClick={() => publish.mutate(slides)}
-                isLoading={publish.isPending}
-              >
-                انتشار {slides.length} اسلاید
+              <Button variant="brand" fullWidth onClick={() => setStep('previewBatch')}>
+                پیش‌نمایش و انتشار {slides.length} اسلاید
+              </Button>
+            ) : slides.length > 0 ? (
+              <Button variant="outline" fullWidth onClick={() => setStep('previewBatch')}>
+                پیش‌نمایش صف ({slides.length} اسلاید)
               </Button>
             ) : null}
             <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border border-dashed border-border bg-muted">
@@ -437,6 +430,20 @@ export default function CreateStoryPage() {
           />
         ) : null}
 
+        {step === 'previewBatch' && slides.length > 0 ? (
+          <StoryBatchPublishPreview
+            slides={slides.map((s) => ({
+              previewUrl: s.previewUrl,
+              mediaType: s.mediaType,
+              overlay: s.overlay,
+              stickers: s.stickers,
+            }))}
+            isPublishing={publish.isPending}
+            onBack={() => setStep('pick')}
+            onPublish={() => publish.mutate(slides)}
+          />
+        ) : null}
+
         {step === 'edit' && current ? (
           <StoryComposer
             previewUrl={current.previewUrl}
@@ -456,6 +463,7 @@ export default function CreateStoryPage() {
             }
             defaultOverlay={current.overlay ?? repostMeta?.overlay}
             onCancel={() => {
+              if (current) revokePreviewUrl(current.previewUrl);
               setCurrent(null);
               setStep('pick');
             }}
@@ -467,6 +475,7 @@ export default function CreateStoryPage() {
                     rememberSessionPrefs(payload);
                     setSlides((q) => [...q, slide]);
                     setRepostMeta(null);
+                    if (current) revokePreviewUrl(current.previewUrl);
                     setCurrent(null);
                     setStep('pick');
                     toast.success('اسلاید به صف اضافه شد');

@@ -84,23 +84,6 @@ export const BULL_QUEUES = {
 
 export const MAX_STORY_SLIDES_PER_BATCH = 10;
 export const MAX_STORY_SLIDES_PER_SESSION = 100;
-export const STORY_MUSIC_TRACKS = [
-  {
-    id: 'ambient-1',
-    title: 'آرام',
-    artist: 'آگاهیرام',
-    url: '/audio/stories/ambient-1.mp3',
-    durationMs: 30_000,
-  },
-  {
-    id: 'upbeat-1',
-    title: 'شاد',
-    artist: 'آگاهیرام',
-    url: '/audio/stories/upbeat-1.mp3',
-    durationMs: 30_000,
-  },
-] as const;
-
 export const MEILI_INDEX_STORIES = 'stories';
 
 export const BANNED_WORDS = ['فروش اعضا', 'مواد مخدر', 'سلاح', 'قمار', 'پورن'];
