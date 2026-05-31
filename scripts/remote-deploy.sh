@@ -17,7 +17,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/agahiram}"
 ENV_FILE="$APP_DIR/docker/.env"
-BUILD_SERVICES="${BUILD_SERVICES:-api worker web admin}"
+BUILD_SERVICES="${BUILD_SERVICES-api worker web admin}"
 CONFIG_ONLY="${CONFIG_ONLY:-}"
 DEPLOY_MODE="${DEPLOY_MODE:-transfer}"
 DOMAIN="${DOMAIN:-alooche.com}"
