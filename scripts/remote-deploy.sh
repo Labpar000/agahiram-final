@@ -17,9 +17,14 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/agahiram}"
 ENV_FILE="$APP_DIR/docker/.env"
-BUILD_SERVICES="${BUILD_SERVICES-api worker web admin}"
+BUILD_SERVICES="${BUILD_SERVICES:-}"
 CONFIG_ONLY="${CONFIG_ONLY:-}"
 DEPLOY_MODE="${DEPLOY_MODE:-transfer}"
+
+# Only default to all services in on-server build mode — never when pulling (empty = skip pull).
+if [[ "$DEPLOY_MODE" == "build" && -z "${BUILD_SERVICES// /}" ]]; then
+  BUILD_SERVICES="api worker web admin"
+fi
 DOMAIN="${DOMAIN:-alooche.com}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
@@ -194,9 +199,21 @@ deploy_pull() {
   fi
 
   if [[ -n "${BUILD_SERVICES// /}" ]]; then
-    log "pulling images (tag=$IMAGE_TAG): $BUILD_SERVICES"
-    # shellcheck disable=SC2086
-    docker compose $COMPOSE pull $BUILD_SERVICES
+    pull_services() {
+      local tag="$1"
+      export IMAGE_TAG="$tag"
+      log "pulling images (tag=$tag): $BUILD_SERVICES"
+      # shellcheck disable=SC2086
+      docker compose $COMPOSE pull $BUILD_SERVICES
+    }
+    if ! pull_services "$IMAGE_TAG"; then
+      if [[ "$IMAGE_TAG" != "latest" ]]; then
+        log "pull failed for tag=$IMAGE_TAG (images may not have been built for this commit); trying latest"
+        pull_services "latest"
+      else
+        exit 1
+      fi
+    fi
   fi
 
   if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then

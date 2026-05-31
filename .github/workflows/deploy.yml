@@ -170,8 +170,7 @@ jobs:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     needs: [scope, build]
-    if: |
-      always() &&
+    if: >
       needs.scope.outputs.need_deploy == 'true' &&
       (needs.scope.outputs.need_build != 'true' || needs.build.result == 'success')
     timeout-minutes: 12
@@ -207,6 +206,7 @@ jobs:
           SSH_COMMON_OPTS: -i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=60
           BUILD_SERVICES: ${{ needs.scope.outputs.build_services }}
           CONFIG_ONLY: ${{ needs.scope.outputs.config_only }}
+          NEED_BUILD: ${{ needs.scope.outputs.need_build }}
           GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
@@ -220,7 +220,7 @@ jobs:
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
             "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=pull \
              IMAGE_REGISTRY='$IMAGE_REGISTRY' IMAGE_TAG='$IMAGE_TAG' \
-             BUILD_SERVICES='$BUILD_SERVICES' CONFIG_ONLY='$CONFIG_ONLY' \
+             BUILD_SERVICES='$BUILD_SERVICES' CONFIG_ONLY='$CONFIG_ONLY' NEED_BUILD='$NEED_BUILD' \
              CONFIG_TARBALL='/tmp/agahiram-config.tar.gz' \
              CONFIG_SHA256='$(cat /tmp/agahiram-config.sha256)' \
              GHCR_TOKEN='$GHCR_TOKEN' GHCR_USER='${{ github.repository_owner }}' \
