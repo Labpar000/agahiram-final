@@ -37,6 +37,7 @@ const withPWA = withPWAInit({
         request.mode === 'navigate' &&
         (url.pathname === '/login' || url.pathname.startsWith('/onboarding')),
       handler: 'NetworkOnly',
+      options: { cacheName: 'auth-pages-no-cache' },
     },
     {
       urlPattern: /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
