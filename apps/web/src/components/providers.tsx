@@ -6,6 +6,9 @@ import { ThemeProvider, Toaster, TooltipProvider } from '@agahiram/ui';
 import { AuthSessionProvider } from './auth-session-provider';
 import { NavigationLifecycleInstaller } from './navigation-lifecycle-installer';
 import { UploadManagerProvider } from '@/lib/upload-manager';
+import { PwaInstallBanner } from '@/components/pwa-install-banner';
+import { SwUpdateBanner } from '@/components/sw-update-banner';
+import { WebPushRegister } from '@/components/web-push-register';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -28,8 +31,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={client}>
         <AuthSessionProvider>
           <NavigationLifecycleInstaller />
+          <WebPushRegister />
           <UploadManagerProvider>
-            <TooltipProvider>{children}</TooltipProvider>
+            <TooltipProvider>
+              <SwUpdateBanner />
+              {children}
+              <PwaInstallBanner />
+            </TooltipProvider>
           </UploadManagerProvider>
         </AuthSessionProvider>
         <Toaster />

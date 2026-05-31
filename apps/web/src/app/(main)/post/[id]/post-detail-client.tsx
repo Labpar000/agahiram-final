@@ -1,18 +1,21 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, BarChart3, Pencil } from 'lucide-react';
-import { EmptyState, IconButton, LoadingState } from '@agahiram/ui';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { ArrowRight, BarChart3, Pencil, Trash2 } from 'lucide-react';
+import { EmptyState, IconButton, LoadingState, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { markPostViewedLocally } from '@/lib/viewer-hash';
 import { PostCard } from '@/components/post-card';
 import { PostDetailNav } from '@/components/post-detail-nav';
 import { LazyComments } from '@/components/lazy-comments';
 import { PostDetailSwipe } from '@/components/post-detail-swipe';
+import { ReportDialog } from '@/components/report-dialog';
+import { removeProfilePost } from '@/lib/query-cache-profile';
 import { useAuthStore } from '@/lib/auth-store';
 import { findPostInClientCache, summaryToDetailPlaceholder } from '@/lib/query-cache-posts';
 
@@ -44,8 +47,10 @@ export interface PostDetail {
 }
 
 export function PostDetailClient({ id }: { id: string }) {
+  const router = useRouter();
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
+  const [reportOpen, setReportOpen] = useState(false);
   const searchParams = useSearchParams();
   const highlightCommentId = searchParams.get('highlightComment');
   const cachedSummary = findPostInClientCache(qc, id);
@@ -63,6 +68,19 @@ export function PostDetailClient({ id }: { id: string }) {
   const showLoading = isLoading && !data;
 
   const isOwner = !!me && data?.user?.id === me.id;
+
+  const deletePost = useMutation({
+    mutationFn: async () => {
+      const r = await apiClient.delete(`/posts/${id}`);
+      if (!r.success) throw new Error(r.error ?? 'خطا در حذف');
+    },
+    onSuccess: () => {
+      if (me?.username) removeProfilePost(qc, me.username, id);
+      toast.success('آگهی با موفقیت حذف شد');
+      router.push(me?.username ? `/profile/${me.username}` : '/feed');
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   useEffect(() => {
     markPostViewedLocally(id);
@@ -103,8 +121,29 @@ export function PostDetailClient({ id }: { id: string }) {
                 <BarChart3 className="size-4" aria-hidden />
                 آمار
               </Link>
+              <button
+                type="button"
+                aria-label="حذف آگهی"
+                className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive"
+                onClick={() => {
+                  if (window.confirm('آیا مطمئن هستید؟ این آگهی برای همیشه حذف خواهد شد.')) {
+                    deletePost.mutate();
+                  }
+                }}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                حذف
+              </button>
             </>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              className="ms-auto text-xs font-semibold text-muted-foreground"
+              onClick={() => setReportOpen(true)}
+            >
+              گزارش
+            </button>
+          )}
         </div>
         <PostDetailNav postId={id} />
 
@@ -170,6 +209,13 @@ export function PostDetailClient({ id }: { id: string }) {
           </>
         )}
       </div>
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="post"
+        targetId={id}
+        title="گزارش آگهی"
+      />
     </PostDetailSwipe>
   );
 }

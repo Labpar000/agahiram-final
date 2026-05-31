@@ -5,3 +5,5 @@ export * from './search';
 export * from './message';
 export * from './payment';
 export * from './admin';
+export * from './report';
+export * from './push';

@@ -8,6 +8,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   setUser: (user: UserProfile | null) => void;
+  updateUser: (partial: Partial<UserProfile>) => void;
   setLoading: (loading: boolean) => void;
   logout: () => void;
 }
@@ -24,6 +25,10 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: !!user,
           isLoading: false,
         }),
+      updateUser: (partial) =>
+        set((state) => ({
+          user: state.user ? { ...state.user, ...partial } : state.user,
+        })),
       setLoading: (isLoading) => set({ isLoading }),
       logout: () => {
         clearAuthCookies();

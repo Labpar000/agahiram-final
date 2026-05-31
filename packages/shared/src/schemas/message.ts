@@ -7,6 +7,7 @@ export const sendMessageSchema = z.object({
   content: z.string().min(1).max(2000),
   type: z.nativeEnum(MessageType).default(MessageType.TEXT),
   postId: z.string().uuid().optional(),
+  storyId: z.string().uuid().optional(),
 });
 
 export type SendMessageInput = z.infer<typeof sendMessageSchema>;

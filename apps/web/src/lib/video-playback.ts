@@ -102,3 +102,46 @@ export function setupVideoSource(
     video.load();
   };
 }
+
+const REELS_MUTE_KEY = 'reels_muted';
+
+export function getReelsMutedPreference(): boolean {
+  if (typeof sessionStorage === 'undefined') return true;
+  return sessionStorage.getItem(REELS_MUTE_KEY) !== '0';
+}
+
+export function setReelsMutedPreference(muted: boolean) {
+  try {
+    sessionStorage.setItem(REELS_MUTE_KEY, muted ? '1' : '0');
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Play when ≥50% visible; pause and reset when leaving viewport. */
+export function observeReelPlayback(
+  container: HTMLElement,
+  video: HTMLVideoElement,
+  active: boolean,
+  onPlayingChange?: (playing: boolean) => void,
+): () => void {
+  const obs = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (!entry || !active) return;
+      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+        void video
+          .play()
+          .then(() => onPlayingChange?.(true))
+          .catch(() => onPlayingChange?.(false));
+      } else {
+        video.pause();
+        video.currentTime = 0;
+        onPlayingChange?.(false);
+      }
+    },
+    { threshold: [0, 0.5, 1] },
+  );
+  obs.observe(container);
+  return () => obs.disconnect();
+}

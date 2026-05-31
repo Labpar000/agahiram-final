@@ -2,7 +2,7 @@
 
 import { use, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Camera, MessageSquare, Mic, Send } from 'lucide-react';
+import { ArrowRight, ImagePlus, MessageSquare, Mic, Send } from 'lucide-react';
 import { MessageType } from '@agahiram/shared';
 import {
   Avatar,
@@ -220,7 +220,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
           onClick={() => fileInputRef.current?.click()}
         >
-          <Camera className="size-5" aria-hidden />
+          <ImagePlus className="size-5" aria-hidden />
         </button>
         <button
           type="button"

@@ -75,6 +75,8 @@ export enum AttributeType {
   BOOL = 'bool',
 }
 
+export type ReportTargetType = 'post' | 'story' | 'user' | 'comment';
+
 export interface PaginatedResponse<T> {
   data: T[];
   nextCursor: string | null;
@@ -157,6 +159,7 @@ export interface PostSummary {
   city: {
     id: string;
     name: string;
+    slug?: string;
   } | null;
   media: Array<{
     id: string;

@@ -583,23 +583,22 @@ export class AdminService {
   }
 
   async groupedReports() {
-    /* Show grouping by post for moderators — many reports against the same post
-     * should be one card with a count, not N cards. We hit the DB once with a
-     * groupBy and then fan out for the post details and the latest reasons. */
-    const grouped = await this.prisma.report.groupBy({
+    const pendingWhere = { status: 'pending' as const };
+
+    const postGrouped = await this.prisma.report.groupBy({
       by: ['postId'],
-      where: { status: 'pending', postId: { not: null } },
+      where: { ...pendingWhere, postId: { not: null } },
       _count: { _all: true },
       _max: { createdAt: true },
     });
-    const postIds = grouped.map((g) => g.postId).filter((v): v is string => !!v);
+    const postIds = postGrouped.map((g) => g.postId).filter((v): v is string => !!v);
     const posts = await this.prisma.post.findMany({
       where: { id: { in: postIds } },
       include: {
         user: { select: { id: true, username: true, name: true } },
         media: { take: 1, orderBy: { order: 'asc' } },
         reports: {
-          where: { status: 'pending' },
+          where: pendingWhere,
           select: {
             reason: true,
             details: true,
@@ -611,15 +610,92 @@ export class AdminService {
         },
       },
     });
-    const byId = new Map(posts.map((p) => [p.id, p]));
-    return grouped
+    const byPostId = new Map(posts.map((p) => [p.id, p]));
+
+    const otherGrouped = await this.prisma.report.groupBy({
+      by: ['targetType', 'targetId'],
+      where: { ...pendingWhere, postId: null },
+      _count: { _all: true },
+      _max: { createdAt: true },
+    });
+
+    const storyIds = otherGrouped.filter((g) => g.targetType === 'story').map((g) => g.targetId);
+    const userIds = otherGrouped.filter((g) => g.targetType === 'user').map((g) => g.targetId);
+    const commentIds = otherGrouped
+      .filter((g) => g.targetType === 'comment')
+      .map((g) => g.targetId);
+
+    const [stories, users, comments] = await Promise.all([
+      storyIds.length
+        ? this.prisma.story.findMany({
+            where: { id: { in: storyIds } },
+            select: { id: true, mediaUrl: true, user: { select: { username: true } } },
+          })
+        : [],
+      userIds.length
+        ? this.prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, username: true, name: true, avatar: true },
+          })
+        : [],
+      commentIds.length
+        ? this.prisma.comment.findMany({
+            where: { id: { in: commentIds } },
+            select: { id: true, content: true, user: { select: { username: true } } },
+          })
+        : [],
+    ]);
+
+    const storyById = new Map(stories.map((s) => [s.id, s]));
+    const userById = new Map(users.map((u) => [u.id, u]));
+    const commentById = new Map(comments.map((c) => [c.id, c]));
+
+    const postCards = postGrouped
       .map((g) => ({
-        postId: g.postId,
+        kind: 'post' as const,
+        postId: g.postId!,
+        targetType: 'post' as const,
+        targetId: g.postId!,
         count: g._count._all,
-        latestAt: g._max.createdAt,
-        post: g.postId ? (byId.get(g.postId) ?? null) : null,
+        latestAt: g._max.createdAt!,
+        post: byPostId.get(g.postId!) ?? null,
+        preview: null,
       }))
       .sort((a, b) => b.count - a.count);
+
+    const otherCards = otherGrouped
+      .map((g) => {
+        let preview: Record<string, unknown> | null = null;
+        if (g.targetType === 'story') {
+          const s = storyById.get(g.targetId);
+          preview = s
+            ? { mediaUrl: s.mediaUrl, username: s.user.username }
+            : { label: 'استوری حذف‌شده' };
+        } else if (g.targetType === 'user') {
+          const u = userById.get(g.targetId);
+          preview = u
+            ? { username: u.username, name: u.name, avatar: u.avatar }
+            : { label: 'کاربر یافت نشد' };
+        } else if (g.targetType === 'comment') {
+          const c = commentById.get(g.targetId);
+          preview = c
+            ? { content: c.content.slice(0, 120), username: c.user.username }
+            : { label: 'نظر حذف‌شده' };
+        }
+        return {
+          kind: 'other' as const,
+          postId: null,
+          targetType: g.targetType,
+          targetId: g.targetId,
+          count: g._count._all,
+          latestAt: g._max.createdAt!,
+          post: null,
+          preview,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+
+    return [...postCards, ...otherCards];
   }
 
   async resolveReport(
@@ -636,11 +712,13 @@ export class AdminService {
        * the dismiss branch but the audit log still recorded `report.remove`,
        * making it look like a post had been removed when it hadn't. Reject the
        * call explicitly so the moderator knows nothing actionable happened. */
-      if (!report.postId) {
+      const resolvedPostId =
+        report.postId ?? (report.targetType === 'post' ? report.targetId : null);
+      if (!resolvedPostId) {
         throw new BadRequestException('این گزارش به آگهی متصل نیست؛ فقط می‌توان آن را رد کرد');
       }
       const post = await this.prisma.post.update({
-        where: { id: report.postId },
+        where: { id: resolvedPostId },
         data: { status: 'deleted', rejectionReason: reason ?? null },
       });
       await this.notifications.create(post.userId, NotificationType.AD_REMOVED, {
@@ -650,7 +728,7 @@ export class AdminService {
       await this.meili.deletePost(post.id).catch(() => null);
       /* Auto-resolve other pending reports for the same post too. */
       await this.prisma.report.updateMany({
-        where: { postId: report.postId, status: 'pending' },
+        where: { postId: resolvedPostId, status: 'pending' },
         data: { status: 'resolved' },
       });
     } else {

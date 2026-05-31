@@ -51,6 +51,7 @@ import { handleEngagementError } from '@/lib/engagement-auth';
 import { useLikePost, useSavePost } from '@/hooks/usePosts';
 import { runEngagementAction } from '@/lib/inp';
 import { PostLink } from '@/components/post-link';
+import { ReportDialog } from '@/components/report-dialog';
 import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
@@ -81,6 +82,7 @@ export function PostCard({
   const [saved, setSaved] = useState(initialSaved ?? post.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(post.likesCount);
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     setLiked(initialLiked ?? post.isLiked ?? false);
@@ -303,9 +305,7 @@ export function PostCard({
             >
               کپی لینک
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.success('گزارش شما ثبت شد و بررسی می‌شود')}>
-              گزارش آگهی
-            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setReportOpen(true)}>گزارش آگهی</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </header>
@@ -576,6 +576,13 @@ export function PostCard({
           </DrawerContent>
         </Drawer>
       ) : null}
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="post"
+        targetId={post.id}
+        title="گزارش آگهی"
+      />
     </article>
   );
 }

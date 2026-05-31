@@ -27,6 +27,8 @@ import { LiveModule } from './live/live.module';
 import { AiModule } from './ai/ai.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ReputationModule } from './reputation/reputation.module';
+import { ReportsModule } from './reports/reports.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -74,6 +76,8 @@ import { ReputationModule } from './reputation/reputation.module';
     AiModule,
     MetricsModule,
     ReputationModule,
+    ReportsModule,
+    PushModule,
   ],
   providers: [
     {

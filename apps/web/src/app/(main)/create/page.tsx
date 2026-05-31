@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
-  Camera,
+  ImagePlus,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -22,7 +22,10 @@ import {
   ALLOWED_VIDEO_TYPES,
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_VIDEO_UPLOAD_BYTES,
+  PostStatus,
+  type PostSummary,
 } from '@agahiram/shared';
+import { prependProfilePost } from '@/lib/query-cache-profile';
 import {
   Button,
   IconButton,
@@ -268,7 +271,7 @@ export default function CreatePage() {
 
   const submit = useMutation({
     mutationFn: async () => {
-      const r = await apiClient.post<{ id: string }>('/posts', {
+      const r = await apiClient.post<PostSummary>('/posts', {
         title,
         description: description || undefined,
         categoryId,
@@ -276,7 +279,10 @@ export default function CreatePage() {
         priceType,
         cityId,
         type: media.length === 1 && media[0]?.type === 'video' ? 'reel' : 'post',
-        attributes: Object.keys(attributes).length > 0 ? attributes : undefined,
+        attributes:
+          Object.keys(attributes).filter((k) => k !== 'price').length > 0
+            ? Object.fromEntries(Object.entries(attributes).filter(([k]) => k !== 'price'))
+            : undefined,
         mediaKeys: media.map((m, i) => ({ key: m.key, type: m.type, order: i })),
         lat: pickedLocation?.lat ?? null,
         lng: pickedLocation?.lng ?? null,
@@ -285,15 +291,17 @@ export default function CreatePage() {
       if (!r.success) throw new Error(r.error ?? 'خطا در ثبت آگهی');
       return r.data;
     },
-    onSuccess: (data) => {
+    onSuccess: (post) => {
       void qc.invalidateQueries({ queryKey: ['feed'] });
       void qc.invalidateQueries({ queryKey: ['explore'] });
       void qc.invalidateQueries({ queryKey: ['reels'] });
-      if (myUsername) {
-        void qc.invalidateQueries({ queryKey: ['profile', myUsername, 'posts'] });
+      if (myUsername && post) {
+        prependProfilePost(qc, myUsername, {
+          ...post,
+          status: post.status ?? PostStatus.PENDING_REVIEW,
+        });
       }
-      toast.success('آگهی شما ثبت شد و در انتظار تأیید است');
-      router.push(`/post/${data?.id ?? ''}`);
+      router.replace(`/create/success?id=${encodeURIComponent(post?.id ?? '')}`);
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -303,7 +311,7 @@ export default function CreatePage() {
     if (step === 1) return !!categoryId && !!category;
     if (step === 2)
       return (category?.attributes ?? [])
-        .filter((a) => a.required)
+        .filter((a) => a.required && a.key !== 'price')
         .every((a) => !!attributes[a.key]);
     if (step === 3) return title.length >= 3 && (priceType !== 'fixed' || !!price);
     if (step === 4) return !!cityId;
@@ -385,7 +393,7 @@ export default function CreatePage() {
                 >
                   <input
                     type="file"
-                    accept="image/*,video/*"
+                    accept="image/*,video/mp4,video/webm"
                     multiple
                     onChange={(e) => e.target.files && void handleFiles(e.target.files)}
                     className="absolute inset-0 cursor-pointer opacity-0"
@@ -394,7 +402,7 @@ export default function CreatePage() {
                   {uploading ? (
                     <Spinner size="md" />
                   ) : (
-                    <Camera
+                    <ImagePlus
                       className="size-7 text-muted-foreground group-hover/upload:text-primary"
                       aria-hidden
                     />
@@ -507,56 +515,58 @@ export default function CreatePage() {
                 : 'این دسته ویژگی خاصی ندارد — مرحله بعد را بزنید'}
             </p>
             <div className="mt-4 space-y-3">
-              {category?.attributes.map((a) => (
-                <div key={a.id} className="space-y-2">
-                  <Label htmlFor={a.key} required={a.required}>
-                    {a.label}
-                  </Label>
-                  {a.type === 'select' ? (
-                    <Select
-                      value={attributes[a.key] ?? ''}
-                      onValueChange={(v) => setAttributes({ ...attributes, [a.key]: v })}
-                    >
-                      <SelectTrigger id={a.key}>
-                        <SelectValue placeholder="انتخاب کنید" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {a.options.map((o) => (
-                          <SelectItem key={o} value={o}>
-                            {o}
-                          </SelectItem>
+              {category?.attributes
+                .filter((a) => a.key !== 'price')
+                .map((a) => (
+                  <div key={a.id} className="space-y-2">
+                    <Label htmlFor={a.key} required={a.required}>
+                      {a.label}
+                    </Label>
+                    {a.type === 'select' ? (
+                      <Select
+                        value={attributes[a.key] ?? ''}
+                        onValueChange={(v) => setAttributes({ ...attributes, [a.key]: v })}
+                      >
+                        <SelectTrigger id={a.key}>
+                          <SelectValue placeholder="انتخاب کنید" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {a.options.map((o) => (
+                            <SelectItem key={o} value={o}>
+                              {o}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : a.type === 'bool' ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {['دارد', 'ندارد'].map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setAttributes({ ...attributes, [a.key]: v })}
+                            className={cn(
+                              'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                              attributes[a.key] === v
+                                ? 'border-primary bg-accent text-accent-foreground'
+                                : 'border-input hover:bg-muted',
+                            )}
+                          >
+                            {v}
+                          </button>
                         ))}
-                      </SelectContent>
-                    </Select>
-                  ) : a.type === 'bool' ? (
-                    <div className="grid grid-cols-2 gap-2">
-                      {['دارد', 'ندارد'].map((v) => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => setAttributes({ ...attributes, [a.key]: v })}
-                          className={cn(
-                            'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-                            attributes[a.key] === v
-                              ? 'border-primary bg-accent text-accent-foreground'
-                              : 'border-input hover:bg-muted',
-                          )}
-                        >
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <Input
-                      id={a.key}
-                      type={a.type === 'number' ? 'number' : 'text'}
-                      inputMode={a.type === 'number' ? 'numeric' : 'text'}
-                      value={attributes[a.key] ?? ''}
-                      onChange={(e) => setAttributes({ ...attributes, [a.key]: e.target.value })}
-                    />
-                  )}
-                </div>
-              ))}
+                      </div>
+                    ) : (
+                      <Input
+                        id={a.key}
+                        type={a.type === 'number' ? 'number' : 'text'}
+                        inputMode={a.type === 'number' ? 'numeric' : 'text'}
+                        value={attributes[a.key] ?? ''}
+                        onChange={(e) => setAttributes({ ...attributes, [a.key]: e.target.value })}
+                      />
+                    )}
+                  </div>
+                ))}
             </div>
           </section>
         )}

@@ -20,6 +20,7 @@ export const metadata: Metadata = {
     template: '%s | آگهی‌گرام',
   },
   description: 'پلتفرم آگهی با ظاهر اینستاگرام - ترکیب اینستاگرام و دیوار',
+  alternates: { languages: { fa: SITE_URL } },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,

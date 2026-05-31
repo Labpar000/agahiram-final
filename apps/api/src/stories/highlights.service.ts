@@ -5,12 +5,13 @@ import { PrismaService } from '../prisma/prisma.service';
 export class HighlightsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(userId: string, title: string, storyIds: string[]) {
+  async create(userId: string, title: string, storyIds: string[], coverStoryId?: string) {
     const stories = await this.prisma.story.findMany({
       where: { id: { in: storyIds }, userId },
     });
     if (stories.length === 0) throw new NotFoundException('استوری یافت نشد');
-    const cover = stories[0]?.mediaUrl;
+    const coverStory = coverStoryId ? stories.find((s) => s.id === coverStoryId) : stories[0];
+    const cover = coverStory?.mediaUrl ?? stories[0]?.mediaUrl;
 
     return this.prisma.highlight.create({
       data: {
@@ -42,6 +43,28 @@ export class HighlightsService {
     });
     if (!h) throw new NotFoundException();
     return h.stories.map((s) => s.story);
+  }
+
+  async update(userId: string, id: string, input: { title?: string; coverStoryId?: string }) {
+    const h = await this.prisma.highlight.findUnique({
+      where: { id },
+      include: { stories: { include: { story: true } } },
+    });
+    if (!h || h.userId !== userId) throw new NotFoundException();
+
+    let coverUrl = h.coverUrl;
+    if (input.coverStoryId) {
+      const match = h.stories.find((s) => s.storyId === input.coverStoryId);
+      if (match) coverUrl = match.story.mediaUrl;
+    }
+
+    return this.prisma.highlight.update({
+      where: { id },
+      data: {
+        ...(input.title !== undefined && { title: input.title }),
+        ...(coverUrl !== undefined && { coverUrl }),
+      },
+    });
   }
 
   async delete(userId: string, id: string) {

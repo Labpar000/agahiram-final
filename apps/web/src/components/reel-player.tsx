@@ -2,11 +2,22 @@
 
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
-import { MessageSquare, Phone, Play, Volume2, VolumeX } from 'lucide-react';
+import {
+  ArrowRight,
+  Copy,
+  MessageSquare,
+  MoreHorizontal,
+  Phone,
+  Play,
+  Search,
+  Volume2,
+  VolumeX,
+} from 'lucide-react';
 import type { ReelItem } from '@agahiram/shared';
 import { cn, formatPersianNumber, formatPersianPrice, formatPhoneFa } from '@agahiram/shared';
 import {
@@ -27,7 +38,14 @@ import { useLikePost, useSavePost } from '@/hooks/usePosts';
 import { PostLink } from '@/components/post-link';
 import { useAuthStore } from '@/lib/auth-store';
 import { runEngagementAction } from '@/lib/inp';
-import { setupVideoSource } from '@/lib/video-playback';
+import {
+  getReelsMutedPreference,
+  observeReelPlayback,
+  setReelsMutedPreference,
+  setupVideoSource,
+} from '@/lib/video-playback';
+import { ReelCommentSheet } from '@/components/reel-comment-sheet';
+import { ReportDialog } from '@/components/report-dialog';
 
 export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: boolean }) {
   const router = useRouter();
@@ -40,7 +58,31 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const lastTapRef = useRef(0);
 
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(true);
+  const [muted, setMuted] = useState(() => getReelsMutedPreference());
+  const [videoError, setVideoError] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const me = useAuthStore((s) => s.user);
+  const isOwnReel = me?.id === reel.user.id;
+
+  const { data: authorProfile } = useQuery({
+    queryKey: ['profile', reel.user.username],
+    queryFn: async () => {
+      const r = await apiClient.get<{ isFollowing: boolean }>(`/users/${reel.user.username}`);
+      return r.data;
+    },
+    enabled: active && !!reel.user.username && !isOwnReel && isAuthenticated,
+    staleTime: 60_000,
+  });
+
+  const [following, setFollowing] = useState(false);
+
+  useEffect(() => {
+    if (authorProfile) setFollowing(authorProfile.isFollowing);
+  }, [authorProfile?.isFollowing, reel.user.username]);
   const [liked, setLiked] = useState(reel.isLiked ?? false);
   const [saved, setSaved] = useState(reel.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(reel.likesCount);
@@ -69,27 +111,20 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
 
   useEffect(() => {
     const node = containerRef.current;
-    if (!node) return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        if (!entry) return;
-        if (!active) return;
-        if (entry.isIntersecting && entry.intersectionRatio > 0.7) {
-          videoRef.current
-            ?.play()
-            .then(() => setPlaying(true))
-            .catch(() => null);
-        } else {
-          videoRef.current?.pause();
-          setPlaying(false);
-        }
-      },
-      { threshold: [0.7] },
-    );
-    obs.observe(node);
-    return () => obs.disconnect();
+    const video = videoRef.current;
+    if (!node || !video) return;
+    return observeReelPlayback(node, video, active, setPlaying);
   }, [active]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const onTime = () => {
+      if (video.duration) setProgress(video.currentTime / video.duration);
+    };
+    video.addEventListener('timeupdate', onTime);
+    return () => video.removeEventListener('timeupdate', onTime);
+  }, [active, reel.id]);
 
   const onLikeToggle = useCallback(
     (forceLike?: boolean) => {
@@ -232,11 +267,30 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         playsInline
         preload="metadata"
         onClick={onTap}
+        onError={() => setVideoError(true)}
         className="absolute inset-0 size-full object-cover select-none [-webkit-touch-callout:none]"
         poster={reel.media[0]?.thumbnailUrl ?? undefined}
       />
 
-      {!playing ? (
+      {videoError ? (
+        <div className="absolute inset-0 z-10 grid place-items-center bg-black/80 p-6 text-center text-white">
+          <p className="text-sm">بارگذاری ویدیو ناموفق بود</p>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="mt-3"
+            onClick={() => {
+              setVideoError(false);
+              const v = videoRef.current;
+              if (v) void v.play().catch(() => null);
+            }}
+          >
+            تلاش مجدد
+          </Button>
+        </div>
+      ) : null}
+
+      {!playing && !videoError ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
           <span className="grid size-20 place-items-center rounded-full bg-black/40 backdrop-blur-sm">
             <Play className="size-10 text-white" fill="white" aria-hidden />
@@ -246,12 +300,37 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
 
       <HeartBurst trigger={burst} size={140} />
 
-      {/* Top controls — sound (end-aligned for RTL) */}
+      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 pt-[calc(var(--safe-top)+0.5rem)] text-white">
+        <button
+          type="button"
+          aria-label="بازگشت"
+          onClick={() => router.back()}
+          className="grid size-10 place-items-center rounded-full bg-black/40"
+        >
+          <ArrowRight className="size-5 rtl:rotate-180" aria-hidden />
+        </button>
+        <span className="text-sm font-semibold">ریلز</span>
+        <Link
+          href="/explore"
+          aria-label="جستجو"
+          className="grid size-10 place-items-center rounded-full bg-black/40"
+        >
+          <Search className="size-5" aria-hidden />
+        </Link>
+      </div>
+
       <button
         type="button"
         aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
-        onClick={() => setMuted((m) => !m)}
-        className="absolute end-4 top-4 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        onClick={() => {
+          setMuted((m) => {
+            const next = !m;
+            setReelsMutedPreference(next);
+            if (videoRef.current) videoRef.current.muted = next;
+            return next;
+          });
+        }}
+        className="absolute end-4 top-14 z-10 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none"
       >
         {muted ? (
           <VolumeX className="size-5" aria-hidden />
@@ -260,8 +339,29 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         )}
       </button>
 
-      {/* Action rail — end side (right in RTL), like Instagram Reels */}
-      <div className="absolute end-3 bottom-6 flex flex-col items-center gap-5 text-white">
+      <div className="absolute end-3 bottom-24 z-10 flex flex-col items-center gap-4 text-white">
+        <Link href={`/profile/${reel.user.username}`} className="relative">
+          <Avatar size="md" className="ring-2 ring-white">
+            {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
+            <AvatarFallback>{(reel.user.username ?? '?').slice(0, 2)}</AvatarFallback>
+          </Avatar>
+          {!isOwnReel && isAuthenticated ? (
+            <button
+              type="button"
+              aria-label={following ? 'لغو دنبال‌کردن' : 'دنبال‌کردن'}
+              className="absolute -bottom-1 left-1/2 grid size-6 -translate-x-1/2 place-items-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+              onClick={async (e) => {
+                e.preventDefault();
+                const r = following
+                  ? await apiClient.delete(`/users/${reel.user.username}/follow`)
+                  : await apiClient.post(`/users/${reel.user.username}/follow`);
+                if (r.success) setFollowing(!following);
+              }}
+            >
+              {following ? '✓' : '+'}
+            </button>
+          ) : null}
+        </Link>
         <RailButton
           ariaLabel={liked ? 'حذف لایک' : 'لایک'}
           onClick={() => onLikeToggle()}
@@ -281,21 +381,88 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             />
           </motion.span>
         </RailButton>
-        <RailButton ariaLabel="نظرات" label={formatPersianNumber(reel.commentsCount)} asChild>
-          <PostLink postId={reel.id} post={reel}>
-            <IgComment className="size-8 drop-shadow-md" strokeWidth={2} />
-          </PostLink>
+        <RailButton
+          ariaLabel="نظرات"
+          label={formatPersianNumber(reel.commentsCount)}
+          onClick={() => setCommentsOpen(true)}
+        >
+          <IgComment className="size-8 drop-shadow-md" strokeWidth={2} />
         </RailButton>
         <RailButton ariaLabel="اشتراک‌گذاری" onClick={() => void onShare()}>
           <IgShare className="size-8 drop-shadow-md" strokeWidth={2} />
         </RailButton>
-        <RailButton
-          ariaLabel={saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
-          onClick={() => void onSaveToggle()}
-        >
-          <IgBookmark className="size-8 drop-shadow-md" strokeWidth={2} filled={saved} />
+        <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
+          <MoreHorizontal className="size-8 drop-shadow-md" strokeWidth={2} />
         </RailButton>
       </div>
+
+      <div
+        className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.25rem)] z-10 h-1 cursor-pointer bg-white/25"
+        role="progressbar"
+        aria-valuenow={Math.round(progress * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        onPointerDown={(e) => {
+          const video = videoRef.current;
+          const bar = e.currentTarget;
+          if (!video?.duration) return;
+          const rect = bar.getBoundingClientRect();
+          const seek = (e.clientX - rect.left) / rect.width;
+          const clamped = Math.min(1, Math.max(0, seek));
+          video.currentTime = clamped * video.duration;
+          setProgress(clamped);
+        }}
+      >
+        <div
+          className="h-full bg-white transition-[width] duration-150"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+
+      <ReelCommentSheet postId={reel.id} open={commentsOpen} onOpenChange={setCommentsOpen} />
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="post"
+        targetId={reel.id}
+        title="گزارش ریل"
+      />
+      {moreOpen ? (
+        <div
+          className="absolute inset-0 z-20 flex items-end justify-center bg-black/50"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div
+            className="mb-8 w-full max-w-sm rounded-t-2xl bg-surface p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => void onSaveToggle()}
+            >
+              {saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
+            </button>
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => {
+                setMoreOpen(false);
+                setReportOpen(true);
+              }}
+            >
+              گزارش
+            </button>
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => void onShare()}
+            >
+              <Copy className="size-4" aria-hidden /> کپی لینک
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Bottom meta — start aligned content (right of avatar in RTL feels natural) */}
       <div className="absolute inset-x-0 bottom-0 pe-20 ps-4 pb-4 text-white">
@@ -321,9 +488,18 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             </Avatar>
             <span className="text-sm font-semibold drop-shadow-md">{reel.user.username}</span>
           </Link>
-          <h3 className="line-clamp-2 text-base font-bold leading-snug drop-shadow-md">
+          <h3
+            className={cn(
+              'text-base font-bold leading-snug drop-shadow-md',
+              expanded ? '' : 'line-clamp-2',
+            )}
+            onClick={() => setExpanded((e) => !e)}
+          >
             {reel.title}
           </h3>
+          {reel.city?.name ? (
+            <p className="text-xs text-white/80 drop-shadow-md">📍 {reel.city.name}</p>
+          ) : null}
           <p className="text-sm font-extrabold drop-shadow-md">{formatPersianPrice(reel.price)}</p>
           <div className="flex flex-wrap gap-2">
             <Button

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
-import { ArrowLeft, Camera, X } from 'lucide-react';
+import { ArrowLeft, ImagePlus, X } from 'lucide-react';
 import {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
@@ -13,6 +13,7 @@ import {
 import { Button, IconButton, Spinner, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
+import { StoryOverlayEditor, type StoryOverlayDocument } from '@/components/story-overlay-editor';
 
 export default function CreateStoryPage() {
   const router = useRouter();
@@ -21,11 +22,18 @@ export default function CreateStoryPage() {
   const [preview, setPreview] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
   const [mediaKey, setMediaKey] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video'>('image');
+  const [videoDurationMs, setVideoDurationMs] = useState<number | undefined>();
+  const [editMode, setEditMode] = useState(false);
 
   const publish = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (overlay?: StoryOverlayDocument) => {
       if (!mediaKey) throw new Error('ابتدا یک عکس یا ویدیو انتخاب کنید');
-      const r = await apiClient.post('/stories', { mediaKey, type: mediaType });
+      const r = await apiClient.post('/stories', {
+        mediaKey,
+        type: mediaType,
+        overlayJson: overlay,
+        durationMs: videoDurationMs,
+      });
       if (!r.success) throw new Error(r.error ?? 'خطا در انتشار استوری');
       return r.data;
     },
@@ -48,6 +56,29 @@ export default function CreateStoryPage() {
     if (file.size > maxBytes) {
       toast.error('حجم فایل بیش از حد مجاز است');
       return;
+    }
+
+    if (isVideo) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      const url = URL.createObjectURL(file);
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          const dur = Math.round(video.duration * 1000);
+          if (dur > 60_000) {
+            reject(new Error('ویدیو باید حداکثر ۶۰ ثانیه باشد'));
+          } else {
+            setVideoDurationMs(dur);
+            resolve();
+          }
+          URL.revokeObjectURL(url);
+        };
+        video.onerror = () => reject(new Error('خواندن ویدیو ناموفق بود'));
+        video.src = url;
+      }).catch((e) => {
+        toast.error((e as Error).message);
+        return;
+      });
     }
 
     setUploading(true);
@@ -77,6 +108,7 @@ export default function CreateStoryPage() {
       setMediaKey(presign.data.key);
       setMediaType(isVideo ? 'video' : 'image');
       setPreview({ url: URL.createObjectURL(file), type: isVideo ? 'video' : 'image' });
+      setEditMode(true);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -97,65 +129,48 @@ export default function CreateStoryPage() {
       </div>
 
       <div className="mx-auto max-w-md space-y-4 p-4">
-        <p className="text-sm text-muted-foreground">
-          یک عکس یا ویدیو کوتاه انتخاب کنید. استوری بعد از ۲۴ ساعت منقضی می‌شود.
-        </p>
-
-        <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border border-border bg-muted">
-          {preview ? (
-            <>
-              {preview.type === 'video' ? (
-                <video src={preview.url} className="size-full object-cover" controls playsInline />
-              ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={preview.url} alt="" className="size-full object-cover" />
-              )}
-              <button
-                type="button"
-                aria-label="حذف"
-                onClick={() => {
-                  setPreview(null);
-                  setMediaKey(null);
-                }}
-                className="absolute end-2 top-2 grid size-9 place-items-center rounded-full bg-black/60 text-white"
-              >
-                <X className="size-4" aria-hidden />
-              </button>
-            </>
-          ) : (
-            <label className="grid size-full cursor-pointer place-items-center">
-              <input
-                type="file"
-                accept="image/*,video/*"
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) void handleFile(file);
-                }}
-              />
-              {uploading ? (
-                <Spinner size="lg" />
-              ) : (
-                <span className="flex flex-col items-center gap-2 text-muted-foreground">
-                  <Camera className="size-10" aria-hidden />
-                  <span className="text-sm">انتخاب رسانه</span>
-                </span>
-              )}
-            </label>
-          )}
-        </div>
-
-        <Button
-          variant="brand"
-          fullWidth
-          size="lg"
-          disabled={!mediaKey}
-          isLoading={publish.isPending}
-          onClick={() => publish.mutate()}
-        >
-          انتشار استوری
-        </Button>
+        {!editMode ? (
+          <>
+            <p className="text-sm text-muted-foreground">
+              ۱۰۸۰×۱۹۲۰ بهترین اندازه برای استوری. یک عکس یا ویدیو (حداکثر ۶۰ ثانیه) از گالری انتخاب
+              کنید.
+            </p>
+            <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border border-border bg-muted">
+              <label className="grid size-full cursor-pointer place-items-center">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,video/mp4"
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleFile(file);
+                  }}
+                />
+                {uploading ? (
+                  <Spinner size="lg" />
+                ) : (
+                  <span className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <ImagePlus className="size-10" aria-hidden />
+                    <span className="text-sm">انتخاب از گالری</span>
+                  </span>
+                )}
+              </label>
+            </div>
+          </>
+        ) : preview ? (
+          <StoryOverlayEditor
+            previewUrl={preview.url}
+            mediaType={preview.type}
+            isPublishing={publish.isPending}
+            onCancel={() => {
+              setEditMode(false);
+              setPreview(null);
+              setMediaKey(null);
+            }}
+            onPublish={(overlay) => publish.mutate(overlay)}
+          />
+        ) : null}
       </div>
     </div>
   );

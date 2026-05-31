@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { serverApi } from '@/lib/server-api';
+import { buildPostPathFromSummary } from '@/lib/post-url';
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agahiram.ir';
 
@@ -26,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       revalidate: 3600,
     });
     postRoutes = (r.data?.data ?? []).map((p) => ({
-      url: `${SITE_URL}/post/${p.id}`,
+      url: `${SITE_URL}${p.category?.slug ? buildPostPathFromSummary(p) : `/post/${p.id}`}`,
       lastModified: p.createdAt ? new Date(p.createdAt) : undefined,
       changeFrequency: 'weekly' as const,
       priority: 0.7,

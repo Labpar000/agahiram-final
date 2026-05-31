@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Bell,
-  Camera,
+  ImagePlus,
   HelpCircle,
   Languages,
   LockKeyhole,
@@ -35,6 +35,8 @@ import {
 import { apiClient } from '@/lib/api';
 import { uploadToMinio } from '@/lib/upload-media';
 import { useAuth } from '@/hooks/useAuth';
+import { patchAuthUser, patchProfileQuery } from '@/lib/query-cache-profile';
+import { useAuthStore } from '@/lib/auth-store';
 
 interface NotificationPrefs {
   likesPush: boolean;
@@ -56,6 +58,8 @@ interface BlockedUser {
 }
 
 export default function SettingsPage() {
+  const qc = useQueryClient();
+  const updateUser = useAuthStore((s) => s.updateUser);
   const { user, logout, refetch } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
   const [username, setUsername] = useState(user?.username ?? '');
@@ -130,6 +134,9 @@ export default function SettingsPage() {
     },
     onSuccess: () => {
       toast.success('پروفایل ذخیره شد');
+      updateUser({ name, username, bio, isPrivate });
+      patchAuthUser(qc, { name, username, bio, isPrivate });
+      if (username) patchProfileQuery(qc, username, { name, bio });
       void refetch();
     },
     onError: (e) => toast.error((e as Error).message),
@@ -164,6 +171,12 @@ export default function SettingsPage() {
       if (!confirm.success) throw new Error(confirm.error ?? 'خطا در ثبت آپلود');
       const saved = await apiClient.patch('/users/me', { avatarKey: presign.data.key });
       if (!saved.success) throw new Error(saved.error ?? 'خطا در ذخیره آواتار');
+      const avatarUrl = (saved.data as { avatar?: string } | undefined)?.avatar ?? user?.avatar;
+      if (avatarUrl) {
+        updateUser({ avatar: avatarUrl });
+        patchAuthUser(qc, { avatar: avatarUrl });
+        if (user?.username) patchProfileQuery(qc, user.username, { avatar: avatarUrl });
+      }
       toast.success('آواتار به‌روزرسانی شد');
       void refetch();
     } catch (e) {
@@ -220,7 +233,7 @@ export default function SettingsPage() {
                   <AvatarFallback>{(user?.username ?? '?').slice(0, 2)}</AvatarFallback>
                 </Avatar>
                 <span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full bg-primary text-primary-foreground shadow-md">
-                  <Camera className="size-4" aria-hidden />
+                  <ImagePlus className="size-4" aria-hidden />
                 </span>
                 <input
                   type="file"
@@ -307,67 +320,6 @@ export default function SettingsPage() {
             >
               ذخیره تغییرات
             </Button>
-          </div>
-        </Section>
-
-        <Section title="کیف پول" icon={<Wallet className="size-5" aria-hidden />}>
-          <div className="overflow-hidden rounded-2xl border border-border bg-surface-muted p-5">
-            <p className="text-xs text-muted-foreground">موجودی</p>
-            <p className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight gradient-text-brand">
-              {formatPersianPrice(wallet?.balance ?? 0)}
-            </p>
-            <div className="mt-4 flex flex-col gap-3">
-              <div className="flex gap-2">
-                <Input
-                  inputMode="numeric"
-                  value={topupAmount}
-                  onChange={(e) => setTopupAmount(e.target.value)}
-                  placeholder="مبلغ (تومان)"
-                  aria-label="مبلغ شارژ"
-                  className="flex-1"
-                />
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={() => topup.mutate()}
-                  isLoading={topup.isPending}
-                >
-                  شارژ حساب
-                </Button>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-fit"
-                onClick={() => setShowHistory((v) => !v)}
-              >
-                {showHistory ? 'بستن تاریخچه' : 'تاریخچه'}
-              </Button>
-              {showHistory ? (
-                <div className="space-y-2 rounded-xl border border-border bg-surface p-3">
-                  {historyLoading ? (
-                    <p className="text-xs text-muted-foreground">در حال بارگذاری…</p>
-                  ) : (history ?? []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground">تراکنشی ثبت نشده است.</p>
-                  ) : (
-                    (history ?? []).map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between gap-2 text-xs"
-                      >
-                        <span className="text-muted-foreground">
-                          {new Date(item.createdAt).toLocaleDateString('fa-IR')}
-                        </span>
-                        <span className="font-medium">
-                          {formatPersianPrice(Number(item.amount))}
-                        </span>
-                        <span className="text-muted-foreground">{item.status}</span>
-                      </div>
-                    ))
-                  )}
-                </div>
-              ) : null}
-            </div>
           </div>
         </Section>
 
@@ -469,18 +421,77 @@ export default function SettingsPage() {
           </Row>
         </Section>
 
-        <Button
-          variant="outline"
-          fullWidth
-          size="lg"
-          leftIcon={<LogOut className="size-5" aria-hidden />}
+        <Section title="کیف پول" icon={<Wallet className="size-5" aria-hidden />}>
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface-muted p-5">
+            <p className="text-xs text-muted-foreground">موجودی</p>
+            <p className="mt-1 text-3xl font-extrabold tabular-nums tracking-tight gradient-text-brand">
+              {formatPersianPrice(wallet?.balance ?? 0)}
+            </p>
+            <div className="mt-4 flex flex-col gap-3">
+              <div className="flex gap-2">
+                <Input
+                  inputMode="numeric"
+                  value={topupAmount}
+                  onChange={(e) => setTopupAmount(e.target.value)}
+                  placeholder="مبلغ (تومان)"
+                  aria-label="مبلغ شارژ"
+                  className="flex-1"
+                />
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => topup.mutate()}
+                  isLoading={topup.isPending}
+                >
+                  شارژ حساب
+                </Button>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                onClick={() => setShowHistory((v) => !v)}
+              >
+                {showHistory ? 'بستن تاریخچه' : 'تاریخچه'}
+              </Button>
+              {showHistory ? (
+                <div className="space-y-2 rounded-xl border border-border bg-surface p-3">
+                  {historyLoading ? (
+                    <p className="text-xs text-muted-foreground">در حال بارگذاری…</p>
+                  ) : (history ?? []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground">تراکنشی ثبت نشده است.</p>
+                  ) : (
+                    (history ?? []).map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-2 text-xs"
+                      >
+                        <span className="text-muted-foreground">
+                          {new Date(item.createdAt).toLocaleDateString('fa-IR')}
+                        </span>
+                        <span className="font-medium">
+                          {formatPersianPrice(Number(item.amount))}
+                        </span>
+                        <span className="text-muted-foreground">{item.status}</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </Section>
+
+        <button
+          type="button"
+          className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => {
-            if (window.confirm('از حساب خارج می‌شوید؟')) void logout();
+            if (window.confirm('آیا مطمئن هستید که می‌خواهید از حساب خارج شوید؟')) void logout();
           }}
-          className="border-destructive/40 text-destructive hover:bg-destructive/10"
         >
+          <LogOut className="size-5" aria-hidden />
           خروج از حساب
-        </Button>
+        </button>
       </div>
     </div>
   );

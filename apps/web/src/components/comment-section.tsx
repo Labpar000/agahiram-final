@@ -30,6 +30,7 @@ import {
   removeCommentFromCache,
   type CommentRow,
 } from '@/lib/query-cache-comments';
+import { ReportDialog } from '@/components/report-dialog';
 
 interface Comment {
   id: string;
@@ -63,6 +64,135 @@ function useLongPress(onLongPress: () => void, delayMs = 450) {
     onTouchMove: clear,
     onTouchCancel: clear,
   };
+}
+
+function CommentRow({
+  c,
+  highlighted,
+  recentSentId,
+  me,
+  isOwner,
+  postId,
+  expandedReplies,
+  setExpandedReplies,
+  setReplyTo,
+  inputRef,
+  onReport,
+  pin,
+  remove,
+  toggleLike,
+}: {
+  c: Comment;
+  highlighted: boolean;
+  recentSentId: string | null;
+  me: ReturnType<typeof useAuthStore.getState>['user'];
+  isOwner: boolean;
+  postId: string;
+  expandedReplies: Set<string>;
+  setExpandedReplies: React.Dispatch<React.SetStateAction<Set<string>>>;
+  setReplyTo: (v: { id: string; username: string | null } | null) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onReport: (id: string) => void;
+  pin: { mutate: (v: { id: string; pinned: boolean }) => void };
+  remove: { mutate: (id: string) => void };
+  toggleLike: { mutate: (v: { id: string; liked: boolean }) => void };
+}) {
+  const longPress = useLongPress(() => {
+    if (c.user.id !== me?.id) onReport(c.id);
+  });
+  return (
+    <article
+      className={cn(
+        'rounded-2xl py-1 transition-colors duration-700',
+        highlighted && 'bg-primary/10 ring-2 ring-primary/40',
+        recentSentId === c.id && 'animate-in fade-in slide-in-from-bottom-2 duration-300',
+      )}
+      onContextMenu={(e) => {
+        if (c.user.id === me?.id) return;
+        e.preventDefault();
+        onReport(c.id);
+      }}
+      {...longPress}
+    >
+      <div className="flex gap-3">
+        <Avatar size="sm" className="shrink-0">
+          {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
+          <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-relaxed">
+            <span className="me-1 font-semibold">{c.user.username}</span>
+            <CommentContent content={c.content} />
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+            {c.isPinned ? (
+              <span className="inline-flex items-center gap-1 text-primary">
+                <Pin className="size-3" aria-hidden />
+                سنجاق‌شده
+              </span>
+            ) : null}
+            <span>{formatRelativeTimeFa(c.createdAt)}</span>
+            <CommentLikeButton
+              id={c.id}
+              liked={!!c.isLikedByMe}
+              count={c.likesCount ?? 0}
+              onToggle={(p) =>
+                runEngagementAction(`comment-like-${p.id}`, () => toggleLike.mutate(p))
+              }
+            />
+            <button
+              type="button"
+              className="font-medium tap-none hover:text-foreground"
+              onClick={() => {
+                setReplyTo({ id: c.id, username: c.user.username });
+                inputRef.current?.focus();
+              }}
+            >
+              پاسخ
+            </button>
+            {c._count.replies > 0 ? (
+              <button
+                type="button"
+                className="font-medium tap-none hover:text-foreground"
+                onClick={() =>
+                  setExpandedReplies((s) => {
+                    const n = new Set(s);
+                    if (n.has(c.id)) n.delete(c.id);
+                    else n.add(c.id);
+                    return n;
+                  })
+                }
+              >
+                {expandedReplies.has(c.id)
+                  ? 'پنهان کردن پاسخ‌ها'
+                  : `${formatPersianNumber(c._count.replies)} پاسخ`}
+              </button>
+            ) : null}
+            {isOwner ? (
+              <button
+                type="button"
+                className="font-medium tap-none"
+                onClick={() => pin.mutate({ id: c.id, pinned: !c.isPinned })}
+              >
+                {c.isPinned ? 'لغو سنجاق' : 'سنجاق'}
+              </button>
+            ) : null}
+            {isOwner || c.user.id === me?.id ? (
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 font-medium text-destructive tap-none"
+                onClick={() => remove.mutate(c.id)}
+              >
+                <Trash2 className="size-3" aria-hidden />
+                حذف
+              </button>
+            ) : null}
+          </div>
+          {expandedReplies.has(c.id) ? <CommentReplies commentId={c.id} postId={postId} /> : null}
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function CommentLikeButton({
@@ -225,6 +355,7 @@ export function CommentSection({
   const [enabled, setEnabled] = useState(commentsEnabled);
   const [mentionActiveIndex, setMentionActiveIndex] = useState(0);
   const [recentSentId, setRecentSentId] = useState<string | null>(null);
+  const [reportCommentId, setReportCommentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commentRefs = useRef<Map<string, HTMLElement>>(new Map());
 
@@ -486,98 +617,30 @@ export function CommentSection({
           comments.map((c) => {
             const highlighted = scrollTargetId === c.id;
             return (
-              <article
+              <div
                 key={c.id}
                 ref={(el) => {
                   if (el) commentRefs.current.set(c.id, el);
                   else commentRefs.current.delete(c.id);
                 }}
-                className={cn(
-                  'rounded-2xl py-1 transition-colors duration-700',
-                  highlighted && 'bg-primary/10 ring-2 ring-primary/40',
-                  recentSentId === c.id && 'animate-in fade-in slide-in-from-bottom-2 duration-300',
-                )}
               >
-                <div className="flex gap-3">
-                  <Avatar size="sm" className="shrink-0">
-                    {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
-                    <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-relaxed">
-                      <span className="me-1 font-semibold">{c.user.username}</span>
-                      <CommentContent content={c.content} />
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-                      {c.isPinned ? (
-                        <span className="inline-flex items-center gap-1 text-primary">
-                          <Pin className="size-3" aria-hidden />
-                          سنجاق‌شده
-                        </span>
-                      ) : null}
-                      <span>{formatRelativeTimeFa(c.createdAt)}</span>
-                      <CommentLikeButton
-                        id={c.id}
-                        liked={!!c.isLikedByMe}
-                        count={c.likesCount ?? 0}
-                        onToggle={(p) =>
-                          runEngagementAction(`comment-like-${p.id}`, () => toggleLike.mutate(p))
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="font-medium tap-none hover:text-foreground"
-                        onClick={() => {
-                          setReplyTo({ id: c.id, username: c.user.username });
-                          inputRef.current?.focus();
-                        }}
-                      >
-                        پاسخ
-                      </button>
-                      {c._count.replies > 0 ? (
-                        <button
-                          type="button"
-                          className="font-medium tap-none hover:text-foreground"
-                          onClick={() =>
-                            setExpandedReplies((s) => {
-                              const n = new Set(s);
-                              if (n.has(c.id)) n.delete(c.id);
-                              else n.add(c.id);
-                              return n;
-                            })
-                          }
-                        >
-                          {expandedReplies.has(c.id)
-                            ? 'پنهان کردن پاسخ‌ها'
-                            : `${formatPersianNumber(c._count.replies)} پاسخ`}
-                        </button>
-                      ) : null}
-                      {isOwner ? (
-                        <button
-                          type="button"
-                          className="font-medium tap-none"
-                          onClick={() => pin.mutate({ id: c.id, pinned: !c.isPinned })}
-                        >
-                          {c.isPinned ? 'لغو سنجاق' : 'سنجاق'}
-                        </button>
-                      ) : null}
-                      {isOwner || c.user.id === me?.id ? (
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 font-medium text-destructive tap-none"
-                          onClick={() => remove.mutate(c.id)}
-                        >
-                          <Trash2 className="size-3" aria-hidden />
-                          حذف
-                        </button>
-                      ) : null}
-                    </div>
-                    {expandedReplies.has(c.id) ? (
-                      <CommentReplies commentId={c.id} postId={postId} />
-                    ) : null}
-                  </div>
-                </div>
-              </article>
+                <CommentRow
+                  c={c}
+                  highlighted={highlighted}
+                  recentSentId={recentSentId}
+                  me={me}
+                  isOwner={isOwner}
+                  postId={postId}
+                  expandedReplies={expandedReplies}
+                  setExpandedReplies={setExpandedReplies}
+                  setReplyTo={setReplyTo}
+                  inputRef={inputRef}
+                  onReport={setReportCommentId}
+                  pin={pin}
+                  remove={remove}
+                  toggleLike={toggleLike}
+                />
+              </div>
             );
           })
         )}
@@ -665,6 +728,15 @@ export function CommentSection({
           نظرات برای این آگهی غیرفعال است.
         </div>
       )}
+
+      <ReportDialog
+        open={!!reportCommentId}
+        onOpenChange={(open) => {
+          if (!open) setReportCommentId(null);
+        }}
+        targetType="comment"
+        targetId={reportCommentId ?? ''}
+      />
     </section>
   );
 }

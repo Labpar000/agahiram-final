@@ -101,7 +101,7 @@
 
 /* Reels: WebKit scroll-snap + momentum (Safari iOS 18+) */
 .reels-scroll {
-  scroll-snap-type: y proximity;
+  scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
 }

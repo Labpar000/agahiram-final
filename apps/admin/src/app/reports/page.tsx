@@ -33,6 +33,8 @@ interface Report {
   details: string | null;
   status: string;
   createdAt: string;
+  targetType: string;
+  targetId: string;
   reporter: { id: string; username: string | null; name: string | null };
   post: {
     id: string;
@@ -44,7 +46,10 @@ interface Report {
 }
 
 interface GroupedReport {
-  postId: string;
+  kind: 'post' | 'other';
+  postId: string | null;
+  targetType: string;
+  targetId: string;
   count: number;
   latestAt: string;
   post:
@@ -57,6 +62,7 @@ interface GroupedReport {
         }>;
       })
     | null;
+  preview: Record<string, unknown> | null;
 }
 
 const PAGE_SIZE = 30;
@@ -228,6 +234,12 @@ function ListView({
                     {r.details ? (
                       <p className="text-sm text-muted-foreground">{r.details}</p>
                     ) : null}
+                    {!r.post ? (
+                      <p className="text-sm text-muted-foreground">
+                        هدف: {r.targetType} —{' '}
+                        <span className="font-mono text-xs">{r.targetId}</span>
+                      </p>
+                    ) : null}
                     {r.post ? (
                       <div className="flex items-center gap-3 rounded-md border border-border bg-muted/30 p-2">
                         <div className="relative size-12 shrink-0 overflow-hidden rounded-md bg-muted">
@@ -366,7 +378,7 @@ function GroupedView() {
   return (
     <ul className="space-y-3">
       {(list.data ?? []).map((g) => (
-        <li key={g.postId}>
+        <li key={`${g.targetType}-${g.targetId}`}>
           <Card>
             <CardContent className="!p-4">
               <div className="flex items-center gap-3">
@@ -379,15 +391,35 @@ function GroupedView() {
                       sizes="56px"
                       className="object-cover"
                     />
+                  ) : g.preview?.mediaUrl && typeof g.preview.mediaUrl === 'string' ? (
+                    <Image
+                      src={g.preview.mediaUrl}
+                      alt=""
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
                   ) : null}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <Link
-                    href={`/posts/${g.postId}`}
-                    className="font-semibold text-sm hover:underline truncate inline-block"
-                  >
-                    {g.post?.title ?? '—'}
-                  </Link>
+                  {g.kind === 'post' && g.postId ? (
+                    <Link
+                      href={`/posts/${g.postId}`}
+                      className="font-semibold text-sm hover:underline truncate inline-block"
+                    >
+                      {g.post?.title ?? '—'}
+                    </Link>
+                  ) : (
+                    <p className="font-semibold text-sm truncate">
+                      {g.targetType === 'user'
+                        ? `@${String(g.preview?.username ?? g.targetId)}`
+                        : g.targetType === 'comment'
+                          ? `نظر: ${String(g.preview?.content ?? '—')}`
+                          : g.targetType === 'story'
+                            ? `استوری @${String(g.preview?.username ?? '—')}`
+                            : `${g.targetType}`}
+                    </p>
+                  )}
                   <div className="text-[11px] text-muted-foreground">
                     آخرین گزارش {formatJalaliDate(g.latestAt, 'dateTime')}
                   </div>

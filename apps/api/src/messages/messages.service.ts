@@ -203,6 +203,7 @@ export class MessagesService {
         content: input.content,
         type: input.type,
         postId: input.postId,
+        storyId: input.storyId,
       },
       include: {
         sender: { select: { id: true, username: true, name: true, avatar: true } },

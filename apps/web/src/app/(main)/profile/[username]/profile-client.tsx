@@ -6,16 +6,16 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Award,
   BookmarkCheck,
   Clapperboard,
   Images,
-  LogOut,
   MessageSquare,
+  MoreHorizontal,
   Settings,
+  Share2,
 } from 'lucide-react';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { cn, formatPersianNumber } from '@agahiram/shared';
+import { formatPersianNumber } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -23,7 +23,6 @@ import {
   Badge,
   Button,
   EmptyState,
-  IconButton,
   IgBookmark,
   IgGrid,
   IgReels,
@@ -37,7 +36,9 @@ import {
 import { apiClient } from '@/lib/api';
 import { PostLink } from '@/components/post-link';
 import { useAuth } from '@/hooks/useAuth';
-import { karmaTier } from '@/lib/reputation';
+import { AdStatusBadge } from '@/components/ad-status-badge';
+import { ProfileHighlights } from '@/components/profile-highlights';
+import { ReportDialog } from '@/components/report-dialog';
 
 export interface Profile {
   id: string;
@@ -58,8 +59,10 @@ export interface Profile {
 export function ProfileClient({ username }: { username: string }) {
   const router = useRouter();
   const qc = useQueryClient();
-  const { user: me, logout } = useAuth();
+  const { user: me } = useAuth();
   const [tab, setTab] = useState<'posts' | 'reels' | 'saved'>('posts');
+  const [reportOpen, setReportOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const {
     data: profile,
@@ -98,14 +101,24 @@ export function ProfileClient({ username }: { username: string }) {
 
   const toggleFollow = async () => {
     if (!profile) return;
-    const res = profile.isFollowing
+    const wasFollowing = profile.isFollowing;
+    qc.setQueryData<Profile>(['profile', username], (old) =>
+      old
+        ? {
+            ...old,
+            isFollowing: !wasFollowing,
+            followersCount: Math.max(0, old.followersCount + (wasFollowing ? -1 : 1)),
+          }
+        : old,
+    );
+    const res = wasFollowing
       ? await apiClient.delete(`/users/${username}/follow`)
       : await apiClient.post(`/users/${username}/follow`);
     if (res.success) {
-      void refetch();
       void qc.invalidateQueries({ queryKey: ['feed'] });
-      toast.success(profile.isFollowing ? 'دنبال‌کردن لغو شد' : 'اکنون این کاربر را دنبال می‌کنید');
+      toast.success(wasFollowing ? 'دنبال‌کردن لغو شد' : 'اکنون این کاربر را دنبال می‌کنید');
     } else {
+      void refetch();
       toast.error('برای دنبال‌کردن ابتدا وارد شوید');
     }
   };
@@ -125,7 +138,27 @@ export function ProfileClient({ username }: { username: string }) {
       <EmptyState title="کاربر یافت نشد" description="این نام کاربری وجود ندارد یا حذف شده است." />
     );
   }
-  const tier = karmaTier(profile.karma);
+  const shareProfile = async () => {
+    const url =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}/profile/${profile.username}`
+        : `/profile/${profile.username}`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({
+          title: profile.name ?? profile.username,
+          url,
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(url);
+      toast.success('لینک پروفایل کپی شد');
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') {
+        toast.error('اشتراک‌گذاری انجام نشد');
+      }
+    }
+  };
 
   return (
     <div className="bg-background">
@@ -142,7 +175,16 @@ export function ProfileClient({ username }: { username: string }) {
             >
               <Settings className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
             </Link>
-          ) : null}
+          ) : (
+            <button
+              type="button"
+              aria-label="گزینه‌های بیشتر"
+              className="grid size-9 place-items-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={() => setMoreOpen(true)}
+            >
+              <MoreHorizontal className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-6">
@@ -174,22 +216,24 @@ export function ProfileClient({ username }: { username: string }) {
               {profile.bio}
             </p>
           ) : null}
-          <ProfileMetaChips profile={profile} tier={tier} />
+          <ProfileMetaChips profile={profile} />
         </div>
 
         <div className="flex gap-2">
           {isMe ? (
             <>
+              <Button
+                variant="secondary"
+                fullWidth
+                size="sm"
+                leftIcon={<Share2 className="size-4" aria-hidden />}
+                onClick={() => void shareProfile()}
+              >
+                اشتراک‌گذاری پروفایل
+              </Button>
               <Button asChild variant="secondary" fullWidth size="sm">
                 <Link href="/settings">ویرایش پروفایل</Link>
               </Button>
-              <IconButton
-                aria-label="خروج"
-                icon={<LogOut className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
-                variant="secondary"
-                size="sm"
-                onClick={() => void logout()}
-              />
             </>
           ) : (
             <>
@@ -214,13 +258,20 @@ export function ProfileClient({ username }: { username: string }) {
         </div>
       </header>
 
+      <ProfileHighlights username={username} isMe={isMe} />
+
       <Tabs
         value={tab}
         onValueChange={(v) => setTab(v as typeof tab)}
         className="border-t border-border bg-surface"
       >
         <TabsList variant="underline" className="h-11 w-full">
-          <TabsTrigger variant="underline" value="posts" className="flex-1" aria-label="آگهی‌ها">
+          <TabsTrigger
+            variant="underline"
+            value="posts"
+            className="flex-1"
+            aria-label={isMe ? 'آگهی‌های من' : 'آگهی‌ها'}
+          >
             <IgGrid className="size-[var(--ig-icon)]" strokeWidth={2} aria-hidden />
           </TabsTrigger>
           <TabsTrigger variant="underline" value="reels" className="flex-1" aria-label="ریلز">
@@ -234,49 +285,51 @@ export function ProfileClient({ username }: { username: string }) {
         </TabsList>
 
         <TabsContent value={tab} className="mt-0">
-          <PostsGrid posts={posts ?? []} isLoading={postsLoading} tab={tab} />
+          <PostsGrid posts={posts ?? []} isLoading={postsLoading} tab={tab} showStatus={isMe} />
         </TabsContent>
       </Tabs>
+
+      {moreOpen && !isMe ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div
+            className="mb-8 w-full max-w-sm rounded-t-2xl bg-surface p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => {
+                setMoreOpen(false);
+                setReportOpen(true);
+              }}
+            >
+              گزارش کاربر
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="user"
+        targetId={profile.id}
+        title="گزارش کاربر"
+      />
     </div>
   );
 }
 
-function ProfileMetaChips({
-  profile,
-  tier,
-}: {
-  profile: Profile;
-  tier: ReturnType<typeof karmaTier>;
-}) {
-  const hasKarma = profile.karma >= 50;
-  if (!profile.isBusiness && !hasKarma) {
-    return (
-      <p className="text-xs text-muted-foreground">کارما {formatPersianNumber(profile.karma)}</p>
-    );
-  }
-
+function ProfileMetaChips({ profile }: { profile: Profile }) {
+  if (!profile.isBusiness) return null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-      <span className="text-xs text-muted-foreground">
-        کارما {formatPersianNumber(profile.karma)}
-      </span>
-      {profile.isBusiness ? (
-        <Badge tone="warning" size="sm">
-          فروشگاه
-        </Badge>
-      ) : null}
-      {hasKarma ? (
-        <span
-          className={cn(
-            'inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold',
-            tier.className,
-          )}
-          aria-label={`نشان کارما: ${tier.label}`}
-        >
-          <Award className="size-3" aria-hidden />
-          {tier.label}
-        </span>
-      ) : null}
+      <Badge tone="warning" size="sm">
+        فروشگاه
+      </Badge>
     </div>
   );
 }
@@ -308,10 +361,12 @@ function PostsGrid({
   posts,
   isLoading,
   tab,
+  showStatus,
 }: {
   posts: PostSummary[];
   isLoading: boolean;
   tab: 'posts' | 'reels' | 'saved';
+  showStatus?: boolean;
 }) {
   if (isLoading && posts.length === 0) {
     return (
@@ -362,6 +417,11 @@ function PostsGrid({
               sizes="(max-width: 640px) 33vw, 200px"
               className="object-cover"
             />
+          ) : null}
+          {showStatus && tab === 'posts' ? (
+            <span className="absolute start-1 top-1 z-10">
+              <AdStatusBadge status={p.status} />
+            </span>
           ) : null}
         </PostLink>
       ))}

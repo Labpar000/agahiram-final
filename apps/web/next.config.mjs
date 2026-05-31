@@ -23,6 +23,9 @@ const withPWA = withPWAInit({
   // Never cache auth/login flows or HTML pages that could lock users into a
   // stale build. We only cache static images + non-auth API GETs.
   buildExcludes: [/middleware-manifest\.json$/],
+  fallbacks: {
+    document: '/offline.html',
+  },
   runtimeCaching: [
     {
       urlPattern: /\/api\/v1\/auth\/.*/i,
@@ -45,8 +48,22 @@ const withPWA = withPWAInit({
     },
     {
       urlPattern: /\/api\/v1\/(posts|users|notifications|messages)\/.*/i,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'api-cache',
+        networkTimeoutSeconds: 5,
+        expiration: { maxEntries: 64, maxAgeSeconds: 60 * 5 },
+      },
+    },
+    {
+      urlPattern: /\/_next\/data\/.*/i,
+      handler: 'CacheFirst',
+      options: { cacheName: 'next-data' },
+    },
+    {
+      urlPattern: ({ request }) => request.destination === 'video',
       handler: 'NetworkOnly',
-      options: { cacheName: 'api-fresh' },
+      options: { cacheName: 'videos-no-cache' },
     },
     {
       urlPattern: /^https?:\/\/.*\/api\/.*/i,

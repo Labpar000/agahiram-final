@@ -116,6 +116,7 @@ export class PostsService {
         attributes: input.attributes
           ? {
               create: Object.entries(input.attributes)
+                .filter(([key]) => key !== 'price')
                 .map(([key, value]) => {
                   const attr = category.attributes.find((a) => a.key === key);
                   if (!attr) return null;
@@ -180,6 +181,7 @@ export class PostsService {
     const post = await this.prisma.post.update({
       where: { id },
       data: {
+        status: 'pendingReview',
         ...(input.title !== undefined && { title: input.title }),
         ...(input.description !== undefined && { description: input.description }),
         ...(input.price !== undefined && { price: input.price }),
@@ -521,7 +523,7 @@ export class PostsService {
         },
       },
       category: { select: { id: true, name: true, slug: true } },
-      city: { select: { id: true, name: true } },
+      city: { select: { id: true, name: true, slug: true } },
       neighborhood: { select: { id: true, name: true } },
       media: { orderBy: { order: 'asc' as const } },
       attributes: {

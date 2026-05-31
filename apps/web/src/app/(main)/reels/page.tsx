@@ -85,7 +85,7 @@ export default function ReelsPage() {
   return (
     <div
       ref={scrollRef}
-      className="reels-scroll bg-black snap-y snap-proximity scrollbar-hide overflow-y-scroll overscroll-y-contain"
+      className="reels-scroll bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll overscroll-y-contain"
       style={{
         height: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
         minHeight: '100dvh',

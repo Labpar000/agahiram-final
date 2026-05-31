@@ -24,7 +24,7 @@ export const POST_EXPIRY_DAYS = 30;
 export const STORY_EXPIRY_HOURS = 24;
 export const MAX_POST_MEDIA = 10;
 export const MAX_REEL_DURATION = 60;
-export const MAX_STORY_DURATION = 15;
+export const MAX_STORY_DURATION = 60;
 
 /* Upload limits. Videos are re-encoded/compressed by the media-processor worker
  * after upload, so these caps protect the upload step + MinIO ingest, not the

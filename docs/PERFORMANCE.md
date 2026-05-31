@@ -1,40 +1,51 @@
-# کارایی وب (آگهی‌گرام)
+# کارایی وب (آگهی‌گرام) — ۲۰۲۶
 
-این سند بودجه‌ی کارایی و ابزارهای اندازه‌گیری فرانت‌اند (`apps/web`) را توضیح می‌دهد.
+## بودجه Core Web Vitals
 
-## بودجه‌ی Core Web Vitals (هدف ۲۰۲۶)
+| متریک | Good    | پیاده‌سازی                                                                   |
+| ----- | ------- | ---------------------------------------------------------------------------- |
+| LCP   | < 2.5s  | `next/image`، اولویت کارت اول فید                                            |
+| INP   | < 200ms | `scheduleEngagement` (`scheduler.yield` + `startTransition`)؛ کش React Query |
+| CLS   | < 0.1   | ابعاد رسانه در PostCard                                                      |
+| FCP   | < 1.8s  | client-first تب‌ها                                                           |
+| TTFB  | < 800ms | سرور ایران                                                                   |
 
-| متریک | هدف (Good)  | توضیح                    |
-| ----- | ----------- | ------------------------ |
-| LCP   | < ۲٫۵ ثانیه | بزرگ‌ترین عنصر محتوایی   |
-| INP   | < ۲۰۰ms     | پاسخ‌گویی به تعامل کاربر |
-| CLS   | < ۰٫۱       | جابه‌جایی ناگهانی چیدمان |
-| FCP   | < ۱٫۸ ثانیه | اولین رنگ محتوایی        |
-| TTFB  | < ۸۰۰ms     | زمان دریافت اولین بایت   |
+لاگ توسعه و beacon تولید: [`apps/web/src/components/web-vitals.tsx`](../apps/web/src/components/web-vitals.tsx).  
+اندازه‌گیری تعویض تب: `performance.measure('tab-switch')` در [`bottom-nav.tsx`](../apps/web/src/components/bottom-nav.tsx).
 
-این آستانه‌ها در `apps/web/src/components/web-vitals.tsx` کدگذاری شده‌اند. در حالت development هر متریک در کنسول لاگ می‌شود و اگر از بودجه عبور کند هشدار می‌دهد. در production با `navigator.sendBeacon` به `/api/v1/metrics/web-vitals` ارسال می‌شود (best-effort).
+## معماری داده (client-first)
 
-## تحلیل حجم باندل
+- تب‌های اصلی: **parallel routes** + [`TabShell`](../apps/web/src/components/tab-shell.tsx) — state و scroll حفظ می‌شود.
+- React Query: `staleTime` ۵ دقیقه، `refetchOnMount: false` در [`providers.tsx`](../apps/web/src/components/providers.tsx).
+- Engagement: [`useSavePost` / `useLikePost`](../apps/web/src/hooks/usePosts.ts) با `cancelQueries` + `setQueryData` — [`query-cache-posts.ts`](../apps/web/src/lib/query-cache-posts.ts).
+- پیش‌بارگذاری پست: [`PostLink`](../apps/web/src/components/post-link.tsx) + `placeholderData` در جزئیات پست.
+- پیش‌بار تب‌ها: [`tab-prefetch.ts`](../apps/web/src/lib/tab-prefetch.ts) روی hover در [`bottom-nav.tsx`](../apps/web/src/components/bottom-nav.tsx).
+- پیمایش پست در فید: [`PostDetailNav`](../apps/web/src/components/post-detail-nav.tsx) (قبلی/بعدی از کش).
+
+## ویدیو و Safari / Chrome
+
+- [`video-playback.ts`](../apps/web/src/lib/video-playback.ts): HLS بومی WebKit، hls.js فقط در غیر Safari.
+- ریل‌ها: فقط ±۱ اسلاید mount؛ `snap-proximity` و `overscroll-y-contain`.
+- bfcache: [`navigation-lifecycle.ts`](../apps/web/src/lib/navigation-lifecycle.ts) — `pagehide`/`pageshow` برای socket.
+- PWA: API و ویدیو در Service Worker با `NetworkOnly` — [`next.config.mjs`](../apps/web/next.config.mjs).
+
+## CDN و HTTP 206
+
+iOS **الزاماً** به Range/206 برای ویدیو نیاز دارد. تست:
+
+```bash
+./scripts/check-media-range.sh https://YOUR_API_HOST/api/v1/media/object?key=...
+```
+
+## ارتقای آینده
+
+مسیر رسمی Next 16 + `cacheComponents` + React Activity: [`docs/UPGRADE-NEXT16.md`](./UPGRADE-NEXT16.md).
+
+## تست مرورگر
+
+چک‌لیست QA: [`BROWSER-QA-2026.md`](./BROWSER-QA-2026.md). وضعیت ۱۸ مورد: [`PLAN-18-ITEMS.md`](./PLAN-18-ITEMS.md).
 
 ```bash
 pnpm --filter @agahiram/web analyze
+pnpm --filter @agahiram/web lint
 ```
-
-این دستور `next build` را با `ANALYZE=true` اجرا می‌کند و گزارش `@next/bundle-analyzer` را باز می‌کند.
-
-## بهینه‌سازی‌های اعمال‌شده
-
-- صفحات عمومی (`feed`, `post/[id]`, `profile/[username]`) به Server Component با prefetch + `HydrationBoundary` تبدیل شدند تا HTML اولیه دارای داده باشد (lib: `server-api.ts`, `get-query-client.ts`).
-- `loading.tsx` برای streaming + اسکلتون فوری.
-- بهینه‌سازی تصویر Next (AVIF/WebP، `deviceSizes`/`imageSizes`) فعال شد؛ `sharp` برای محیط Alpine از طریق `.npmrc` (`supportedArchitectures`) embed می‌شود. در صورت نبود `sharp` با `IMAGE_OPTIMIZATION=off` می‌توان به passthrough برگشت.
-- code-split نقشه (maplibre) با `next/dynamic` و تبدیل import آن به type-only در `lib/neshan.ts`.
-- حذف `framer-motion` از مسیر بحرانی (feed/shell) و جایگزینی با انیمیشن‌های CSS سبک.
-- حذف کوئری تکراری شمارنده‌ی unread با hook مشترک `useUnreadCounts`.
-- «مجازی‌سازی» بدون JS با `content-visibility: auto` روی لیست‌های بلند (feed/profile/messages).
-- حذف `mock-data` از باندل production (dynamic import فقط در development).
-- هدر `Cache-Control: immutable` برای `/_next/static` و فونت‌ها.
-
-## نکات
-
-- متریک‌ها را با Lighthouse (mobile, Slow 4G) روی صفحات `feed`, `explore`, `post/[id]` بسنجید.
-- پس از هر تغییر بزرگ در dependencyها، `analyze` را اجرا کنید تا رشد باندل کنترل شود.

@@ -5,9 +5,14 @@ import { StoriesController } from './stories.controller';
 import { StoriesService } from './stories.service';
 import { HighlightsService } from './highlights.service';
 import { MediaModule } from '../media/media.module';
+import { MessagesModule } from '../messages/messages.module';
 
 @Module({
-  imports: [MediaModule, BullModule.registerQueue({ name: BULL_QUEUES.STORY_CLEANUP })],
+  imports: [
+    MediaModule,
+    MessagesModule,
+    BullModule.registerQueue({ name: BULL_QUEUES.STORY_CLEANUP }),
+  ],
   controllers: [StoriesController],
   providers: [StoriesService, HighlightsService],
   exports: [StoriesService, HighlightsService],
