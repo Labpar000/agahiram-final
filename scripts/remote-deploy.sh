@@ -100,10 +100,19 @@ extract_source() {
 }
 
 ghcr_login() {
-  if [[ -n "${GHCR_TOKEN:-}" ]]; then
-    log "logging in to ghcr.io..."
-    echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-Labpar000}" --password-stdin
+  if [[ -z "${GHCR_TOKEN:-}" ]]; then
+    return 0
   fi
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    log "logging in to ghcr.io (attempt $attempt/5)..."
+    if echo "$GHCR_TOKEN" | docker login ghcr.io -u "${GHCR_USER:-Labpar000}" --password-stdin; then
+      return 0
+    fi
+    sleep 5
+  done
+  log "ghcr.io login failed after 5 attempts"
+  return 1
 }
 
 deploy_transfer() {
