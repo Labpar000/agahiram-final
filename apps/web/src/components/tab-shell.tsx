@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { PageTransition } from '@/components/page-transition';
+import { videoPlaybackController } from '@/lib/video-playback-controller';
 
 function isKeepAliveTab(
   pathname: string,
@@ -58,6 +60,13 @@ export function TabShell({ children, feed, explore, reels, messages, profile }: 
   const pathname = usePathname() ?? '/';
   const active = isKeepAliveTab(pathname);
   const overlay = isOverlayRoute(pathname);
+
+  useEffect(() => {
+    const onVideoTab =
+      !overlay && (active === 'feed' || active === 'explore' || active === 'reels');
+    videoPlaybackController.setPlaybackEnabled(onVideoTab);
+    if (!onVideoTab) videoPlaybackController.pauseAll();
+  }, [active, overlay]);
 
   if (overlay) {
     return (

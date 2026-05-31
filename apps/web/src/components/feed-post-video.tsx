@@ -1,38 +1,108 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { applySafariVideoAttrs, setupVideoSource } from '@/lib/video-playback';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { IgPlay, IgVolume } from '@agahiram/ui';
+import { useManagedVideo } from '@/hooks/use-managed-video';
+import { observeFeedVideo } from '@/lib/video-playback';
+import { cn } from '@agahiram/shared';
 
 type Props = {
+  id: string;
   hlsUrl?: string | null;
   mp4Url?: string;
   poster?: string;
   className?: string;
   active?: boolean;
+  /** Fired on double-tap (e.g. like burst on post card). */
+  onDoubleTap?: () => void;
 };
 
-/** Feed card video with native HLS (Safari) and bfcache-safe reload. */
-export function FeedPostVideo({ hlsUrl, mp4Url, poster, className, active = true }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
+/** IG-style feed video: muted autoplay in viewport, tap to pause/play. */
+export function FeedPostVideo({
+  id,
+  hlsUrl,
+  mp4Url,
+  poster,
+  className,
+  active = true,
+  onDoubleTap,
+}: Props) {
+  const videoId = `feed-${id}`;
+  const lastTapRef = useRef(0);
+  const [muted, setMuted] = useState(true);
+  const [inView, setInView] = useState(false);
+  const { videoRef, containerRef, playing, togglePlay } = useManagedVideo({
+    id: videoId,
+    kind: 'feed',
+    hlsUrl,
+    mp4Url,
+    active: active && inView,
+    loop: true,
+    muted,
+    autoplayWhenActive: true,
+  });
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    return observeFeedVideo(node, setInView);
+  }, [containerRef]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !active) return;
-    return setupVideoSource(video, hlsUrl ?? undefined, mp4Url ?? undefined);
-  }, [active, hlsUrl, mp4Url]);
+    if (video) video.muted = muted;
+  }, [muted, videoRef]);
 
-  useEffect(() => {
-    if (!active) videoRef.current?.pause();
-  }, [active]);
+  const onTap = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const now = Date.now();
+      if (onDoubleTap && now - lastTapRef.current < 300) {
+        lastTapRef.current = 0;
+        onDoubleTap();
+        return;
+      }
+      lastTapRef.current = now;
+      togglePlay();
+    },
+    [onDoubleTap, togglePlay],
+  );
+
+  const toggleMuted = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMuted((m) => !m);
+  }, []);
 
   return (
-    <video
-      ref={videoRef}
-      poster={poster}
-      className={className}
-      controls
-      playsInline
-      preload="metadata"
-    />
+    <div ref={containerRef} className="relative size-full">
+      <video
+        ref={videoRef}
+        poster={poster}
+        playsInline
+        preload="metadata"
+        className={cn(className, 'size-full cursor-pointer')}
+        onClick={onTap}
+      />
+
+      {!playing ? (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center">
+          <span className="grid size-14 place-items-center rounded-full bg-black/45 backdrop-blur-sm">
+            <IgPlay className="size-7 text-white" filled aria-hidden />
+          </span>
+        </div>
+      ) : null}
+
+      {!playing ? (
+        <button
+          type="button"
+          aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
+          onClick={toggleMuted}
+          className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-black/50 text-white tap-none"
+        >
+          <IgVolume muted={muted} className="size-4" strokeWidth={1.75} aria-hidden />
+        </button>
+      ) : null}
+    </div>
   );
 }

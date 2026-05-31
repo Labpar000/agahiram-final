@@ -1,15 +1,30 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import Link from 'next/link';
 import { useMutation, useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { IgComment, IgHeart, IgPin, IgSend, IgTrash } from '@agahiram/ui';
+import { IgComment, IgHeart, IgMore, IgPin, IgTrash } from '@agahiram/ui';
 import { cn, formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
+  IconButton,
   Skeleton,
   Switch,
   toast,
@@ -31,6 +46,10 @@ import {
   type CommentRow,
 } from '@/lib/query-cache-comments';
 import { ReportDialog } from '@/components/report-dialog';
+import { CommentComposerBar, CommentLoginPrompt } from '@/components/comment-composer-bar';
+import { profilePath } from '@/lib/profile-path';
+
+export type CommentSectionVariant = 'page' | 'drawer';
 
 interface Comment {
   id: string;
@@ -45,6 +64,17 @@ interface Comment {
 
 interface Reply extends Omit<Comment, '_count'> {
   replyToUsername?: string | null;
+}
+
+type CommentSectionContextValue = ReturnType<typeof useCommentSectionState>;
+
+const CommentSectionContext = createContext<CommentSectionContextValue | null>(null);
+
+function useCommentSectionContext() {
+  const ctx = useContext(CommentSectionContext);
+  if (!ctx)
+    throw new Error('CommentList/CommentComposer must be used within CommentSectionProvider');
+  return ctx;
 }
 
 function useLongPress(onLongPress: () => void, delayMs = 450) {
@@ -66,135 +96,6 @@ function useLongPress(onLongPress: () => void, delayMs = 450) {
   };
 }
 
-function CommentRow({
-  c,
-  highlighted,
-  recentSentId,
-  me,
-  isOwner,
-  postId,
-  expandedReplies,
-  setExpandedReplies,
-  setReplyTo,
-  inputRef,
-  onReport,
-  pin,
-  remove,
-  toggleLike,
-}: {
-  c: Comment;
-  highlighted: boolean;
-  recentSentId: string | null;
-  me: ReturnType<typeof useAuthStore.getState>['user'];
-  isOwner: boolean;
-  postId: string;
-  expandedReplies: Set<string>;
-  setExpandedReplies: React.Dispatch<React.SetStateAction<Set<string>>>;
-  setReplyTo: (v: { id: string; username: string | null } | null) => void;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  onReport: (id: string) => void;
-  pin: { mutate: (v: { id: string; pinned: boolean }) => void };
-  remove: { mutate: (id: string) => void };
-  toggleLike: { mutate: (v: { id: string; liked: boolean }) => void };
-}) {
-  const longPress = useLongPress(() => {
-    if (c.user.id !== me?.id) onReport(c.id);
-  });
-  return (
-    <article
-      className={cn(
-        'rounded-2xl py-1 transition-colors duration-700',
-        highlighted && 'bg-ig-link/10 ring-2 ring-ig-link/30',
-        recentSentId === c.id && 'animate-in fade-in slide-in-from-bottom-2 duration-300',
-      )}
-      onContextMenu={(e) => {
-        if (c.user.id === me?.id) return;
-        e.preventDefault();
-        onReport(c.id);
-      }}
-      {...longPress}
-    >
-      <div className="flex gap-3">
-        <Avatar size="sm" className="shrink-0">
-          {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
-          <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm leading-relaxed">
-            <span className="me-1 font-semibold">{c.user.username}</span>
-            <CommentContent content={c.content} />
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-            {c.isPinned ? (
-              <span className="inline-flex items-center gap-1 text-ig-link">
-                <IgPin className="size-3" strokeWidth={1.75} aria-hidden />
-                سنجاق‌شده
-              </span>
-            ) : null}
-            <span>{formatRelativeTimeFa(c.createdAt)}</span>
-            <CommentLikeButton
-              id={c.id}
-              liked={!!c.isLikedByMe}
-              count={c.likesCount ?? 0}
-              onToggle={(p) =>
-                runEngagementAction(`comment-like-${p.id}`, () => toggleLike.mutate(p))
-              }
-            />
-            <button
-              type="button"
-              className="font-medium tap-none hover:text-foreground"
-              onClick={() => {
-                setReplyTo({ id: c.id, username: c.user.username });
-                inputRef.current?.focus();
-              }}
-            >
-              پاسخ
-            </button>
-            {c._count.replies > 0 ? (
-              <button
-                type="button"
-                className="font-medium tap-none hover:text-foreground"
-                onClick={() =>
-                  setExpandedReplies((s) => {
-                    const n = new Set(s);
-                    if (n.has(c.id)) n.delete(c.id);
-                    else n.add(c.id);
-                    return n;
-                  })
-                }
-              >
-                {expandedReplies.has(c.id)
-                  ? 'پنهان کردن پاسخ‌ها'
-                  : `${formatPersianNumber(c._count.replies)} پاسخ`}
-              </button>
-            ) : null}
-            {isOwner ? (
-              <button
-                type="button"
-                className="font-medium tap-none"
-                onClick={() => pin.mutate({ id: c.id, pinned: !c.isPinned })}
-              >
-                {c.isPinned ? 'لغو سنجاق' : 'سنجاق'}
-              </button>
-            ) : null}
-            {isOwner || c.user.id === me?.id ? (
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 font-medium text-destructive tap-none"
-                onClick={() => remove.mutate(c.id)}
-              >
-                <IgTrash className="size-3" strokeWidth={1.75} aria-hidden />
-                حذف
-              </button>
-            ) : null}
-          </div>
-          {expandedReplies.has(c.id) ? <CommentReplies commentId={c.id} postId={postId} /> : null}
-        </div>
-      </div>
-    </article>
-  );
-}
-
 function CommentLikeButton({
   id,
   liked,
@@ -206,15 +107,11 @@ function CommentLikeButton({
   count: number;
   onToggle: (payload: { id: string; liked: boolean }) => void;
 }) {
-  const longPress = useLongPress(() => {
-    if (!liked) onToggle({ id, liked: false });
-  });
   return (
     <button
       type="button"
-      className="inline-flex items-center gap-1 font-medium tap-none hover:text-foreground"
+      className="inline-flex shrink-0 items-center gap-1 font-medium tap-none hover:text-foreground"
       onClick={() => onToggle({ id, liked })}
-      {...longPress}
     >
       <IgHeart
         className={`size-3 ${liked ? 'fill-destructive text-destructive' : ''}`}
@@ -254,7 +151,7 @@ function CommentReplies({ commentId, postId }: { commentId: string; postId: stri
 
   if (!data?.length) return null;
   return (
-    <ul className="mt-2 space-y-2 border-s-2 border-muted ps-3">
+    <ul className="mt-2 space-y-3 border-s border-border/60 ps-10">
       {data.map((r) => (
         <li key={r.id} className="flex gap-2">
           <Avatar size="sm" className="size-6 shrink-0">
@@ -265,14 +162,24 @@ function CommentReplies({ commentId, postId }: { commentId: string; postId: stri
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="text-xs leading-relaxed">
-              <span className="me-1 font-semibold">{r.user.username}</span>
+              <Link
+                href={profilePath(r.user.username, r.user.id)}
+                className="me-1 font-semibold hover:underline"
+              >
+                {r.user.username ?? 'کاربر'}
+              </Link>
               {r.replyToUsername ? (
-                <span className="me-1 text-ig-link">@{r.replyToUsername}</span>
+                <Link
+                  href={`/profile/${r.replyToUsername}`}
+                  className="me-1 font-medium text-ig-link hover:underline"
+                >
+                  @{r.replyToUsername}
+                </Link>
               ) : null}
               <CommentContent content={r.content} />
             </p>
             <div className="mt-0.5 flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span>{formatRelativeTimeFa(r.createdAt)}</span>
+              <span className="shrink-0">{formatRelativeTimeFa(r.createdAt)}</span>
               <CommentLikeButton
                 id={r.id}
                 liked={!!r.isLikedByMe}
@@ -286,6 +193,186 @@ function CommentReplies({ commentId, postId }: { commentId: string; postId: stri
         </li>
       ))}
     </ul>
+  );
+}
+
+function CommentRowActions({
+  c,
+  isOwner,
+  meId,
+  onPin,
+  onRemove,
+  onReport,
+}: {
+  c: Comment;
+  isOwner: boolean;
+  meId: string | undefined;
+  onPin: () => void;
+  onRemove: () => void;
+  onReport?: () => void;
+}) {
+  const canDelete = isOwner || c.user.id === meId;
+  const canPin = isOwner;
+  const canReport = !!meId && c.user.id !== meId && !!onReport;
+  if (!canDelete && !canPin && !canReport) return null;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="size-7 shrink-0 text-muted-foreground"
+          aria-label="گزینه‌های بیشتر"
+          icon={<IgMore className="size-4" strokeWidth={1.75} aria-hidden />}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[10rem]">
+        {canPin ? (
+          <DropdownMenuItem onClick={onPin}>
+            <IgPin className="size-4" strokeWidth={1.75} aria-hidden />
+            {c.isPinned ? 'لغو سنجاق' : 'سنجاق'}
+          </DropdownMenuItem>
+        ) : null}
+        {canReport ? <DropdownMenuItem onClick={onReport}>گزارش نظر</DropdownMenuItem> : null}
+        {canDelete ? (
+          <DropdownMenuItem destructive onClick={onRemove}>
+            <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
+            حذف
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function CommentRow({
+  c,
+  highlighted,
+  recentSentId,
+  me,
+  isOwner,
+  postId,
+  expandedReplies,
+  setExpandedReplies,
+  setReplyTo,
+  inputRef,
+  onReport,
+  pin,
+  remove,
+  toggleLike,
+}: {
+  c: Comment;
+  highlighted: boolean;
+  recentSentId: string | null;
+  me: ReturnType<typeof useAuthStore.getState>['user'];
+  isOwner: boolean;
+  postId: string;
+  expandedReplies: Set<string>;
+  setExpandedReplies: React.Dispatch<React.SetStateAction<Set<string>>>;
+  setReplyTo: (v: { id: string; username: string | null } | null) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onReport: (id: string) => void;
+  pin: { mutate: (v: { id: string; pinned: boolean }) => void };
+  remove: { mutate: (id: string) => void };
+  toggleLike: { mutate: (v: { id: string; liked: boolean }) => void };
+}) {
+  const longPress = useLongPress(() => {
+    if (c.user.id !== me?.id) onReport(c.id);
+  });
+  const showRowMenu = isOwner || c.user.id === me?.id || (!!me?.id && c.user.id !== me.id);
+
+  return (
+    <article
+      className={cn(
+        'py-2 transition-colors duration-700',
+        highlighted && 'rounded-xl bg-ig-link/10 ring-2 ring-ig-link/30 px-2 -mx-2',
+        recentSentId === c.id && 'animate-in fade-in slide-in-from-bottom-2 duration-300',
+      )}
+      onContextMenu={(e) => {
+        if (c.user.id === me?.id) return;
+        e.preventDefault();
+        onReport(c.id);
+      }}
+      {...longPress}
+    >
+      <div className="flex gap-3">
+        <Link href={profilePath(c.user.username, c.user.id)} className="shrink-0 tap-none">
+          <Avatar size="sm">
+            {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
+            <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
+          </Avatar>
+        </Link>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm leading-relaxed">
+            <Link
+              href={profilePath(c.user.username, c.user.id)}
+              className="me-1.5 font-semibold hover:underline"
+            >
+              {c.user.username ?? 'کاربر'}
+            </Link>
+            <CommentContent content={c.content} />
+          </p>
+          <div className="mt-1 flex items-center gap-3 overflow-x-auto text-[11px] text-muted-foreground scrollbar-hide">
+            {c.isPinned ? (
+              <span className="inline-flex shrink-0 items-center gap-1 text-ig-link">
+                <IgPin className="size-3" strokeWidth={1.75} aria-hidden />
+                سنجاق
+              </span>
+            ) : null}
+            <span className="shrink-0">{formatRelativeTimeFa(c.createdAt)}</span>
+            <CommentLikeButton
+              id={c.id}
+              liked={!!c.isLikedByMe}
+              count={c.likesCount ?? 0}
+              onToggle={(p) =>
+                runEngagementAction(`comment-like-${p.id}`, () => toggleLike.mutate(p))
+              }
+            />
+            <button
+              type="button"
+              className="shrink-0 font-medium tap-none hover:text-foreground"
+              onClick={() => {
+                setReplyTo({ id: c.id, username: c.user.username });
+                inputRef.current?.focus();
+              }}
+            >
+              پاسخ
+            </button>
+            {c._count.replies > 0 ? (
+              <button
+                type="button"
+                className="min-w-0 shrink truncate font-medium tap-none hover:text-foreground"
+                onClick={() =>
+                  setExpandedReplies((s) => {
+                    const n = new Set(s);
+                    if (n.has(c.id)) n.delete(c.id);
+                    else n.add(c.id);
+                    return n;
+                  })
+                }
+              >
+                {expandedReplies.has(c.id)
+                  ? 'پنهان کردن پاسخ‌ها'
+                  : `${formatPersianNumber(c._count.replies)} پاسخ`}
+              </button>
+            ) : null}
+          </div>
+          {expandedReplies.has(c.id) ? <CommentReplies commentId={c.id} postId={postId} /> : null}
+        </div>
+        {showRowMenu ? (
+          <CommentRowActions
+            c={c}
+            isOwner={isOwner}
+            meId={me?.id}
+            onPin={() => pin.mutate({ id: c.id, pinned: !c.isPinned })}
+            onRemove={() => remove.mutate(c.id)}
+            onReport={me?.id && c.user.id !== me.id ? () => onReport(c.id) : undefined}
+          />
+        ) : null}
+      </div>
+    </article>
   );
 }
 
@@ -340,7 +427,24 @@ function MentionTypeahead({
   );
 }
 
-export function CommentSection({
+function CommentListSkeleton() {
+  return (
+    <div className="space-y-4" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex gap-3">
+          <Skeleton className="size-8 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-24 rounded" />
+            <Skeleton className="h-3 w-full rounded" />
+            <Skeleton className="h-2.5 w-32 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function useCommentSectionState({
   postId,
   isOwner = false,
   commentsEnabled = true,
@@ -363,6 +467,10 @@ export function CommentSection({
   const [reportCommentId, setReportCommentId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const commentRefs = useRef<Map<string, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    setEnabled(commentsEnabled);
+  }, [commentsEnabled]);
 
   const mentionCtx = useMemo(
     () => (me ? parseMentionQuery(text, cursorPos) : null),
@@ -506,7 +614,6 @@ export function CommentSection({
           break;
         }
       }
-      // `liked` = current state; API toggles to opposite.
       const nextLiked = !liked;
       patchCommentInCache(qc, postId, id, {
         isLikedByMe: nextLiked,
@@ -575,173 +682,322 @@ export function CommentSection({
 
   const showMentionPicker = !!mentionCtx && !!me;
 
+  const submitComment = useCallback(
+    (e?: React.FormEvent) => {
+      e?.preventDefault();
+      const content = text.trim();
+      if (!content) return;
+      const body =
+        replyTo?.username && !content.startsWith('@') ? `@${replyTo.username} ${content}` : content;
+      send.mutate({ content: body, parentId: replyTo?.id });
+    },
+    [text, replyTo, send],
+  );
+
+  return {
+    postId,
+    isOwner,
+    me,
+    enabled,
+    toggle,
+    comments,
+    isLoading,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+    scrollTargetId,
+    recentSentId,
+    commentRefs,
+    expandedReplies,
+    setExpandedReplies,
+    setReplyTo,
+    inputRef,
+    setReportCommentId,
+    pin,
+    remove,
+    toggleLike,
+    text,
+    setText,
+    cursorPos,
+    setCursorPos,
+    replyTo,
+    showMentionPicker,
+    mentionCandidates,
+    mentionLoading,
+    mentionActiveIndex,
+    setMentionActiveIndex,
+    mentionCtx,
+    applyMention,
+    submitComment,
+    send,
+    reportCommentId,
+  };
+}
+
+export function CommentSectionProvider({
+  children,
+  ...props
+}: {
+  children: ReactNode;
+  postId: string;
+  isOwner?: boolean;
+  commentsEnabled?: boolean;
+  highlightCommentId?: string | null;
+}) {
+  const value = useCommentSectionState(props);
   return (
-    <section
-      className="border-b border-border bg-surface sm:my-3 sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card"
-      aria-label="نظرات"
-    >
-      <div className="space-y-4 p-4">
-        <div className="flex items-center justify-between gap-3">
+    <CommentSectionContext.Provider value={value}>
+      {children}
+      <ReportDialog
+        open={!!value.reportCommentId}
+        onOpenChange={(open) => {
+          if (!open) value.setReportCommentId(null);
+        }}
+        targetType="comment"
+        targetId={value.reportCommentId ?? ''}
+      />
+    </CommentSectionContext.Provider>
+  );
+}
+
+export function CommentList({
+  variant = 'page',
+  showHeader,
+}: {
+  variant?: CommentSectionVariant;
+  /** When undefined, header shows only on page variant */
+  showHeader?: boolean;
+}) {
+  const ctx = useCommentSectionContext();
+  const isDrawer = variant === 'drawer';
+  const headerVisible = showHeader ?? !isDrawer;
+
+  return (
+    <div className={cn(isDrawer ? 'px-4 py-3' : 'space-y-4 p-4')}>
+      {headerVisible ? (
+        <div className="mb-4 flex items-center justify-between gap-3">
           <h3 className="text-base font-semibold leading-tight">نظرات</h3>
-          {isOwner ? (
+          {ctx.isOwner ? (
             <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Switch
-                checked={enabled}
-                onCheckedChange={(v) => toggle.mutate(v)}
+                checked={ctx.enabled}
+                onCheckedChange={(v) => ctx.toggle.mutate(v)}
                 aria-label="فعال‌بودن نظرات"
               />
               نظرات
             </label>
           ) : null}
         </div>
+      ) : ctx.isOwner ? (
+        <div className="mb-3 flex justify-end">
+          <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <Switch
+              checked={ctx.enabled}
+              onCheckedChange={(v) => ctx.toggle.mutate(v)}
+              aria-label="فعال‌بودن نظرات"
+            />
+            نظرات
+          </label>
+        </div>
+      ) : null}
 
-        {hasNextPage ? (
-          <div className="flex justify-center pb-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isFetchingNextPage}
-              onClick={() => void fetchNextPage()}
-            >
-              {isFetchingNextPage ? 'در حال بارگذاری…' : 'نمایش نظرات قدیمی‌تر'}
-            </Button>
-          </div>
-        ) : null}
-
-        {isLoading ? (
-          <Skeleton className="h-20 w-full rounded-2xl" />
-        ) : comments.length === 0 ? (
-          <EmptyState
+      {ctx.hasNextPage ? (
+        <div className="mb-4 flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
             size="sm"
-            icon={<IgComment className="size-6" strokeWidth={1.75} aria-hidden />}
-            title="هنوز نظری ثبت نشده"
-            description="اولین نفری باشید که نظر می‌دهد"
-          />
-        ) : (
-          comments.map((c) => {
-            const highlighted = scrollTargetId === c.id;
+            disabled={ctx.isFetchingNextPage}
+            onClick={() => void ctx.fetchNextPage()}
+          >
+            {ctx.isFetchingNextPage ? 'در حال بارگذاری…' : 'نمایش نظرات قدیمی‌تر'}
+          </Button>
+        </div>
+      ) : null}
+
+      {ctx.isLoading ? (
+        <CommentListSkeleton />
+      ) : ctx.comments.length === 0 ? (
+        <EmptyState
+          size="sm"
+          icon={<IgComment className="size-6" strokeWidth={1.75} aria-hidden />}
+          title="هنوز نظری ثبت نشده"
+          description="اولین نفری باشید که نظر می‌دهد"
+        />
+      ) : (
+        <div className="space-y-1">
+          {ctx.comments.map((c) => {
+            const highlighted = ctx.scrollTargetId === c.id;
             return (
               <div
                 key={c.id}
                 ref={(el) => {
-                  if (el) commentRefs.current.set(c.id, el);
-                  else commentRefs.current.delete(c.id);
+                  if (el) ctx.commentRefs.current.set(c.id, el);
+                  else ctx.commentRefs.current.delete(c.id);
                 }}
               >
                 <CommentRow
                   c={c}
                   highlighted={highlighted}
-                  recentSentId={recentSentId}
-                  me={me}
-                  isOwner={isOwner}
-                  postId={postId}
-                  expandedReplies={expandedReplies}
-                  setExpandedReplies={setExpandedReplies}
-                  setReplyTo={setReplyTo}
-                  inputRef={inputRef}
-                  onReport={setReportCommentId}
-                  pin={pin}
-                  remove={remove}
-                  toggleLike={toggleLike}
+                  recentSentId={ctx.recentSentId}
+                  me={ctx.me}
+                  isOwner={ctx.isOwner}
+                  postId={ctx.postId}
+                  expandedReplies={ctx.expandedReplies}
+                  setExpandedReplies={ctx.setExpandedReplies}
+                  setReplyTo={ctx.setReplyTo}
+                  inputRef={ctx.inputRef}
+                  onReport={ctx.setReportCommentId}
+                  pin={ctx.pin}
+                  remove={ctx.remove}
+                  toggleLike={ctx.toggleLike}
                 />
               </div>
             );
-          })
-        )}
-      </div>
-
-      {enabled ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const content = text.trim();
-            if (!content) return;
-            const body =
-              replyTo?.username && !content.startsWith('@')
-                ? `@${replyTo.username} ${content}`
-                : content;
-            send.mutate({ content: body, parentId: replyTo?.id });
-          }}
-          className="sticky bottom-[calc(var(--bottom-nav)+env(safe-area-inset-bottom))] border-t border-border bg-surface/95 p-3 backdrop-blur-md"
-        >
-          {replyTo ? (
-            <p className="mb-2 text-xs text-muted-foreground">
-              پاسخ به @{replyTo.username}
-              <button type="button" className="ms-2 text-ig-link" onClick={() => setReplyTo(null)}>
-                لغو
-              </button>
-            </p>
-          ) : null}
-          <div className="relative flex items-center gap-2">
-            {showMentionPicker ? (
-              <MentionTypeahead
-                candidates={mentionCandidates}
-                activeIndex={mentionActiveIndex}
-                loading={mentionLoading}
-                onSelect={applyMention}
-              />
-            ) : null}
-            <input
-              ref={inputRef}
-              value={text}
-              onChange={(e) => {
-                setText(e.target.value);
-                setCursorPos(e.target.selectionStart ?? e.target.value.length);
-              }}
-              onClick={(e) =>
-                setCursorPos((e.target as HTMLInputElement).selectionStart ?? text.length)
-              }
-              onKeyUp={(e) =>
-                setCursorPos((e.target as HTMLInputElement).selectionStart ?? text.length)
-              }
-              onKeyDown={(e) => {
-                if (!showMentionPicker || mentionCandidates.length === 0) return;
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setMentionActiveIndex((i) => Math.min(i + 1, mentionCandidates.length - 1));
-                } else if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setMentionActiveIndex((i) => Math.max(i - 1, 0));
-                } else if (e.key === 'Enter' && mentionCtx) {
-                  e.preventDefault();
-                  const u = mentionCandidates[mentionActiveIndex];
-                  if (u?.username) applyMention(u.username);
-                } else if (e.key === 'Escape') {
-                  e.preventDefault();
-                  setCursorPos(mentionCtx?.start ?? cursorPos);
-                }
-              }}
-              placeholder="نظر خود را بنویسید… (@ برای منشن)"
-              aria-label="نوشتن نظر"
-              aria-autocomplete="list"
-              aria-expanded={showMentionPicker && mentionCandidates.length > 0}
-              className="h-11 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-            />
-            <button
-              type="submit"
-              aria-label="ارسال نظر"
-              disabled={!text.trim() || send.isPending}
-              className="grid size-11 place-items-center rounded-full bg-ig-link text-ig-link-foreground disabled:opacity-50"
-            >
-              <IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />
-            </button>
-          </div>
-        </form>
-      ) : (
-        <div className="border-t border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground">
-          نظرات برای این آگهی غیرفعال است.
+          })}
         </div>
       )}
+    </div>
+  );
+}
 
-      <ReportDialog
-        open={!!reportCommentId}
-        onOpenChange={(open) => {
-          if (!open) setReportCommentId(null);
-        }}
-        targetType="comment"
-        targetId={reportCommentId ?? ''}
-      />
-    </section>
+export function CommentComposer({ variant = 'page' }: { variant?: CommentSectionVariant }) {
+  const ctx = useCommentSectionContext();
+  const isDrawer = variant === 'drawer';
+
+  if (!ctx.enabled) {
+    return (
+      <div
+        className={cn(
+          'border-t border-border bg-muted/40 p-4 text-center text-sm text-muted-foreground',
+          isDrawer && 'rounded-none',
+        )}
+      >
+        نظرات برای این آگهی غیرفعال است.
+      </div>
+    );
+  }
+
+  if (!ctx.me) {
+    return (
+      <div
+        className={cn(
+          'border-t border-border',
+          !isDrawer && 'sticky bottom-[calc(var(--bottom-nav)+env(safe-area-inset-bottom))]',
+        )}
+      >
+        <CommentLoginPrompt variant={variant} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        'relative border-t border-border',
+        !isDrawer && 'sticky bottom-[calc(var(--bottom-nav)+env(safe-area-inset-bottom))]',
+      )}
+    >
+      {ctx.replyTo ? (
+        <p className="border-b border-border/60 bg-surface/95 px-3 pb-2 pt-2 text-xs text-muted-foreground backdrop-blur-md">
+          پاسخ به @{ctx.replyTo.username}
+          <button
+            type="button"
+            className="ms-2 text-ig-link tap-none"
+            onClick={() => ctx.setReplyTo(null)}
+          >
+            لغو
+          </button>
+        </p>
+      ) : null}
+      <div className="relative">
+        {ctx.showMentionPicker ? (
+          <div className="absolute inset-x-3 bottom-full z-10">
+            <MentionTypeahead
+              candidates={ctx.mentionCandidates}
+              activeIndex={ctx.mentionActiveIndex}
+              loading={ctx.mentionLoading}
+              onSelect={ctx.applyMention}
+            />
+          </div>
+        ) : null}
+        <CommentComposerBar
+          variant={variant}
+          value={ctx.text}
+          onChange={() => {}}
+          onSubmit={ctx.submitComment}
+          isPending={ctx.send.isPending}
+          placeholder="نظر خود را بنویسید… (@ برای منشن)"
+          inputRef={ctx.inputRef}
+          inputProps={{
+            onChange: (e) => {
+              ctx.setText(e.target.value);
+              ctx.setCursorPos(e.target.selectionStart ?? e.target.value.length);
+            },
+            onClick: (e) =>
+              ctx.setCursorPos((e.target as HTMLInputElement).selectionStart ?? ctx.text.length),
+            onKeyUp: (e) =>
+              ctx.setCursorPos((e.target as HTMLInputElement).selectionStart ?? ctx.text.length),
+            onKeyDown: (e) => {
+              if (!ctx.showMentionPicker || ctx.mentionCandidates.length === 0) return;
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                ctx.setMentionActiveIndex((i) => Math.min(i + 1, ctx.mentionCandidates.length - 1));
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                ctx.setMentionActiveIndex((i) => Math.max(i - 1, 0));
+              } else if (e.key === 'Enter' && ctx.mentionCtx) {
+                e.preventDefault();
+                const u = ctx.mentionCandidates[ctx.mentionActiveIndex];
+                if (u?.username) ctx.applyMention(u.username);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                ctx.setCursorPos(ctx.mentionCtx?.start ?? ctx.cursorPos);
+              }
+            },
+            'aria-autocomplete': 'list',
+            'aria-expanded': ctx.showMentionPicker && ctx.mentionCandidates.length > 0,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function CommentSection({
+  postId,
+  isOwner = false,
+  commentsEnabled = true,
+  highlightCommentId,
+  variant = 'page',
+}: {
+  postId: string;
+  isOwner?: boolean;
+  commentsEnabled?: boolean;
+  highlightCommentId?: string | null;
+  variant?: CommentSectionVariant;
+}) {
+  const isDrawer = variant === 'drawer';
+
+  return (
+    <CommentSectionProvider
+      postId={postId}
+      isOwner={isOwner}
+      commentsEnabled={commentsEnabled}
+      highlightCommentId={highlightCommentId}
+    >
+      <section
+        className={cn(
+          'bg-surface',
+          isDrawer
+            ? 'flex min-h-0 flex-1 flex-col'
+            : 'border-b border-border sm:my-3 sm:overflow-hidden sm:rounded-2xl sm:border sm:shadow-card',
+        )}
+        aria-label="نظرات"
+      >
+        <CommentList variant={variant} />
+        <CommentComposer variant={variant} />
+      </section>
+    </CommentSectionProvider>
   );
 }

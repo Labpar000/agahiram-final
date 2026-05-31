@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import type { ReelItem } from '@agahiram/shared';
 import { cn, formatPersianNumber, formatPersianPrice, formatPhoneFa } from '@agahiram/shared';
@@ -15,7 +14,6 @@ import {
   AvatarImage,
   Button,
   HeartBurst,
-  IgArrowBack,
   IgComment,
   IgCopy,
   IgHeart,
@@ -25,7 +23,6 @@ import {
   IgPin,
   IgPlay,
   IgPlus,
-  IgSearch,
   IgShare2026,
   IgVerified,
   IgVolume,
@@ -34,15 +31,10 @@ import {
 import { apiClient } from '@/lib/api';
 import { handleEngagementError } from '@/lib/engagement-auth';
 import { useLikePost, useSavePost } from '@/hooks/usePosts';
-import { PostLink } from '@/components/post-link';
 import { useAuthStore } from '@/lib/auth-store';
 import { runEngagementAction } from '@/lib/inp';
-import {
-  getReelsMutedPreference,
-  observeReelPlayback,
-  setReelsMutedPreference,
-  setupVideoSource,
-} from '@/lib/video-playback';
+import { useManagedVideo } from '@/hooks/use-managed-video';
+import { getReelsMutedPreference, setReelsMutedPreference } from '@/lib/video-playback';
 import { ReelCommentSheet } from '@/components/reel-comment-sheet';
 import { ReportDialog } from '@/components/report-dialog';
 
@@ -52,20 +44,28 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const logout = useAuthStore((s) => s.logout);
   const likeMutation = useLikePost();
   const saveMutation = useSavePost();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef(0);
+  const videoId = `reel-${reel.id}`;
 
-  const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(() => getReelsMutedPreference());
   const [videoError, setVideoError] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [progress, setProgress] = useState(0);
   const me = useAuthStore((s) => s.user);
   const isOwnReel = me?.id === reel.user.id;
+
+  const { videoRef, containerRef, playing, progress, togglePlay, seek } = useManagedVideo({
+    id: videoId,
+    kind: 'reel',
+    hlsUrl: reel.hlsUrl,
+    mp4Url: reel.media[0]?.url,
+    active,
+    loop: true,
+    muted,
+    reelAutoplay: false,
+  });
 
   const { data: authorProfile } = useQuery({
     queryKey: ['profile', reel.user.username],
@@ -82,6 +82,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   useEffect(() => {
     if (authorProfile) setFollowing(authorProfile.isFollowing);
   }, [authorProfile?.isFollowing, reel.user.username]);
+
   const [liked, setLiked] = useState(reel.isLiked ?? false);
   const [saved, setSaved] = useState(reel.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(reel.likesCount);
@@ -97,33 +98,8 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !active) return;
-    return setupVideoSource(video, reel.hlsUrl ?? undefined, reel.media[0]?.url ?? undefined);
-  }, [active, reel.hlsUrl, reel.media, reel.id]);
-
-  useEffect(() => {
-    if (!active) {
-      videoRef.current?.pause();
-      setPlaying(false);
-    }
-  }, [active]);
-
-  useEffect(() => {
-    const node = containerRef.current;
-    const video = videoRef.current;
-    if (!node || !video) return;
-    return observeReelPlayback(node, video, active, setPlaying);
-  }, [active]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onTime = () => {
-      if (video.duration) setProgress(video.currentTime / video.duration);
-    };
-    video.addEventListener('timeupdate', onTime);
-    return () => video.removeEventListener('timeupdate', onTime);
-  }, [active, reel.id]);
+    if (video) video.muted = muted;
+  }, [muted, videoRef]);
 
   const onLikeToggle = useCallback(
     (forceLike?: boolean) => {
@@ -224,35 +200,26 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     }
   }, [messaging, reel.user.username, router]);
 
-  const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (v.paused) {
-      v.play()
-        .then(() => setPlaying(true))
-        .catch(() => null);
-    } else {
-      v.pause();
-      setPlaying(false);
-    }
-  }, []);
-
-  const onTap = useCallback(() => {
+  const onVideoTap = useCallback(() => {
     const now = Date.now();
-    if (now - lastTapRef.current < 320) {
+    if (now - lastTapRef.current < 300) {
+      lastTapRef.current = 0;
       void onLikeToggle(true);
       setBurst((b) => b + 1);
-      lastTapRef.current = 0;
-    } else {
-      lastTapRef.current = now;
-      setTimeout(() => {
-        if (lastTapRef.current && Date.now() - lastTapRef.current >= 320) {
-          togglePlay();
-          lastTapRef.current = 0;
-        }
-      }, 320);
+      return;
     }
+    lastTapRef.current = now;
+    togglePlay();
   }, [onLikeToggle, togglePlay]);
+
+  const toggleMuted = useCallback(() => {
+    setMuted((m) => {
+      const next = !m;
+      setReelsMutedPreference(next);
+      if (videoRef.current) videoRef.current.muted = next;
+      return next;
+    });
+  }, [videoRef]);
 
   return (
     <div
@@ -261,11 +228,9 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     >
       <video
         ref={videoRef}
-        loop
-        muted={muted}
         playsInline
         preload="metadata"
-        onClick={onTap}
+        onClick={onVideoTap}
         onError={() => setVideoError(true)}
         className="absolute inset-0 size-full object-cover select-none [-webkit-touch-callout:none]"
         poster={reel.media[0]?.thumbnailUrl ?? undefined}
@@ -280,8 +245,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             className="mt-3"
             onClick={() => {
               setVideoError(false);
-              const v = videoRef.current;
-              if (v) void v.play().catch(() => null);
+              togglePlay();
             }}
           >
             تلاش مجدد
@@ -294,49 +258,25 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           <span className="grid size-20 place-items-center rounded-full bg-black/40 backdrop-blur-sm">
             <IgPlay className="size-10 text-white" filled aria-hidden />
           </span>
+          <button
+            type="button"
+            aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMuted();
+            }}
+            className="pointer-events-auto absolute start-4 top-4 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none"
+          >
+            <IgVolume muted={muted} className="size-5" strokeWidth={1.75} aria-hidden />
+          </button>
         </div>
       ) : null}
 
       <HeartBurst trigger={burst} size={140} />
 
-      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 pt-[calc(var(--safe-top)+0.5rem)] text-white">
-        <button
-          type="button"
-          aria-label="بازگشت"
-          onClick={() => router.back()}
-          className="grid size-10 place-items-center rounded-full bg-black/40"
-        >
-          <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
-        </button>
-        <span className="text-sm font-semibold">ریلز</span>
-        <Link
-          href="/explore"
-          aria-label="جستجو"
-          className="grid size-10 place-items-center rounded-full bg-black/40"
-        >
-          <IgSearch className="size-5" strokeWidth={1.75} aria-hidden />
-        </Link>
-      </div>
-
-      <button
-        type="button"
-        aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
-        onClick={() => {
-          setMuted((m) => {
-            const next = !m;
-            setReelsMutedPreference(next);
-            if (videoRef.current) videoRef.current.muted = next;
-            return next;
-          });
-        }}
-        className="absolute start-4 top-14 z-10 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none"
-      >
-        <IgVolume muted={muted} className="size-5" strokeWidth={1.75} aria-hidden />
-      </button>
-
-      <div className="absolute inset-inline-end-3 bottom-[calc(var(--safe-bottom)+5.5rem)] z-10 flex w-12 flex-col items-center gap-3 text-white">
-        <Link href={`/profile/${reel.user.username}`} className="relative mb-1 block">
-          <Avatar size="sm" className="size-9 ring-2 ring-white">
+      <div className="reel-side-rail">
+        <Link href={`/profile/${reel.user.username}`} className="relative mb-0 block">
+          <Avatar size="sm" className="size-10 ring-2 ring-white">
             {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
             <AvatarFallback className="bg-white/20 text-[11px] text-white">
               {(reel.user.username ?? '?').slice(0, 2).toUpperCase()}
@@ -347,7 +287,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
               type="button"
               aria-label={following ? 'لغو دنبال‌کردن' : 'دنبال‌کردن'}
               className={cn(
-                'absolute -bottom-1.5 start-1/2 grid size-5 -translate-x-1/2 place-items-center rounded-full shadow-sm',
+                'absolute -bottom-1.5 start-1/2 grid size-5 -translate-x-1/2 rtl:translate-x-1/2 place-items-center rounded-full shadow-sm',
                 following ? 'bg-neutral-500 text-white' : 'bg-[#FF3040] text-white',
               )}
               onClick={async (e) => {
@@ -398,7 +338,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         </RailButton>
 
         <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
-          <IgOptions className="reel-action-icon-wide" />
+          <IgOptions className="reel-action-icon-wide" strokeWidth={2} />
         </RailButton>
 
         <RailButton ariaLabel="موسیقی">
@@ -406,94 +346,12 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         </RailButton>
       </div>
 
-      <div
-        className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.25rem)] z-10 h-1 cursor-pointer bg-white/25"
-        role="progressbar"
-        aria-valuenow={Math.round(progress * 100)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        onPointerDown={(e) => {
-          const video = videoRef.current;
-          const bar = e.currentTarget;
-          if (!video?.duration) return;
-          const rect = bar.getBoundingClientRect();
-          const seek = (e.clientX - rect.left) / rect.width;
-          const clamped = Math.min(1, Math.max(0, seek));
-          video.currentTime = clamped * video.duration;
-          setProgress(clamped);
-        }}
-      >
+      <div className="reel-bottom-stack pb-3">
         <div
-          className="h-full bg-white transition-[width] duration-150"
-          style={{ width: `${progress * 100}%` }}
-        />
-      </div>
-
-      <ReelCommentSheet postId={reel.id} open={commentsOpen} onOpenChange={setCommentsOpen} />
-      <ReportDialog
-        open={reportOpen}
-        onOpenChange={setReportOpen}
-        targetType="post"
-        targetId={reel.id}
-        title="گزارش ریل"
-      />
-      {moreOpen ? (
-        <div
-          className="absolute inset-0 z-20 flex items-end justify-center bg-black/50"
-          onClick={() => setMoreOpen(false)}
-        >
-          <div
-            className="mb-8 w-full max-w-sm rounded-t-2xl bg-surface p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
-              onClick={() => {
-                setMoreOpen(false);
-                void onSaveToggle();
-              }}
-            >
-              {saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
-            </button>
-            <button
-              type="button"
-              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
-              onClick={() => {
-                setMoreOpen(false);
-                router.push(`/create/story?repostPost=${reel.id}`);
-              }}
-            >
-              افزودن به استوری
-            </button>
-            <button
-              type="button"
-              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
-              onClick={() => {
-                setMoreOpen(false);
-                setReportOpen(true);
-              }}
-            >
-              گزارش
-            </button>
-            <button
-              type="button"
-              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
-              onClick={() => void onShare()}
-            >
-              <IgCopy className="size-4" strokeWidth={1.75} aria-hidden /> کپی لینک
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Bottom meta — IG Reels caption overlay */}
-      <div className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.75rem)] pe-[4.75rem] ps-3 text-white">
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-black/85 via-black/45 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent"
           aria-hidden
         />
-        <div className="relative flex flex-col gap-1.5">
+        <div className="relative flex flex-col gap-1.5 pb-1">
           <Link
             href={`/profile/${reel.user.username}`}
             className="inline-flex w-fit items-center gap-1.5 tap-none"
@@ -552,6 +410,88 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           </div>
         </div>
       </div>
+
+      <div
+        className="reel-progress"
+        role="progressbar"
+        aria-valuenow={Math.round(progress * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        onPointerDown={(e) => {
+          const bar = e.currentTarget;
+          const rect = bar.getBoundingClientRect();
+          seek((e.clientX - rect.left) / rect.width);
+        }}
+      >
+        <div
+          className="h-full bg-white transition-[width] duration-150"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
+
+      <ReelCommentSheet
+        postId={reel.id}
+        open={commentsOpen}
+        onOpenChange={setCommentsOpen}
+        isOwner={isOwnReel}
+        commentsEnabled={reel.commentsEnabled ?? true}
+      />
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="post"
+        targetId={reel.id}
+        title="گزارش ریل"
+      />
+      {moreOpen ? (
+        <div
+          className="absolute inset-0 z-20 flex items-end justify-center bg-black/50"
+          onClick={() => setMoreOpen(false)}
+        >
+          <div
+            className="mb-8 w-full max-w-sm rounded-t-2xl bg-surface p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => {
+                setMoreOpen(false);
+                void onSaveToggle();
+              }}
+            >
+              {saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
+            </button>
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => {
+                setMoreOpen(false);
+                router.push(`/create/story?repostPost=${reel.id}`);
+              }}
+            >
+              افزودن به استوری
+            </button>
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => {
+                setMoreOpen(false);
+                setReportOpen(true);
+              }}
+            >
+              گزارش
+            </button>
+            <button
+              type="button"
+              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+              onClick={() => void onShare()}
+            >
+              <IgCopy className="size-4" strokeWidth={1.75} aria-hidden /> کپی لینک
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -561,57 +501,25 @@ function RailButton({
   onClick,
   ariaLabel,
   label,
-  asChild,
 }: {
-  children: React.ReactElement | React.ReactNode;
+  children: React.ReactNode;
   onClick?: () => void;
   ariaLabel: string;
   label?: string;
-  asChild?: boolean;
 }) {
-  const base =
-    'inline-flex w-12 flex-col items-center gap-1 tap-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80';
-  const content = (
-    <>
-      <span className="grid size-8 place-items-center">{children}</span>
-      <span
-        className={cn(
-          'min-h-[13px] text-center text-[11px] font-semibold leading-none tracking-[0.01375rem] drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]',
-          !label && 'invisible',
-        )}
-        aria-hidden={!label}
-      >
-        {label ?? '·'}
-      </span>
-    </>
-  );
-
-  if (asChild && React.isValidElement(children)) {
-    const child = children as React.ReactElement<any>;
-    const icon = child.props.children;
-    return React.cloneElement(child, {
-      'aria-label': ariaLabel,
-      className: cn(base, child.props.className),
-      children: (
-        <>
-          <span className="grid size-8 place-items-center">{icon}</span>
-          <span
-            className={cn(
-              'min-h-[13px] text-center text-[11px] font-semibold leading-none tracking-[0.01375rem] drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]',
-              !label && 'invisible',
-            )}
-            aria-hidden={!label}
-          >
-            {label ?? '·'}
-          </span>
-        </>
-      ),
-    });
-  }
-
   return (
-    <button type="button" aria-label={ariaLabel} onClick={onClick} className={base}>
-      {content}
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onClick={onClick}
+      className="inline-flex flex-col items-center gap-1 tap-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+    >
+      <span className="grid size-8 place-items-center">{children}</span>
+      {label ? (
+        <span className="text-center text-[11px] font-semibold leading-none tracking-[0.01375rem] drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]">
+          {label}
+        </span>
+      ) : null}
     </button>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { SearchSuggestionItem } from '@agahiram/shared';
 import { formatPersianNumber, normalizePersianText } from '@agahiram/shared';
@@ -22,7 +22,9 @@ import { useUnreadMessages, useUnreadNotifications } from '@/hooks/useUnreadCoun
 const RECENT_KEY = 'agahiram_recent_searches';
 
 export function TopBar() {
+  const pathname = usePathname() ?? '/';
   const router = useRouter();
+  const hideOnReels = pathname === '/reels';
   const notifUnread = useUnreadNotifications();
   const msgUnread = useUnreadMessages();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -87,6 +89,8 @@ export function TopBar() {
     setSearchText('');
     router.push(`/explore?q=${encodeURIComponent(term)}`);
   };
+
+  if (hideOnReels) return null;
 
   return (
     <>

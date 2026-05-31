@@ -1,15 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { EmptyState, IgReels, Spinner } from '@agahiram/ui';
+import { EmptyState, IgArrowBack, IgReels, IgSearch, Spinner } from '@agahiram/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchReelsPage } from '@/lib/query-definitions';
 import { ReelPlayer } from '@/components/reel-player';
+import { videoPlaybackController } from '@/lib/video-playback-controller';
 
 const WINDOW = 1;
+const REEL_VIEWPORT_HEIGHT = 'calc(100svh - var(--bottom-nav) - var(--safe-bottom))';
 
 export default function ReelsPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -33,6 +38,7 @@ export default function ReelsPage() {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const reels = data?.pages.flatMap((p) => p.data) ?? [];
+  const activeReelId = reels[activeIndex]?.id;
 
   const updateActiveFromScroll = useCallback(() => {
     const root = scrollRef.current;
@@ -67,6 +73,16 @@ export default function ReelsPage() {
   }, [updateActiveFromScroll]);
 
   useEffect(() => {
+    if (!activeReelId) return;
+    videoPlaybackController.pauseExcept(`reel-${activeReelId}`);
+    void videoPlaybackController.requestPlay(`reel-${activeReelId}`, { resetUserPaused: true });
+  }, [activeIndex, activeReelId]);
+
+  useEffect(() => {
+    return () => videoPlaybackController.pauseAll();
+  }, []);
+
+  useEffect(() => {
     const next = reels[activeIndex + 1];
     if (!next) return;
     void qc.prefetchQuery({
@@ -81,64 +97,82 @@ export default function ReelsPage() {
   }, [activeIndex, reels, qc]);
 
   return (
-    <div
-      ref={scrollRef}
-      className="reels-scroll bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll overscroll-y-contain"
-      style={{
-        height: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
-        minHeight: '100dvh',
-        WebkitOverflowScrolling: 'touch',
-      }}
-    >
-      {isLoading && !data ? (
-        <div className="grid h-full place-items-center text-white">
-          <Spinner className="size-8" aria-hidden />
-        </div>
-      ) : reels.length === 0 ? (
-        <div className="grid h-full place-items-center text-white">
-          <EmptyState
-            icon={<IgReels className="size-10" strokeWidth={1.5} aria-hidden />}
-            title="فعلاً ریلی نیست"
-            description="به‌زودی ویدیوهای تازه را اینجا می‌بینید."
-            className="text-white [&_[data-empty-copy]_*]:text-white [&_[data-empty-visual]]:border-white/10 [&_[data-empty-visual]]:from-white/10 [&_[data-empty-visual]]:via-white/5 [&_[data-empty-visual]]:to-white/10 [&_[data-empty-visual]>span]:bg-white/10 [&_[data-empty-visual]>span]:text-white [&_[data-empty-visual]>span]:ring-white/10"
-          />
-        </div>
-      ) : (
-        <>
-          {reels.map((r, i) => {
-            const inWindow = Math.abs(i - activeIndex) <= WINDOW;
-            return (
-              <div
-                key={r.id}
-                data-reel-index={i}
-                className="relative flex h-full min-h-full w-full snap-start snap-always items-center justify-center bg-black"
-                style={{
-                  height:
-                    'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
-                }}
-              >
-                {inWindow ? (
-                  <ReelPlayer reel={r} active={i === activeIndex} />
-                ) : (
-                  <div
-                    className="size-full bg-neutral-950"
-                    style={{
-                      backgroundImage: r.media[0]?.thumbnailUrl
-                        ? `url(${r.media[0].thumbnailUrl})`
-                        : undefined,
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })}
-          <div ref={loaderRef} className="grid h-16 snap-start place-items-center text-white/70">
-            {isFetchingNextPage ? <Spinner className="size-6" aria-hidden /> : null}
+    <div className="relative bg-black">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between px-3 pt-[calc(var(--safe-top)+0.5rem)] text-white">
+        <button
+          type="button"
+          aria-label="بازگشت"
+          onClick={() => router.back()}
+          className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/40 tap-none"
+        >
+          <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
+        </button>
+        <span className="text-sm font-semibold drop-shadow-md">ریلز</span>
+        <Link
+          href="/explore"
+          aria-label="جستجو"
+          className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/40 tap-none"
+        >
+          <IgSearch className="size-5" strokeWidth={1.75} aria-hidden />
+        </Link>
+      </div>
+
+      <div
+        ref={scrollRef}
+        className="reels-scroll bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll overscroll-y-contain"
+        style={{
+          height: REEL_VIEWPORT_HEIGHT,
+          minHeight: '100dvh',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {isLoading && !data ? (
+          <div className="grid h-full place-items-center text-white">
+            <Spinner className="size-8" aria-hidden />
           </div>
-        </>
-      )}
+        ) : reels.length === 0 ? (
+          <div className="grid h-full place-items-center text-white">
+            <EmptyState
+              icon={<IgReels className="size-10" strokeWidth={1.5} aria-hidden />}
+              title="فعلاً ریلی نیست"
+              description="به‌زودی ویدیوهای تازه را اینجا می‌بینید."
+              className="text-white [&_[data-empty-copy]_*]:text-white [&_[data-empty-visual]]:border-white/10 [&_[data-empty-visual]]:from-white/10 [&_[data-empty-visual]]:via-white/5 [&_[data-empty-visual]]:to-white/10 [&_[data-empty-visual]>span]:bg-white/10 [&_[data-empty-visual]>span]:text-white [&_[data-empty-visual]>span]:ring-white/10"
+            />
+          </div>
+        ) : (
+          <>
+            {reels.map((r, i) => {
+              const inWindow = Math.abs(i - activeIndex) <= WINDOW;
+              return (
+                <div
+                  key={r.id}
+                  data-reel-index={i}
+                  className="relative flex h-full min-h-full w-full snap-start snap-always items-center justify-center bg-black"
+                  style={{ height: REEL_VIEWPORT_HEIGHT }}
+                >
+                  {inWindow ? (
+                    <ReelPlayer reel={r} active={i === activeIndex} />
+                  ) : (
+                    <div
+                      className="size-full bg-neutral-950"
+                      style={{
+                        backgroundImage: r.media[0]?.thumbnailUrl
+                          ? `url(${r.media[0].thumbnailUrl})`
+                          : undefined,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <div ref={loaderRef} className="grid h-16 snap-start place-items-center text-white/70">
+              {isFetchingNextPage ? <Spinner className="size-6" aria-hidden /> : null}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

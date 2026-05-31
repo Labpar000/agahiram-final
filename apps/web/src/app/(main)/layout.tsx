@@ -1,6 +1,7 @@
 import { BottomNav } from '@/components/bottom-nav';
 import { TopBar } from '@/components/top-bar';
 import { TabShell } from '@/components/tab-shell';
+import { MainViewport } from '@/components/main-viewport';
 import { FeedSpeculationRules } from '@/components/feed-speculation';
 
 export default function MainLayout({
@@ -24,17 +25,11 @@ export default function MainLayout({
       style={{ paddingBottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
     >
       <TopBar />
-      <main
-        id="main"
-        className="mx-auto max-w-2xl"
-        style={{
-          minHeight: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
-        }}
-      >
+      <MainViewport>
         <TabShell feed={feed} explore={explore} reels={reels} messages={messages} profile={profile}>
           {children}
         </TabShell>
-      </main>
+      </MainViewport>
       <FeedSpeculationRules />
       <BottomNav />
     </div>

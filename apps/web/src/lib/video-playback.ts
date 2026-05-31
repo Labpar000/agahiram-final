@@ -1,6 +1,6 @@
 'use client';
 
-import { resumeActiveVideos } from '@/lib/pwa-media-resume';
+import { videoPlaybackController } from '@/lib/video-playback-controller';
 
 export const SAFARI_VIDEO_ATTRS = {
   playsInline: true,
@@ -48,7 +48,7 @@ export function installVideoBfcacheHandlers() {
   window.addEventListener('pageshow', (event: PageTransitionEvent) => {
     if (!event.persisted) return;
     resetAllPageVideos();
-    resumeActiveVideos();
+    videoPlaybackController.pauseAll();
   });
 }
 
@@ -75,7 +75,7 @@ export function setupVideoSource(
     let instance: import('hls.js').default | null = null;
     let cancelled = false;
     void import('hls.js').then(({ default: Hls }) => {
-      if (cancelled || !video) return;
+      if (cancelled || !video.isConnected) return;
       if (Hls.isSupported()) {
         instance = new Hls({ maxBufferLength: 8 });
         instance.loadSource(hls);
@@ -118,29 +118,18 @@ export function setReelsMutedPreference(muted: boolean) {
   }
 }
 
-/** Play when ≥50% visible; pause and reset when leaving viewport. */
-export function observeReelPlayback(
+/** Feed card: report when ≥60% visible in viewport. */
+export function observeFeedVideo(
   container: HTMLElement,
-  video: HTMLVideoElement,
-  active: boolean,
-  onPlayingChange?: (playing: boolean) => void,
+  onVisibleChange: (visible: boolean) => void,
 ): () => void {
   const obs = new IntersectionObserver(
     (entries) => {
       const entry = entries[0];
-      if (!entry || !active) return;
-      if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
-        void video
-          .play()
-          .then(() => onPlayingChange?.(true))
-          .catch(() => onPlayingChange?.(false));
-      } else {
-        video.pause();
-        video.currentTime = 0;
-        onPlayingChange?.(false);
-      }
+      if (!entry) return;
+      onVisibleChange(entry.isIntersecting && entry.intersectionRatio >= 0.6);
     },
-    { threshold: [0, 0.5, 1] },
+    { threshold: [0, 0.6, 1] },
   );
   obs.observe(container);
   return () => obs.disconnect();

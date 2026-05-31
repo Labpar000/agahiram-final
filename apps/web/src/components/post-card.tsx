@@ -21,9 +21,9 @@ import {
   AvatarImage,
   Button,
   Drawer,
+  DrawerBody,
   DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
+  DrawerFooter,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -49,7 +49,8 @@ import { ReportDialog } from '@/components/report-dialog';
 import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
-import { CommentSection } from './comment-section';
+import { CommentComposer, CommentList, CommentSectionProvider } from './comment-section';
+import { CommentsDrawerHeader } from './comments-drawer-header';
 import { FeedPostVideo } from './feed-post-video';
 
 interface Props {
@@ -334,11 +335,16 @@ export function PostCard({
                 return m.type === 'video' ? (
                   <div key={m.id ?? i} className="relative h-full min-w-full shrink-0">
                     <FeedPostVideo
+                      id={`${post.id}-${m.id ?? i}`}
                       hlsUrl={m.hlsUrl}
                       mp4Url={m.url}
                       poster={m.thumbnailUrl ?? undefined}
                       className="size-full object-cover"
                       active={activeIndex === i}
+                      onDoubleTap={() => {
+                        void onLikeToggle(true);
+                        setBurst((b) => b + 1);
+                      }}
                     />
                   </div>
                 ) : (
@@ -560,18 +566,21 @@ export function PostCard({
       </div>
       {enableCommentsDrawer ? (
         <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
-          <DrawerContent className="max-h-[85svh] overflow-hidden">
-            <DrawerHeader className="border-b border-border">
-              <DrawerTitle>نظرات</DrawerTitle>
-            </DrawerHeader>
+          <DrawerContent className="flex max-h-[85svh] flex-col overflow-hidden">
+            <CommentsDrawerHeader title="نظرات" onClose={() => setCommentsOpen(false)} />
             {commentsOpen ? (
-              <div className="max-h-[72svh] overflow-y-auto">
-                <CommentSection
-                  postId={post.id}
-                  isOwner={isOwner}
-                  commentsEnabled={post.commentsEnabled ?? true}
-                />
-              </div>
+              <CommentSectionProvider
+                postId={post.id}
+                isOwner={isOwner}
+                commentsEnabled={post.commentsEnabled ?? true}
+              >
+                <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0">
+                  <CommentList variant="drawer" showHeader={false} />
+                </DrawerBody>
+                <DrawerFooter className="shrink-0 border-t border-border bg-surface/95 p-0">
+                  <CommentComposer variant="drawer" />
+                </DrawerFooter>
+              </CommentSectionProvider>
             ) : null}
           </DrawerContent>
         </Drawer>

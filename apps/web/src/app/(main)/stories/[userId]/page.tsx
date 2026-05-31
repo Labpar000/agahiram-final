@@ -449,6 +449,8 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
               <StoryVideo
                 mediaUrl={current.mediaUrl}
                 hlsUrl={current.hlsUrl}
+                playbackId={`story-${current.id}`}
+                active={!paused}
                 autoPlay
                 muted
                 className="size-full object-contain"

@@ -2,6 +2,7 @@
 
 import { resumeActiveVideos } from '@/lib/pwa-media-resume';
 import { installVideoBfcacheHandlers } from '@/lib/video-playback';
+import { videoPlaybackController } from '@/lib/video-playback-controller';
 import { connectSocket, disconnectSocket } from '@/lib/socket';
 
 let installed = false;
@@ -36,7 +37,10 @@ export function installNavigationLifecycle() {
   });
 
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState === 'hidden') {
+      videoPlaybackController.pauseAll();
+      return;
+    }
     connectSocket();
     void refreshServiceWorker();
     resumeActiveVideos();

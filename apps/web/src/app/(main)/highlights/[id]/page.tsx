@@ -94,7 +94,14 @@ export default function HighlightViewerPage({ params }: { params: Promise<{ id: 
           return (
             <div className="relative size-full" style={{ filter: filterCss }}>
               {current.type === 'video' ? (
-                <StoryVideo mediaUrl={current.mediaUrl} className="size-full object-cover" />
+                <StoryVideo
+                  mediaUrl={current.mediaUrl}
+                  playbackId={`highlight-${current.id}`}
+                  active
+                  autoPlay
+                  muted
+                  className="size-full object-cover"
+                />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={current.mediaUrl} alt="" className="size-full object-cover" />

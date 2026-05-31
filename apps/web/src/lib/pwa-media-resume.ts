@@ -1,14 +1,10 @@
 'use client';
 
-/** Resume paused in-viewport videos after PWA / tab background (iOS Safari). */
+import { videoPlaybackController } from '@/lib/video-playback-controller';
+
+/** Resume the controller-managed active video after PWA / tab foreground. */
 export function resumeActiveVideos() {
   if (typeof document === 'undefined') return;
-  const videos = document.querySelectorAll<HTMLVideoElement>('video');
-  videos.forEach((video) => {
-    const rect = video.getBoundingClientRect();
-    const inView = rect.top < window.innerHeight && rect.bottom > 0;
-    if (!inView) return;
-    if (video.readyState < 2) return;
-    void video.play().catch(() => null);
-  });
+  if (document.visibilityState === 'hidden') return;
+  videoPlaybackController.resumeActive();
 }

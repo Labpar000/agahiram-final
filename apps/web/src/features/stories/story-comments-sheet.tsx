@@ -7,18 +7,29 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  Button,
   Drawer,
+  DrawerBody,
   DrawerContent,
+  DrawerFooter,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  EmptyState,
+  IconButton,
   IgComment,
-  IgSend,
+  IgMore,
   IgTrash,
-  Input,
+  Skeleton,
   toast,
 } from '@agahiram/ui';
 import { formatRelativeTimeFa } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import { CommentContent } from '@/components/comment-content';
+import { CommentComposerBar, CommentLoginPrompt } from '@/components/comment-composer-bar';
+import { CommentsDrawerHeader } from '@/components/comments-drawer-header';
+import { profilePath } from '@/lib/profile-path';
 
 export interface StoryComment {
   id: string;
@@ -30,6 +41,77 @@ export interface StoryComment {
     avatar: string | null;
     isVerified: boolean;
   };
+}
+
+function StoryCommentRow({
+  c,
+  isOwner,
+  onDelete,
+}: {
+  c: StoryComment;
+  isOwner: boolean;
+  onDelete: () => void;
+}) {
+  return (
+    <li className="flex gap-3 py-2">
+      <Link href={profilePath(c.user.username, c.user.id)} className="shrink-0 tap-none">
+        <Avatar size="sm" verified={c.user.isVerified}>
+          {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
+          <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
+        </Avatar>
+      </Link>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm leading-relaxed">
+          <Link
+            href={profilePath(c.user.username, c.user.id)}
+            className="me-1.5 font-semibold hover:underline"
+          >
+            {c.user.username ?? 'کاربر'}
+          </Link>
+          <CommentContent content={c.content} />
+        </p>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {formatRelativeTimeFa(c.createdAt)}
+        </p>
+      </div>
+      {isOwner ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="size-7 shrink-0 text-muted-foreground"
+              aria-label="گزینه‌های بیشتر"
+              icon={<IgMore className="size-4" strokeWidth={1.75} aria-hidden />}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-[10rem]">
+            <DropdownMenuItem destructive onClick={onDelete}>
+              <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
+              حذف
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </li>
+  );
+}
+
+function StoryCommentListSkeleton() {
+  return (
+    <div className="space-y-4 px-4 py-3" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="flex gap-3">
+          <Skeleton className="size-8 shrink-0 rounded-full" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-24 rounded" />
+            <Skeleton className="h-3 w-full rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function StoryCommentsSheet({
@@ -83,73 +165,68 @@ export function StoryCommentsSheet({
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const showComposerFooter = !isOwner;
+
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[75vh]">
-        <div className="flex flex-col p-4">
-          <h3 className="mb-3 flex items-center gap-2 text-h3 font-bold">
-            <IgComment className="size-5" strokeWidth={1.75} aria-hidden />
-            کامنت‌های استوری
-          </h3>
-          {isLoading ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">در حال بارگذاری…</p>
-          ) : (
-            <ul className="mb-4 max-h-48 space-y-3 overflow-y-auto">
-              {comments.map((c) => (
-                <li key={c.id} className="flex gap-2">
-                  <Link href={`/profile/${c.user.username ?? c.user.id}`}>
-                    <Avatar size="sm" verified={c.user.isVerified}>
-                      {c.user.avatar ? <AvatarImage src={c.user.avatar} alt="" /> : null}
-                      <AvatarFallback>{(c.user.username ?? '?').slice(0, 2)}</AvatarFallback>
-                    </Avatar>
-                  </Link>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold">@{c.user.username}</p>
-                    <p className="text-sm">{c.content}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {formatRelativeTimeFa(c.createdAt)}
-                    </p>
-                  </div>
-                  {isOwner ? (
-                    <button
-                      type="button"
-                      aria-label="حذف کامنت"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteComment.mutate(c.id)}
-                    >
-                      <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-              {!comments.length ? (
-                <li className="py-4 text-center text-sm text-muted-foreground">
-                  هنوز کامنتی نیست.
-                </li>
-              ) : null}
-            </ul>
-          )}
-          {me && !isOwner ? (
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!text.trim()) return;
-                addComment.mutate(text.trim());
-              }}
-            >
-              <Input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="کامنت (فقط اگر او شما را دنبال کند)"
-                className="flex-1"
-              />
-              <Button type="submit" size="sm" isLoading={addComment.isPending}>
-                ارسال
-              </Button>
-            </form>
-          ) : null}
-        </div>
+      <DrawerContent className="flex max-h-[85svh] flex-col overflow-hidden">
+        <CommentsDrawerHeader title="نظرات استوری" onClose={() => onOpenChange(false)} />
+
+        {open ? (
+          <>
+            <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0">
+              {isLoading ? (
+                <StoryCommentListSkeleton />
+              ) : comments.length === 0 ? (
+                <div className="px-4 py-8">
+                  <EmptyState
+                    size="sm"
+                    icon={<IgComment className="size-6" strokeWidth={1.75} aria-hidden />}
+                    title="هنوز نظری ثبت نشده"
+                    description="اولین نفری باشید که نظر می‌دهد"
+                  />
+                </div>
+              ) : (
+                <ul className="divide-y divide-border/60 px-4 py-1">
+                  {comments.map((c) => (
+                    <StoryCommentRow
+                      key={c.id}
+                      c={c}
+                      isOwner={isOwner}
+                      onDelete={() => deleteComment.mutate(c.id)}
+                    />
+                  ))}
+                </ul>
+              )}
+            </DrawerBody>
+
+            {showComposerFooter ? (
+              <DrawerFooter className="shrink-0 border-t border-border bg-surface/95 p-0">
+                {me ? (
+                  <CommentComposerBar
+                    variant="drawer"
+                    value={text}
+                    onChange={setText}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (!text.trim()) return;
+                      addComment.mutate(text.trim());
+                    }}
+                    isPending={addComment.isPending}
+                    placeholder="نظر خود را بنویسید…"
+                    hint={
+                      <p className="text-center text-[10px] text-muted-foreground">
+                        فقط اگر صاحب استوری شما را دنبال کند
+                      </p>
+                    }
+                  />
+                ) : (
+                  <CommentLoginPrompt variant="drawer" />
+                )}
+              </DrawerFooter>
+            ) : null}
+          </>
+        ) : null}
       </DrawerContent>
     </Drawer>
   );
