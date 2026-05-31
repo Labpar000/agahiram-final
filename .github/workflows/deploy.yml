@@ -194,7 +194,7 @@ jobs:
       always() &&
       needs.scope.outputs.need_deploy == 'true' &&
       (needs.scope.outputs.need_build != 'true' || needs.build.result == 'success')
-    timeout-minutes: 15
+    timeout-minutes: 45
     environment:
       name: production
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
