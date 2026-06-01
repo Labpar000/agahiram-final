@@ -170,6 +170,7 @@ export function StoryCommentsSheet({
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent className="flex max-h-[85svh] flex-col overflow-hidden">
+        <div aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted-foreground/25" />
         <CommentsDrawerHeader title="نظرات استوری" onClose={() => onOpenChange(false)} />
 
         {open ? (
@@ -214,11 +215,6 @@ export function StoryCommentsSheet({
                     }}
                     isPending={addComment.isPending}
                     placeholder="نظر خود را بنویسید…"
-                    hint={
-                      <p className="text-center text-[10px] text-muted-foreground">
-                        فقط اگر صاحب استوری شما را دنبال کند
-                      </p>
-                    }
                   />
                 ) : (
                   <CommentLoginPrompt variant="drawer" />

@@ -917,6 +917,18 @@ export const IgPin = React.forwardRef<SVGSVGElement, IconProps>(
 );
 IgPin.displayName = 'IgPin';
 
+export const IgArchive = React.forwardRef<SVGSVGElement, IconProps>(
+  ({ strokeWidth, className, title, ...rest }, ref) => (
+    <svg ref={ref} {...baseProps(false, strokeWidth, className)} {...rest}>
+      {title ? <title>{title}</title> : null}
+      <rect width="20" height="5" x="2" y="3" rx="1" />
+      <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+      <path d="M10 12h4" />
+    </svg>
+  ),
+);
+IgArchive.displayName = 'IgArchive';
+
 export const IgLayers = React.forwardRef<SVGSVGElement, IconProps>(
   ({ strokeWidth, className, title, ...rest }, ref) => (
     <svg ref={ref} {...baseProps(false, strokeWidth, className)} {...rest}>

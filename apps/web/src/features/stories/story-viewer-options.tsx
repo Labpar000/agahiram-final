@@ -59,13 +59,17 @@ export function StoryViewerOptions({
         type="button"
         aria-label="گزینه‌ها"
         onClick={() => setMenuOpen(true)}
-        className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
+        className="grid size-9 place-items-center rounded-full text-white/90 tap-none"
       >
-        <IgFlag className="size-5" strokeWidth={1.75} aria-hidden />
+        <IgFlag className="size-6" strokeWidth={1.5} aria-hidden />
       </button>
       <Drawer open={menuOpen} onOpenChange={setMenuOpen}>
         <DrawerContent>
-          <div className="space-y-1 p-4 pb-8">
+          <div
+            aria-hidden
+            className="mx-auto mb-1 mt-1.5 h-1 w-10 rounded-full bg-muted-foreground/25"
+          />
+          <div className="space-y-1 px-4 pb-8">
             <Link
               href={`/create/story?repostStory=${storyId}`}
               className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm hover:bg-muted"

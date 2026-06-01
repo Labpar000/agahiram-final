@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery } from '@tanstack/react-query';
-import { IgPlus } from '@agahiram/ui';
+import { IgArchive, IgLock, IgPin, IgPlus } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 
 interface Highlight {
@@ -15,8 +15,7 @@ interface Highlight {
   storyCount?: number;
 }
 
-/** IG highlight circle ~77px */
-const HIGHLIGHT_SIZE = 'size-[4.8125rem]';
+const HIGHLIGHT_SIZE = 'size-[4.625rem]';
 
 export function ProfileHighlights({ username, isMe }: { username: string; isMe: boolean }) {
   const { data: highlights = [] } = useQuery({
@@ -30,7 +29,7 @@ export function ProfileHighlights({ username, isMe }: { username: string; isMe: 
   if (highlights.length === 0 && !isMe) return null;
 
   return (
-    <div className="flex gap-4 overflow-x-auto px-4 pb-3 scrollbar-hide">
+    <div className="flex gap-3 overflow-x-auto px-4 pb-3 scrollbar-hide">
       {isMe ? (
         <>
           <Link
@@ -39,7 +38,7 @@ export function ProfileHighlights({ username, isMe }: { username: string; isMe: 
             aria-label="افزودن استوری"
           >
             <span
-              className={`grid ${HIGHLIGHT_SIZE} place-items-center rounded-full border border-border bg-muted`}
+              className={`grid ${HIGHLIGHT_SIZE} place-items-center rounded-full border border-border/60 bg-muted`}
             >
               <IgPlus className="size-6 text-muted-foreground" strokeWidth={1.75} aria-hidden />
             </span>
@@ -51,11 +50,9 @@ export function ProfileHighlights({ username, isMe }: { username: string; isMe: 
             aria-label="آرشیو استوری"
           >
             <span
-              className={`grid ${HIGHLIGHT_SIZE} place-items-center rounded-full border border-border bg-muted`}
+              className={`grid ${HIGHLIGHT_SIZE} place-items-center rounded-full border border-border/60 bg-muted`}
             >
-              <span className="text-lg" aria-hidden>
-                📁
-              </span>
+              <IgArchive className="size-6 text-muted-foreground" strokeWidth={1.75} aria-hidden />
             </span>
             <span className="max-w-[4.5rem] truncate text-xs">آرشیو</span>
           </Link>
@@ -65,7 +62,7 @@ export function ProfileHighlights({ username, isMe }: { username: string; isMe: 
             aria-label="ساخت هایلایت"
           >
             <span
-              className={`grid ${HIGHLIGHT_SIZE} place-items-center rounded-full border border-dashed border-border`}
+              className={`grid ${HIGHLIGHT_SIZE} place-items-center rounded-full border border-dashed border-border/60`}
             >
               <IgPlus className="size-6 text-foreground" strokeWidth={1.75} aria-hidden />
             </span>
@@ -85,20 +82,20 @@ export function ProfileHighlights({ username, isMe }: { username: string; isMe: 
           }}
         >
           <span
-            className={`relative ${HIGHLIGHT_SIZE} overflow-hidden rounded-full ring-2 ring-border`}
+            className={`relative ${HIGHLIGHT_SIZE} overflow-hidden rounded-full ring-1 ring-border/50`}
           >
             {h.coverUrl ? (
-              <Image src={h.coverUrl} alt="" fill className="object-cover" sizes="77px" />
+              <Image src={h.coverUrl} alt="" fill className="object-cover" sizes="74px" />
             ) : h.restricted ? (
-              <span className="grid size-full place-items-center bg-muted text-xs text-muted-foreground">
-                🔒
+              <span className="grid size-full place-items-center bg-muted">
+                <IgLock className="size-5 text-muted-foreground" strokeWidth={1.75} aria-hidden />
               </span>
             ) : (
               <span className="grid size-full place-items-center bg-muted text-xs">★</span>
             )}
             {h.pinnedOrder != null ? (
-              <span className="absolute -top-0.5 start-0 rounded-full bg-ig-badge px-1 text-[9px] font-bold text-white">
-                📌
+              <span className="absolute -top-0.5 start-0 grid size-5 place-items-center rounded-full bg-ig-badge text-white">
+                <IgPin className="size-3" strokeWidth={2} aria-hidden />
               </span>
             ) : null}
           </span>

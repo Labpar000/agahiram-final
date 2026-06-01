@@ -69,7 +69,7 @@ export function StoryTrayItem({
       {children ?? ring}
       <span
         className={cn(
-          'mt-1.5 w-full max-w-[66px] truncate text-center text-xs lowercase',
+          'mt-1.5 w-full max-w-[66px] truncate text-center text-xs',
           variant === 'add' ? 'text-muted-foreground' : 'text-foreground',
           labelClassName,
         )}

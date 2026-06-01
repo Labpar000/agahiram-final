@@ -37,17 +37,19 @@ export function StoryDiscoverRings({
     <div>
       <h1 className="text-lg font-bold">{title}</h1>
       {subtitle ? <p className="text-sm text-muted-foreground">{subtitle}</p> : null}
-      <ul className="mt-4 flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+      <ul className="mt-4 flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
         {groups.map((g) => (
           <li key={g.userId}>
             <Link
               href={`/stories/${g.userId}`}
-              className="flex w-[4.125rem] shrink-0 flex-col items-center gap-1.5"
+              className="flex w-[4.625rem] shrink-0 flex-col items-center gap-1.5"
             >
               <span
                 className={cn(
-                  'grid size-[4.125rem] place-items-center rounded-full p-[2px]',
-                  g.hasUnviewed !== false ? 'gradient-story' : 'bg-border',
+                  'grid size-[4.625rem] place-items-center rounded-full p-[2px]',
+                  g.hasUnviewed !== false
+                    ? 'gradient-story'
+                    : 'ring-2 ring-story-ring-viewed ring-offset-2 ring-offset-surface',
                 )}
               >
                 <span className="grid size-full place-items-center rounded-full bg-surface p-[2px]">
@@ -59,16 +61,16 @@ export function StoryDiscoverRings({
                       <Image
                         src={thumb}
                         alt=""
-                        width={58}
-                        height={58}
+                        width={68}
+                        height={68}
                         className="size-full rounded-full object-cover"
                       />
                     ) : g.user.avatar ? (
                       <Image
                         src={g.user.avatar}
                         alt=""
-                        width={58}
-                        height={58}
+                        width={68}
+                        height={68}
                         className="size-full rounded-full object-cover"
                       />
                     ) : (
@@ -79,7 +81,9 @@ export function StoryDiscoverRings({
                   })()}
                 </span>
               </span>
-              <span className="w-full truncate text-center text-xs">{g.user.username}</span>
+              <span className="w-full max-w-[66px] truncate text-center text-xs">
+                {g.user.username}
+              </span>
             </Link>
           </li>
         ))}

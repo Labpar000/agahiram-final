@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -10,11 +10,19 @@ import {
   AvatarImage,
   Drawer,
   DrawerContent,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  IconButton,
   IgClose,
   IgComment,
   IgExternalLink,
   IgEye,
+  IgMention,
+  IgMore,
   IgSend,
+  IgShare2026,
   IgTrash,
   Spinner,
 } from '@agahiram/ui';
@@ -95,6 +103,9 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
   const [replyText, setReplyText] = useState('');
   const [floatingEmoji, setFloatingEmoji] = useState<string | null>(null);
   const [liveViewCount, setLiveViewCount] = useState<number | null>(null);
+  const [progressWidth, setProgressWidth] = useState(0);
+  const progressRef = useRef<{ start: number; elapsed: number }>({ start: 0, elapsed: 0 });
+  const rafRef = useRef<number>(0);
   const me = useAuthStore((s) => s.user);
   const queryClient = useQueryClient();
 
@@ -245,12 +256,37 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
     };
   }, [isOwner, me?.id, current?.id, current?.viewerCount, queryClient]);
 
+  // Progress bar animation via rAF for proper pause/resume
   useEffect(() => {
     if (!current || paused) return;
     void apiClient.post(`/stories/${current.id}/view`);
-    const t = setTimeout(goNextSegment, segmentMs);
-    return () => clearTimeout(t);
-  }, [current?.id, index, paused, segmentMs, goNextSegment]);
+
+    progressRef.current.start = performance.now() - progressRef.current.elapsed;
+
+    const tick = () => {
+      const elapsed = performance.now() - progressRef.current.start;
+      progressRef.current.elapsed = elapsed;
+      const pct = Math.min(1, elapsed / segmentMs);
+      setProgressWidth(pct);
+      if (pct < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        goNextSegment();
+      }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset on story change
+  }, [current?.id, index, paused, segmentMs]);
+
+  // Reset progress on story change
+  useEffect(() => {
+    progressRef.current = { start: 0, elapsed: 0 };
+    setProgressWidth(0);
+  }, [index, current?.id]);
 
   const sendReaction = async (emoji: string) => {
     if (!current) return;
@@ -267,6 +303,15 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
       toast.success('پاسخ ارسال شد');
       setReplyText('');
     } else toast.error(r.error ?? 'خطا');
+  };
+
+  const deleteStory = async () => {
+    if (!current) return;
+    const r = await apiClient.delete(`/stories/${current.id}`);
+    if (r.success) {
+      toast.success('حذف شد');
+      router.back();
+    }
   };
 
   if (isLoading) {
@@ -299,29 +344,16 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
       className="fixed inset-0 z-50 grid place-items-center bg-black"
       role="dialog"
       aria-label={`استوری ${group.user.username}`}
-      onPointerDown={(e) => {
-        if (e.clientY < 80) return;
-        const startY = e.clientY;
-        const onUp = (ev: PointerEvent) => {
-          if (ev.clientY - startY > 80) {
-            trackNav('EXIT');
-            router.back();
-          }
-          window.removeEventListener('pointerup', onUp);
-        };
-        window.addEventListener('pointerup', onUp);
-      }}
     >
       <div className="relative h-full max-h-svh w-full max-w-md bg-neutral-900 sm:aspect-[9/16] sm:h-auto sm:overflow-hidden sm:rounded-3xl">
         {/* Progress bars */}
-        <div className="absolute inset-x-2 top-[calc(var(--safe-top)+0.5rem)] z-10 flex gap-1">
+        <div className="absolute inset-x-3 top-[calc(var(--safe-top)+0.5rem)] z-10 flex gap-0.5">
           {stories.map((_, i) => (
-            <div key={i} className="h-0.5 flex-1 overflow-hidden rounded-full bg-white/30">
+            <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
               <div
-                className="h-full bg-white"
+                className="h-full rounded-full bg-white will-change-[width]"
                 style={{
-                  width: i < index ? '100%' : i === index ? '100%' : '0%',
-                  transition: i === index && !paused ? `width ${segmentMs}ms linear` : 'none',
+                  width: i < index ? '100%' : i === index ? `${progressWidth * 100}%` : '0%',
                 }}
               />
             </div>
@@ -329,27 +361,28 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
         </div>
 
         {/* Header */}
-        <div className="absolute inset-x-3 top-[calc(var(--safe-top)+1.5rem)] z-10 flex items-center justify-between">
+        <div className="absolute inset-x-3 top-[calc(var(--safe-top)+1.75rem)] z-10 flex items-center gap-2">
           <Link
             href={`/profile/${group.user.username}`}
-            className="flex min-w-0 items-center gap-2 rounded-full text-white tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-full text-white tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            <Avatar size="sm" className="ring-2 ring-white/40">
+            <Avatar size="sm" className="ring-2 ring-white/30">
               {group.user.avatar ? <AvatarImage src={group.user.avatar} alt="" /> : null}
-              <AvatarFallback className="bg-white/15 text-white">
+              <AvatarFallback className="bg-white/15 text-white text-[10px]">
                 {(group.user.username ?? '?').slice(0, 2)}
               </AvatarFallback>
             </Avatar>
-            <span className="truncate text-sm font-semibold drop-shadow-md">
+            <span className="truncate text-[13px] font-semibold drop-shadow-md">
               {group.user.username}
             </span>
             {current.createdAt ? (
-              <span className="text-[11px] text-white/80">
+              <span className="shrink-0 text-[11px] text-white/60">
                 {formatRelativeTimeFa(current.createdAt)}
               </span>
             ) : null}
           </Link>
-          <div className="flex gap-1">
+
+          <div className="flex items-center gap-1">
             {!isOwner && current ? (
               <>
                 {current.allowReplies !== 'OFF' ? (
@@ -357,11 +390,11 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                     type="button"
                     aria-label="کامنت"
                     onClick={() => setCommentsOpen(true)}
-                    className="relative grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                    className="relative grid size-9 place-items-center rounded-full text-white/90 tap-none"
                   >
-                    <IgComment className="size-5" strokeWidth={1.75} aria-hidden />
+                    <IgComment className="size-6" strokeWidth={1.5} aria-hidden />
                     {(current.commentCount ?? 0) > 0 ? (
-                      <span className="absolute -end-0.5 -top-0.5 min-w-[1.125rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                      <span className="absolute -end-0.5 -top-0.5 min-w-[1rem] rounded-full bg-red-500 px-0.5 text-center text-[9px] font-bold leading-3.5 text-white">
                         {formatPersianNumber(Math.min(current.commentCount ?? 0, 99))}
                       </span>
                     ) : null}
@@ -379,71 +412,73 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                   type="button"
                   aria-label="کامنت‌ها"
                   onClick={() => setCommentsOpen(true)}
-                  className="relative grid size-10 place-items-center rounded-full bg-black/40 text-white"
+                  className="relative grid size-9 place-items-center rounded-full text-white/90 tap-none"
                 >
-                  <IgComment className="size-5" strokeWidth={1.75} aria-hidden />
+                  <IgComment className="size-6" strokeWidth={1.5} aria-hidden />
                   {(current.commentCount ?? 0) > 0 ? (
-                    <span className="absolute -end-0.5 -top-0.5 min-w-[1.125rem] rounded-full bg-red-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                    <span className="absolute -end-0.5 -top-0.5 min-w-[1rem] rounded-full bg-red-500 px-0.5 text-center text-[9px] font-bold leading-3.5 text-white">
                       {formatPersianNumber(Math.min(current.commentCount ?? 0, 99))}
                     </span>
                   ) : null}
                 </button>
-                <button
-                  type="button"
-                  aria-label="منشن"
-                  onClick={() => setMentionsOpen(true)}
-                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
-                >
-                  @
-                </button>
-                <button
-                  type="button"
-                  aria-label="اشتراک در پیام"
-                  onClick={() => setShareOpen(true)}
-                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
-                >
-                  <IgSend className="size-5" strokeWidth={1.75} aria-hidden />
-                </button>
-                <Link
-                  href="/stories/insights"
-                  aria-label="آمار استوری‌ها"
-                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
-                >
-                  <IgEye className="size-5" strokeWidth={1.75} aria-hidden />
-                </Link>
-                <button
-                  type="button"
-                  aria-label="حذف استوری"
-                  onClick={async () => {
-                    if (!current) return;
-                    const r = await apiClient.delete(`/stories/${current.id}`);
-                    if (r.success) {
-                      toast.success('حذف شد');
-                      router.back();
-                    }
-                  }}
-                  className="grid size-10 place-items-center rounded-full bg-black/40 text-white"
-                >
-                  <IgTrash className="size-5" strokeWidth={1.75} aria-hidden />
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <IconButton
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="size-9 text-white/90 hover:text-white"
+                      aria-label="گزینه‌ها"
+                      icon={<IgMore className="size-6" strokeWidth={1.5} aria-hidden />}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[11rem]">
+                    <DropdownMenuItem onClick={() => setMentionsOpen(true)}>
+                      <IgMention className="size-4" strokeWidth={1.75} aria-hidden />
+                      منشن
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                      <IgShare2026 className="size-4" strokeWidth={1.75} aria-hidden />
+                      اشتراک در پیام
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href="/stories/insights">
+                        <IgEye className="size-4" strokeWidth={1.75} aria-hidden />
+                        آمار استوری‌ها
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem destructive onClick={() => void deleteStory()}>
+                      <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
+                      حذف استوری
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </>
             )}
+            <button
+              type="button"
+              aria-label="بستن"
+              onClick={() => {
+                trackNav('EXIT');
+                router.back();
+              }}
+              className="grid size-9 place-items-center rounded-full text-white/90 tap-none hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <IgClose className="size-6" strokeWidth={1.5} aria-hidden />
+            </button>
           </div>
-          <button
-            type="button"
-            aria-label="بستن"
-            onClick={() => {
-              trackNav('EXIT');
-              router.back();
-            }}
-            className="grid size-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-          >
-            <IgClose className="size-5" strokeWidth={1.75} aria-hidden />
-          </button>
         </div>
 
         {/* Media */}
-        <div className="relative size-full">
+        <div
+          className="relative size-full overflow-hidden"
+          onPointerDown={(e) => {
+            if (e.clientY < 80) return;
+            setPaused(true);
+          }}
+          onPointerUp={() => setPaused(false)}
+          onPointerLeave={() => setPaused(false)}
+        >
           <div className="relative size-full" style={{ filter: mediaFilterCss }}>
             {current.type === 'video' ? (
               <StoryVideo
@@ -453,14 +488,14 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                 active={!paused}
                 autoPlay
                 muted
-                fit="contain"
+                fit="cover"
               />
             ) : (
               <Image
                 src={current.mediaUrl}
                 alt=""
                 fill
-                className="object-contain"
+                className="object-cover"
                 sizes="(max-width: 640px) 100vw, 420px"
               />
             )}
@@ -487,7 +522,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                 url: `/post/${current.linkedPostId}`,
               });
             }}
-            className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+1.5rem)] z-10 mx-auto inline-flex min-h-10 w-fit items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur-md tap-none transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+5rem)] z-10 mx-auto inline-flex min-h-10 w-fit items-center gap-2 rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-neutral-900 shadow-lg backdrop-blur-md tap-none transition-transform hover:scale-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
             <IgExternalLink className="size-4" strokeWidth={1.75} aria-hidden /> مشاهده آگهی
           </Link>
@@ -520,41 +555,46 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
           ) : null}
         </AnimatePresence>
 
+        {/* Reply bar (non-owner) */}
         {!isOwner && current.allowReplies !== 'OFF' ? (
-          <div className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.5rem)] z-10 space-y-2 px-3">
-            <div className="flex justify-center gap-2">
-              {REACTIONS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  className="text-2xl tap-none"
-                  onClick={() => void sendReaction(e)}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-            <form
-              className="flex gap-2"
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                void sendReply();
-              }}
-            >
-              <Input
-                value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
-                placeholder="پاسخ به استوری…"
-                className="flex-1 border-white/20 bg-black/50 text-white placeholder:text-white/60"
-              />
-              <button
-                type="submit"
-                aria-label="ارسال"
-                className="grid size-10 place-items-center rounded-full bg-white/20 text-white"
+          <div className="absolute inset-x-0 bottom-[calc(var(--safe-bottom)+0.5rem)] z-10 px-3">
+            <div className="rounded-2xl bg-black/40 px-3 py-2.5 backdrop-blur-md">
+              <div className="mb-2 flex justify-center gap-3">
+                {REACTIONS.map((e) => (
+                  <button
+                    key={e}
+                    type="button"
+                    className="text-xl transition-transform tap-none active:scale-125"
+                    onClick={() => void sendReaction(e)}
+                  >
+                    {e}
+                  </button>
+                ))}
+              </div>
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  void sendReply();
+                }}
               >
-                <IgSend className="size-4 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
-              </button>
-            </form>
+                <Input
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  placeholder="پاسخ به استوری…"
+                  className="flex-1 rounded-full border-white/15 bg-white/10 text-white placeholder:text-white/50"
+                />
+                {replyText.trim() ? (
+                  <button
+                    type="submit"
+                    aria-label="ارسال"
+                    className="shrink-0 text-sm font-semibold text-blue-400 tap-none"
+                  >
+                    ارسال
+                  </button>
+                ) : null}
+              </form>
+            </div>
           </div>
         ) : null}
 
@@ -562,33 +602,15 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
         <button
           type="button"
           aria-label="استوری قبلی"
-          onPointerDown={() => setPaused(true)}
-          onPointerUp={() => setPaused(false)}
-          onPointerLeave={() => setPaused(false)}
           onClick={goPrevSegment}
-          className={cn(
-            'absolute inset-y-0 start-0 w-1/3 cursor-w-resize bg-transparent rtl:cursor-e-resize',
-          )}
+          className="absolute inset-y-0 start-0 w-1/3 cursor-w-resize bg-transparent rtl:cursor-e-resize"
         />
         <button
           type="button"
           aria-label="استوری بعدی"
-          onPointerDown={() => setPaused(true)}
-          onPointerUp={() => setPaused(false)}
-          onPointerLeave={() => setPaused(false)}
           onClick={goNextSegment}
-          className={cn(
-            'absolute inset-y-0 end-0 w-1/3 cursor-e-resize bg-transparent rtl:cursor-w-resize',
-          )}
+          className="absolute inset-y-0 end-0 w-1/3 cursor-e-resize bg-transparent rtl:cursor-w-resize"
         />
-        {isOwner ? (
-          <button
-            type="button"
-            aria-label="بازدیدها"
-            className="absolute inset-x-0 bottom-0 top-1/3 z-[5] bg-transparent"
-            onClick={() => setInsightsOpen(true)}
-          />
-        ) : null}
       </div>
 
       {current ? (
@@ -615,27 +637,12 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
       {isOwner ? (
         <Drawer open={insightsOpen} onOpenChange={setInsightsOpen}>
           <DrawerContent className="max-h-[80vh]">
-            <div className="space-y-3 p-4">
-              <h3 className="text-h3 font-bold tracking-tight">بازدیدکنندگان استوری</h3>
-              {current ? (
-                <button
-                  type="button"
-                  className="w-full rounded-lg border border-border py-2 text-sm font-medium"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(current.mediaUrl);
-                      const blob = await res.blob();
-                      const ext = current.type === 'video' ? 'mp4' : 'jpg';
-                      await downloadBlob(blob, `story-${current.id}.${ext}`);
-                      toast.success('دانلود شروع شد');
-                    } catch {
-                      toast.error('ذخیره در دستگاه ناموفق بود');
-                    }
-                  }}
-                >
-                  ذخیره در دستگاه
-                </button>
-              ) : null}
+            <div
+              aria-hidden
+              className="mx-auto mb-2 mt-1.5 h-1 w-10 rounded-full bg-muted-foreground/25"
+            />
+            <div className="space-y-3 overflow-y-auto p-4 pt-0">
+              <h3 className="text-base font-bold tracking-tight">بازدیدکنندگان استوری</h3>
               <StoryInsightsPanel
                 data={storyInsightsQuery.data}
                 isLoading={storyInsightsQuery.isLoading}
@@ -657,7 +664,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
               <StoryStickerResultsPanel results={stickerResultsQuery.data ?? []} />
               <ul className="divide-y divide-border">
                 {(viewersQuery.data?.viewers ?? []).map((v) => (
-                  <li key={v.id} className="flex items-center gap-3 py-2">
+                  <li key={v.id} className="flex items-center gap-3 py-2.5">
                     <Avatar size="md" verified={v.isVerified}>
                       {v.avatar ? <AvatarImage src={v.avatar} alt="" /> : null}
                       <AvatarFallback>{(v.username ?? '?').slice(0, 2)}</AvatarFallback>
@@ -679,6 +686,25 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                   </li>
                 ) : null}
               </ul>
+              {current ? (
+                <button
+                  type="button"
+                  className="w-full rounded-lg border border-border py-2 text-sm font-medium hover:bg-muted/50"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(current.mediaUrl);
+                      const blob = await res.blob();
+                      const ext = current.type === 'video' ? 'mp4' : 'jpg';
+                      await downloadBlob(blob, `story-${current.id}.${ext}`);
+                      toast.success('دانلود شروع شد');
+                    } catch {
+                      toast.error('ذخیره در دستگاه ناموفق بود');
+                    }
+                  }}
+                >
+                  ذخیره در دستگاه
+                </button>
+              ) : null}
             </div>
           </DrawerContent>
         </Drawer>

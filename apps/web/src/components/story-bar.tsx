@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { SOCKET_EVENTS, cn, formatPersianNumber } from '@agahiram/shared';
 import { Skeleton, STORY_INNER, StoryTrayItem } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { connectStoriesSocket } from '@/lib/stories-socket';
+import { useAuthStore } from '@/lib/auth-store';
 
 interface StoryGroup {
   userId: string;
@@ -29,6 +30,8 @@ const linkClass =
 
 export function StoryBar() {
   const qc = useQueryClient();
+  const me = useAuthStore((s) => s.user);
+  const scrollRef = useRef<HTMLUListElement>(null);
   const { data, isLoading } = useQuery({
     queryKey: ['stories', 'feed'],
     queryFn: async () => {
@@ -48,17 +51,38 @@ export function StoryBar() {
     };
   }, [qc]);
 
+  const myStoryGroup = (data ?? []).find((g) => g.isMe);
+
   return (
-    <div className="border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
+    <div className="relative border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
+      <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-gradient-to-r from-surface to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-gradient-to-l from-surface to-transparent" />
       <ul
+        ref={scrollRef}
         aria-label="استوری‌ها"
-        className="mx-auto flex max-w-2xl gap-4 overflow-x-auto px-4 py-2 scrollbar-hide"
+        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-4 py-2 scrollbar-hide"
       >
         <li>
-          <Link href="/create/story" aria-label="افزودن استوری" className={linkClass}>
+          <Link
+            href={myStoryGroup ? `/stories/${myStoryGroup.userId}` : '/create/story'}
+            aria-label={myStoryGroup ? 'استوری شما' : 'افزودن استوری'}
+            className={linkClass}
+          >
             <StoryTrayItem
-              variant="add"
-              label="شما"
+              variant={myStoryGroup ? 'story' : 'add'}
+              hasUnviewed={false}
+              label={myStoryGroup ? 'استوری شما' : 'شما'}
+              ringImage={
+                me?.avatar ? (
+                  <Image
+                    src={me.avatar}
+                    alt=""
+                    width={68}
+                    height={68}
+                    className={cn(STORY_INNER, 'rounded-full object-cover')}
+                  />
+                ) : undefined
+              }
               className="transition-transform group-active:scale-95"
             />
           </Link>
@@ -70,11 +94,13 @@ export function StoryBar() {
                 <StorySkeleton />
               </li>
             ))
-          : (data ?? []).map((g) => (
-              <li key={g.userId}>
-                <StoryItem group={g} />
-              </li>
-            ))}
+          : (data ?? [])
+              .filter((g) => !g.isMe)
+              .map((g) => (
+                <li key={g.userId}>
+                  <StoryItem group={g} />
+                </li>
+              ))}
       </ul>
     </div>
   );
