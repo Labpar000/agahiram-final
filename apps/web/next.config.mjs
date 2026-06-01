@@ -103,7 +103,7 @@ const nextConfig = {
     ],
   },
   experimental: {
-    optimizePackageImports: ['lucide-react', 'framer-motion', '@agahiram/ui'],
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
   },
   // Proxy /api requests to the NestJS backend so the browser sees a same-origin API.
   // This removes the cross-origin cookie/CORS headaches in dev and keeps the same

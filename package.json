@@ -18,7 +18,8 @@
     "db:studio": "pnpm --filter @agahiram/database studio",
     "clean": "turbo run clean && rimraf node_modules",
     "qa:preflight": "bash scripts/qa-preflight.sh",
-    "media:range": "bash scripts/check-media-range.sh"
+    "media:range": "bash scripts/check-media-range.sh",
+    "figma:sync": "npx tsx scripts/figma-sync-status.ts"
   },
   "devDependencies": {
     "@agahiram/config": "workspace:*",

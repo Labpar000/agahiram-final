@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus } from 'lucide-react';
 import { PostStatus } from '@agahiram/shared';
 import {
   ALLOWED_IMAGE_TYPES,
@@ -19,6 +18,7 @@ import {
   IgArrowBack,
   IgChevron,
   IgClose,
+  IgImagePlus,
   Input,
   Label,
   LoadingState,
@@ -255,7 +255,11 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
                   disabled={uploading}
                   onChange={(e) => e.target.files && void uploadNewFiles(e.target.files)}
                 />
-                <ImagePlus className="size-6 text-muted-foreground" aria-hidden />
+                <IgImagePlus
+                  className="size-6 text-muted-foreground"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
               </label>
             ) : null}
           </div>

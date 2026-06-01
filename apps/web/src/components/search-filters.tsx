@@ -2,8 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MapPin } from 'lucide-react';
-import { IgArrowBack, IgCheck, IgChevron, IgClose, IgSearch, IgSliders } from '@agahiram/ui';
+import {
+  IgArrowBack,
+  IgCheck,
+  IgChevron,
+  IgClose,
+  IgLocation,
+  IgSearch,
+  IgSliders,
+} from '@agahiram/ui';
 import { cn, formatPersianNumber, normalizePersianText } from '@agahiram/shared';
 import {
   Button,
@@ -299,7 +306,7 @@ function MainStep({
         {/* Location picker row */}
         <PickerRow
           label="موقعیت"
-          icon={<MapPin className="size-4 text-ig-link" aria-hidden />}
+          icon={<IgLocation className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />}
           value={
             local.cityName
               ? `${local.provinceName ? `${local.provinceName} — ` : ''}${local.cityName}`

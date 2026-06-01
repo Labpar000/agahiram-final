@@ -2,8 +2,8 @@
 
 import { useCallback, useRef } from 'react';
 import type maplibregl from 'maplibre-gl';
-import { MapPin, Navigation } from 'lucide-react';
-import { IgExternalLink } from '@agahiram/ui';
+import { Navigation } from 'lucide-react';
+import { IgExternalLink, IgLocation } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { NeshanMap, type NeshanMapHandle } from './neshan-map';
 
@@ -48,7 +48,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
     <section className={cn('space-y-3', className)}>
       <div className="space-y-1">
         <h3 className="flex items-center gap-2 text-sm font-semibold">
-          <MapPin className="size-4 text-muted-foreground" aria-hidden />
+          <IgLocation className="size-4 text-muted-foreground" strokeWidth={1.75} aria-hidden />
           موقعیت آگهی
         </h3>
         {address ? (

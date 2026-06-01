@@ -2,7 +2,8 @@
 
 ## مرجع طراحی
 
-- [Instagram UI Kit 4.0 (Figma)](https://www.figma.com/community/file/1341818988006002653/instagram-ui-kit-4-0) — measurements، spacing، typography (CC BY 4.0؛ فقط مرجع، بدون republish asset)
+- [Instagram UI Kit 4.0 (Figma)](https://www.figma.com/design/QDukJIKN0YfzV1vbGvaw6Y/Instagram-UI-Kit-4-0) — fileKey `QDukJIKN0YfzV1vbGvaw6Y`؛ inventory: [`docs/figma-inventory.json`](./figma-inventory.json)
+- [Instagram UI Kit 4.0 (Community mirror)](https://www.figma.com/community/file/1341818988006002653/instagram-ui-kit-4-0) — measurements، spacing، typography (CC BY 4.0؛ فقط مرجع، بدون republish asset)
 
 ## مرجع کد (MIT)
 
@@ -19,7 +20,7 @@
 
 ## مجاز برای borrow
 
-- SVG path → React در `packages/ui/src/components/ig-icons.tsx`
+- SVG path → React در `packages/ui/src/components/ig-icons/`
 - spacing/layout (story 74px، post action row، auth card 350px)
 - ساختار component (بدون کپی branding)
 

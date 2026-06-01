@@ -23,6 +23,10 @@ const buttonVariants = cva(
         ghost: 'bg-transparent text-foreground hover:bg-muted',
         destructive: 'bg-destructive text-destructive-foreground shadow-sm hover:brightness-110',
         link: 'text-primary underline-offset-4 hover:underline px-0 h-auto',
+        'ig-link':
+          'bg-[var(--ig-link)] text-[var(--ig-link-foreground)] shadow-sm hover:brightness-110 active:brightness-95 rounded-lg',
+        'ig-text':
+          'bg-transparent text-[var(--ig-link)] hover:opacity-80 px-0 h-auto font-semibold',
       },
       size: {
         sm: 'h-9 px-3 text-[0.8125rem] rounded-md',

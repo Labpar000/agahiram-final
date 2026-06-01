@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { MapPin, ShoppingBag } from 'lucide-react';
-import { IgBell } from '@agahiram/ui';
+import { IgBell, IgLocation, IgShop } from '@agahiram/ui';
 import { cn, formatPersianNumber } from '@agahiram/shared';
 import { Button, Input, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -236,7 +235,7 @@ function StickerBody({
           });
         }}
       >
-        <ShoppingBag className="size-4" aria-hidden />
+        <IgShop className="size-4" strokeWidth={1.75} aria-hidden />
         {title}
       </Link>
     );
@@ -295,12 +294,12 @@ function StickerBody({
         href={`/location/${cityId}/stories`}
         className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-neutral-900 shadow"
       >
-        <MapPin className="size-3.5" aria-hidden />
+        <IgLocation className="size-3.5" strokeWidth={1.75} aria-hidden />
         {cityName}
       </Link>
     ) : (
       <span className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold shadow">
-        <MapPin className="size-3.5" aria-hidden />
+        <IgLocation className="size-3.5" strokeWidth={1.75} aria-hidden />
         {cityName}
       </span>
     );

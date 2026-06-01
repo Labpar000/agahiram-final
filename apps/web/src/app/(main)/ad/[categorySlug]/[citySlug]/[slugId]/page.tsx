@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { serverApi } from '@/lib/server-api';
 import { PostDetailClient } from '@/app/(main)/post/[id]/post-detail-client';
 import { JsonLd, productJsonLd } from '@/components/json-ld';
-import { buildPostPath, parsePostIdFromSlugParam } from '@/lib/post-url';
+import { buildPostPath, parsePostIdFromSlugParam, postAdPathsMatch } from '@/lib/post-url';
 
 interface PostMeta {
   id: string;
@@ -85,7 +85,22 @@ export default async function CanonicalPostPage({
     city: post.city?.slug ? { slug: post.city.slug } : null,
   });
   const actualPath = `/ad/${categorySlug}/${citySlug}/${slugId}`;
-  if (expectedPath !== actualPath) {
+  // #region agent log
+  fetch('http://127.0.0.1:7498/ingest/6a36906e-82cc-480d-a83a-1b2429149b11', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '5069c5' },
+    body: JSON.stringify({
+      sessionId: '5069c5',
+      runId: 'post-fix',
+      hypothesisId: 'A',
+      location: 'ad/page.tsx:canonical-check',
+      message: 'ad path compare',
+      data: { match: postAdPathsMatch(actualPath, expectedPath), actualPath, expectedPath },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+  if (!postAdPathsMatch(actualPath, expectedPath)) {
     redirect(expectedPath);
   }
 

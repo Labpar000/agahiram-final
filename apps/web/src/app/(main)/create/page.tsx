@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, ChevronLeft, ChevronRight, MapPin, Tag, Type, Wallet } from 'lucide-react';
 import {
   cn,
   formatPersianPrice,
@@ -20,7 +19,13 @@ import {
   IconButton,
   IgArrowBack,
   IgCheck,
+  IgChevron,
   IgClose,
+  IgImagePlus,
+  IgLocation,
+  IgTag,
+  IgText,
+  IgWallet,
   Input,
   Label,
   Progress,
@@ -394,7 +399,7 @@ export default function CreatePage() {
                   {uploading ? (
                     <Spinner size="md" />
                   ) : (
-                    <ImagePlus
+                    <IgImagePlus
                       className="size-7 text-muted-foreground group-hover/upload:text-primary"
                       aria-hidden
                     />
@@ -415,7 +420,7 @@ export default function CreatePage() {
         {step === 1 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
-              <Tag className="size-5" aria-hidden /> دسته‌بندی
+              <IgTag className="size-5" strokeWidth={1.75} aria-hidden /> دسته‌بندی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               اول موضوع اصلی را انتخاب کنید، بعد زیرموضوع دقیق را مثل دیوار مشخص کنید.
@@ -433,11 +438,11 @@ export default function CreatePage() {
                   }}
                   className="mb-3 inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <ChevronRight className="size-3.5" aria-hidden /> تغییر موضوع اصلی
+                  <IgChevron direction="right" className="size-3.5" aria-hidden /> تغییر موضوع اصلی
                 </button>
                 <div className="flex items-center gap-3">
                   <span className="grid size-11 place-items-center rounded-xl bg-accent text-primary">
-                    <Tag className="size-5" aria-hidden />
+                    <IgTag className="size-5" strokeWidth={1.75} aria-hidden />
                   </span>
                   <div>
                     <div className="text-xs text-muted-foreground">مسیر دسته‌بندی</div>
@@ -473,7 +478,7 @@ export default function CreatePage() {
                     )}
                   >
                     <span className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
-                      <Tag className="size-5" aria-hidden />
+                      <IgTag className="size-5" strokeWidth={1.75} aria-hidden />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{c.name}</span>
@@ -484,7 +489,7 @@ export default function CreatePage() {
                       ) : null}
                     </span>
                     {hasChildren ? (
-                      <ChevronLeft
+                      <IgChevron
                         className="size-5 text-muted-foreground rtl:rotate-180"
                         aria-hidden
                       />
@@ -566,7 +571,7 @@ export default function CreatePage() {
         {step === 3 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
-              <Type className="size-5" aria-hidden /> عنوان و قیمت
+              <IgText className="size-5" strokeWidth={1.75} aria-hidden /> عنوان و قیمت
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">عنوان واضح + قیمت دقیق = آگهی موفق</p>
             <div className="mt-4 space-y-4">
@@ -597,7 +602,7 @@ export default function CreatePage() {
               </div>
               <div className="space-y-2">
                 <Label className="inline-flex items-center gap-1">
-                  <Wallet className="size-4" aria-hidden /> نوع قیمت
+                  <IgWallet className="size-4" strokeWidth={1.75} aria-hidden /> نوع قیمت
                 </Label>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                   {[
@@ -649,7 +654,7 @@ export default function CreatePage() {
         {step === 4 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
-              <MapPin className="size-5" aria-hidden /> موقعیت مکانی
+              <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما در کجاست؟</p>
             <div className="mt-4 h-80 overflow-hidden rounded-2xl border border-border">
@@ -723,7 +728,9 @@ export default function CreatePage() {
             isLoading={submit.isPending}
             onClick={() => (step < 4 ? setStep((step + 1) as Step) : submit.mutate())}
             rightIcon={
-              step < 4 ? <ChevronLeft className="size-5 rtl:rotate-180" aria-hidden /> : undefined
+              step < 4 ? (
+                <IgChevron direction="left" className="size-5 rtl:rotate-180" aria-hidden />
+              ) : undefined
             }
           >
             {step < 4 ? 'ادامه' : 'ثبت آگهی'}

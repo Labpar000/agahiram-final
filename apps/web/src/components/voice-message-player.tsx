@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { IgPause, IgPlay } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { formatVoiceDuration } from '@/lib/voice-recorder';
 
@@ -125,9 +125,9 @@ export function VoiceMessagePlayer({
         className="grid size-9 shrink-0 place-items-center rounded-full bg-foreground/10 text-foreground"
       >
         {playing ? (
-          <Pause className="size-4" strokeWidth={1.75} aria-hidden />
+          <IgPause className="size-4" strokeWidth={1.75} aria-hidden />
         ) : (
-          <Play className="size-4" strokeWidth={1.75} aria-hidden />
+          <IgPlay className="size-4" strokeWidth={1.75} aria-hidden />
         )}
       </button>
       <div className="min-w-0 flex-1">

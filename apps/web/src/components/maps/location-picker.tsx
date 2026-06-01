@@ -1,9 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Crosshair, MapPin, Target } from 'lucide-react';
+import { Crosshair, Target } from 'lucide-react';
 import type maplibregl from 'maplibre-gl';
-import { IgClose, IgSearch, Spinner, Switch, Button, IconButton, Input } from '@agahiram/ui';
+import {
+  IgClose,
+  IgLocation,
+  IgSearch,
+  Spinner,
+  Switch,
+  Button,
+  IconButton,
+  Input,
+} from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import {
   DEFAULT_MAP_CENTER,
@@ -193,7 +202,11 @@ export function LocationPicker({
                 onClick={() => pickResult(r)}
                 className="flex w-full items-start gap-2 border-b border-border/60 px-3 py-2.5 text-start hover:bg-muted last:border-0 focus-visible:outline-none focus-visible:bg-muted"
               >
-                <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+                <IgLocation
+                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{r.title}</div>
                   {r.address ? (
@@ -222,7 +235,11 @@ export function LocationPicker({
         >
           <div className="flex flex-col items-center">
             <div className="rounded-full bg-ig-link p-2 shadow-popover ring-4 ring-ig-link/20">
-              <MapPin className="size-5 text-ig-link-foreground" aria-hidden />
+              <IgLocation
+                className="size-5 text-ig-link-foreground"
+                strokeWidth={1.75}
+                aria-hidden
+              />
             </div>
             <div className="-mt-0.5 size-1.5 rotate-45 bg-ig-link/40" />
           </div>

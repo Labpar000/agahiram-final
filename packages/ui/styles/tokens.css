@@ -122,7 +122,7 @@
   /* Layout — IG mobile chrome (~44px header, ~51px tab row + safe-bottom) */
   --header-height: 2.75rem;
   --bottom-nav: 3.1875rem; /* 51px tab row (Figma UI Kit 4.0; home indicator via safe-bottom) */
-  --ig-action: 2.5rem; /* 40px tap target for post action icons */
+  --ig-action: 2.75rem; /* 44px tap target (Figma post action row) */
   --ig-icon: 1.5rem; /* 24px action / nav icons */
   --ig-reel-icon: 2rem; /* 32px reels side-rail icons */
   --safe-bottom: env(safe-area-inset-bottom, 0px);

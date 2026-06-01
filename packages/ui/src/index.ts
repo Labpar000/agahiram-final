@@ -35,9 +35,13 @@ export * from './components/empty-state';
 export * from './components/error-state';
 export * from './components/loading-state';
 export * from './components/heart-burst';
+export * from './components/otp-input';
 
 /* Instagram-exact iconography */
 export * from './components/ig-icons';
+
+/* Instagram layout molecules (Figma Components + Templates) */
+export * from './components/ig/index';
 
 /* Theme */
 export * from './components/theme-provider';

@@ -1,0 +1,358 @@
+{
+  "source": {
+    "fileKey": "QDukJIKN0YfzV1vbGvaw6Y",
+    "componentsPage": "1:12230",
+    "templatesPage": "493:11353",
+    "figmaUrl": "https://www.figma.com/design/QDukJIKN0YfzV1vbGvaw6Y/Instagram---UI-Kit-4.0--Community-"
+  },
+  "components": [
+    {
+      "figmaId": "1:6332",
+      "figmaName": "24 / Home",
+      "category": "icons",
+      "reactExport": "IgHome",
+      "targetFile": "packages/ui/src/components/ig-icons/navigation.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6335",
+      "figmaName": "24 / Search",
+      "category": "icons",
+      "reactExport": "IgSearch",
+      "targetFile": "packages/ui/src/components/ig-icons/navigation.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6356",
+      "figmaName": "24 / Create",
+      "category": "icons",
+      "reactExport": "IgCreate",
+      "targetFile": "packages/ui/src/components/ig-icons/navigation.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1285:18580",
+      "figmaName": "24 / Reels (2026)",
+      "category": "icons",
+      "reactExport": "IgReels",
+      "targetFile": "packages/ui/src/components/ig-icons/navigation.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6369",
+      "figmaName": "24 / Profile",
+      "category": "icons",
+      "reactExport": "IgUser",
+      "targetFile": "packages/ui/src/components/ig-icons/navigation.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6416",
+      "figmaName": "24 / Like",
+      "category": "icons",
+      "reactExport": "IgHeart",
+      "targetFile": "packages/ui/src/components/ig-icons/actions.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6467",
+      "figmaName": "24 / Comment",
+      "category": "icons",
+      "reactExport": "IgComment",
+      "targetFile": "packages/ui/src/components/ig-icons/actions.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1281:17534",
+      "figmaName": "24 / Share (2026)",
+      "category": "icons",
+      "reactExport": "IgShare2026",
+      "targetFile": "packages/ui/src/components/ig-icons/actions.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6469",
+      "figmaName": "24 / Save",
+      "category": "icons",
+      "reactExport": "IgBookmark",
+      "targetFile": "packages/ui/src/components/ig-icons/actions.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6476",
+      "figmaName": "24 / Threads",
+      "category": "icons",
+      "reactExport": "IgThreads",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6471",
+      "figmaName": "24 / Menu",
+      "category": "icons",
+      "reactExport": "IgMenu",
+      "targetFile": "packages/ui/src/components/ig-icons/navigation.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6864",
+      "figmaName": "24 / Tag",
+      "category": "icons",
+      "reactExport": "IgTag",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6804",
+      "figmaName": "24 / Add User",
+      "category": "icons",
+      "reactExport": "IgAddUser",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1293:17795",
+      "figmaName": "24 / Repost",
+      "category": "icons",
+      "reactExport": "IgRepost",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "720:15990",
+      "figmaName": "24 / Download",
+      "category": "icons",
+      "reactExport": "IgDownload",
+      "targetFile": "packages/ui/src/components/ig-icons/misc.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "692:6468",
+      "figmaName": "24 / Link",
+      "category": "icons",
+      "reactExport": "IgLink",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "693:6648",
+      "figmaName": "24 / Mention",
+      "category": "icons",
+      "reactExport": "IgMention",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "361:5934",
+      "figmaName": "24 / Filters",
+      "category": "icons",
+      "reactExport": "IgFilters",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "720:15564",
+      "figmaName": "24 / Stickers",
+      "category": "icons",
+      "reactExport": "IgStickers",
+      "targetFile": "packages/ui/src/components/ig-icons/media.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "720:15608",
+      "figmaName": "24 / Text",
+      "category": "icons",
+      "reactExport": "IgText",
+      "targetFile": "packages/ui/src/components/ig-icons/media.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "262:34309",
+      "figmaName": "16 / Location",
+      "category": "icons",
+      "reactExport": "IgLocation",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "717:14915",
+      "figmaName": "16 / Hashtag",
+      "category": "icons",
+      "reactExport": "IgHashtag",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "354:4306",
+      "figmaName": "16 / Star",
+      "category": "icons",
+      "reactExport": "IgStar",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "353:3641",
+      "figmaName": "16 / Gift",
+      "category": "icons",
+      "reactExport": "IgGift",
+      "targetFile": "packages/ui/src/components/ig-icons/content.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6312",
+      "figmaName": "Active Tab=Feed",
+      "category": "bars",
+      "reactExport": "IgTabBar",
+      "targetFile": "packages/ui/src/components/ig/tab-bar.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6773",
+      "figmaName": "Type=My Feed (2026)",
+      "category": "bars",
+      "reactExport": "IgTopNav",
+      "targetFile": "packages/ui/src/components/ig/top-nav.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6441",
+      "figmaName": "Stories",
+      "category": "trays",
+      "reactExport": "StoryTray",
+      "targetFile": "packages/ui/src/components/ig/story-tray.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6459",
+      "figmaName": "Post / Me",
+      "category": "headers",
+      "reactExport": "PostHeader",
+      "targetFile": "packages/ui/src/components/ig/post-header.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6906",
+      "figmaName": "Number=1 Story",
+      "category": "indicators",
+      "reactExport": "StoryProgressBar",
+      "targetFile": "packages/ui/src/components/ig/story-progress-bar.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "193:15429",
+      "figmaName": "Slides=6+",
+      "category": "indicators",
+      "reactExport": "CarouselDots",
+      "targetFile": "packages/ui/src/components/ig/carousel-dots.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "715:14150",
+      "figmaName": "Poll",
+      "category": "stickers",
+      "reactExport": "StoryPollSticker",
+      "targetFile": "apps/web/src/components/story-interactive-stickers.tsx",
+      "status": "done"
+    },
+    {
+      "figmaId": "771:12404",
+      "figmaName": "Type=Logo",
+      "category": "logos",
+      "reactExport": null,
+      "targetFile": null,
+      "status": "blocked"
+    }
+  ],
+  "templates": [
+    {
+      "figmaId": "1:6839",
+      "figmaName": "Posts",
+      "section": "Grids",
+      "route": "/profile/[username]",
+      "layoutFile": "apps/web/src/app/(main)/profile/[username]/page.tsx",
+      "chromeStack": ["NavBar", "ProfileInfo", "ProfileTabs", "Grid", "TabBar"],
+      "status": "done"
+    },
+    {
+      "figmaId": "220:27267",
+      "figmaName": "Reels",
+      "section": "Grids",
+      "route": "/profile/[username]",
+      "layoutFile": "apps/web/src/app/(main)/profile/[username]/page.tsx",
+      "chromeStack": ["NavBar", "ProfileInfo", "ProfileTabs", "ReelsGrid", "TabBar"],
+      "status": "done"
+    },
+    {
+      "figmaId": "729:19910",
+      "figmaName": "Search",
+      "section": "Grids",
+      "route": "/explore",
+      "layoutFile": "apps/web/src/app/(main)/explore/explore-client.tsx",
+      "chromeStack": ["NavBar", "SearchGrid"],
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6965",
+      "figmaName": "Type=User Story",
+      "section": "Posts",
+      "route": "/stories/[userId]",
+      "layoutFile": "apps/web/src/app/(main)/stories/[userId]/page.tsx",
+      "chromeStack": ["StoryProgress", "StoryHeader", "StoryContent", "StoryToolbar"],
+      "status": "done"
+    },
+    {
+      "figmaId": "720:16207",
+      "figmaName": "Type=Edit",
+      "section": "Posts",
+      "route": "/create/story",
+      "layoutFile": "apps/web/src/app/(main)/create/story/page.tsx",
+      "chromeStack": ["StoryEditor", "StickerSheet"],
+      "status": "done"
+    },
+    {
+      "figmaId": "1:6542",
+      "figmaName": "Type=Portrait",
+      "section": "Posts",
+      "route": "/feed",
+      "layoutFile": "apps/web/src/components/post-card.tsx",
+      "chromeStack": ["NavBar", "StoryTray", "PostCard", "TabBar"],
+      "status": "done"
+    },
+    {
+      "figmaId": "256:32643",
+      "figmaName": "Type=User Reel (Feed)",
+      "section": "Posts",
+      "route": "/reels",
+      "layoutFile": "apps/web/src/components/reel-player.tsx",
+      "chromeStack": ["ReelFullScreen", "ActionRail"],
+      "status": "done"
+    },
+    {
+      "figmaId": "203:20968",
+      "figmaName": "Type=Posts",
+      "section": "Posts",
+      "route": "/profile/[username]",
+      "layoutFile": "apps/web/src/app/(main)/profile/[username]/page.tsx",
+      "chromeStack": ["PostGrid"],
+      "status": "done"
+    },
+    {
+      "figmaId": "684:35304",
+      "figmaName": "Type=User Story",
+      "section": "Ads",
+      "route": "/feed",
+      "layoutFile": "apps/web/src/components/post-card.tsx",
+      "chromeStack": ["SponsoredPost"],
+      "status": "done"
+    },
+    {
+      "figmaId": "758:25804",
+      "figmaName": "Search",
+      "section": "Ads",
+      "route": "/explore",
+      "layoutFile": "apps/web/src/app/(main)/explore/explore-client.tsx",
+      "chromeStack": ["SearchAd"],
+      "status": "done"
+    }
+  ]
+}

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ImagePlus, Type } from 'lucide-react';
 import {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
@@ -15,7 +14,7 @@ import {
   MAX_VIDEO_UPLOAD_BYTES,
 } from '@agahiram/shared';
 import type { StoryOverlayDocument } from '@agahiram/shared';
-import { Button, IconButton, IgArrowBack, Spinner, toast } from '@agahiram/ui';
+import { Button, IconButton, IgArrowBack, IgImagePlus, IgText, Spinner, toast } from '@agahiram/ui';
 import { StoryBatchPublishPreview } from '@/features/stories/story-batch-publish-preview';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
@@ -338,7 +337,7 @@ export default function CreateStoryPage() {
           <h1 className="text-sm font-semibold">افزودن استوری</h1>
         </div>
         <Link href="/create/story/text" className="flex items-center gap-1 text-xs text-ig-link">
-          <Type className="size-4" /> متنی
+          <IgText className="size-4" strokeWidth={1.75} aria-hidden /> متنی
         </Link>
       </div>
 
@@ -405,7 +404,7 @@ export default function CreateStoryPage() {
             ) : null}
             <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border border-dashed border-border bg-muted">
               <span className="absolute inset-0 grid place-items-center text-muted-foreground">
-                <ImagePlus className="size-10" />
+                <IgImagePlus className="size-10" strokeWidth={1.75} aria-hidden />
               </span>
             </div>
           </>

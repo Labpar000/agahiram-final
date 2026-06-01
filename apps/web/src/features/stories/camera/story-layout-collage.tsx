@@ -2,17 +2,16 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Grid2x2, LayoutGrid, Plus } from 'lucide-react';
-import { Button } from '@agahiram/ui';
+import { IgGrid2x2, IgLayoutGrid, IgPlus, Button } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { compositeLayoutCollage } from '../story-media-utils';
 import type { CapturedMedia } from './story-camera';
 
 const LAYOUTS = [
-  { n: 2 as const, label: '۲', icon: Grid2x2 },
-  { n: 3 as const, label: '۳', icon: LayoutGrid },
-  { n: 4 as const, label: '۴', icon: LayoutGrid },
-  { n: 6 as const, label: '۶', icon: LayoutGrid },
+  { n: 2 as const, label: '۲', icon: IgGrid2x2 },
+  { n: 3 as const, label: '۳', icon: IgLayoutGrid },
+  { n: 4 as const, label: '۴', icon: IgLayoutGrid },
+  { n: 6 as const, label: '۶', icon: IgLayoutGrid },
 ];
 
 export function StoryLayoutCollage({
@@ -96,7 +95,7 @@ export function StoryLayoutCollage({
                 <Image src={cell.url} alt="" fill className="object-cover" sizes="200px" />
               ) : (
                 <span className="absolute inset-0 grid place-items-center text-white/60">
-                  <Plus className="size-8" />
+                  <IgPlus className="size-8" strokeWidth={1.75} aria-hidden />
                 </span>
               )}
             </button>

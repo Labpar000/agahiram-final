@@ -15,8 +15,33 @@ export function slugifyPostTitle(title: string): string {
 }
 
 export function parsePostIdFromSlugParam(slugId: string): string | null {
-  const m = slugId.match(POST_ID_RE);
+  let decoded = slugId;
+  try {
+    decoded = decodeURIComponent(slugId);
+  } catch {
+    /* keep raw segment */
+  }
+  const m = decoded.match(POST_ID_RE);
   return m?.[1] ?? null;
+}
+
+/** Decode path segments so encoded and decoded ad URLs compare equal. */
+export function normalizePostAdPath(path: string): string {
+  return path
+    .split('/')
+    .map((seg) => {
+      if (!seg) return seg;
+      try {
+        return decodeURIComponent(seg).normalize('NFC');
+      } catch {
+        return seg.normalize('NFC');
+      }
+    })
+    .join('/');
+}
+
+export function postAdPathsMatch(actualPath: string, expectedPath: string): boolean {
+  return normalizePostAdPath(actualPath) === normalizePostAdPath(expectedPath);
 }
 
 export type PostUrlInput = {
@@ -29,7 +54,9 @@ export type PostUrlInput = {
 export function buildPostPath(post: PostUrlInput): string {
   const citySlug = post.city?.slug ?? 'iran';
   const slug = slugifyPostTitle(post.title);
-  return `/ad/${post.category.slug}/${citySlug}/${slug}-${post.id}`;
+  // Percent-encode the title slug so redirect Location headers stay ASCII-valid.
+  const segment = encodeURIComponent(`${slug}-${post.id}`);
+  return `/ad/${post.category.slug}/${citySlug}/${segment}`;
 }
 
 export function buildPostPathFromSummary(post: PostSummary): string {

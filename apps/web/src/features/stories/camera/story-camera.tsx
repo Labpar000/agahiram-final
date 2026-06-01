@@ -1,17 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Camera,
-  Download,
-  Grid2x2,
-  Infinity,
-  RotateCcw,
-  Timer,
-  Video,
-  Zap,
-  ZoomIn,
-} from 'lucide-react';
+import { Infinity, Timer, Video, Zap, ZoomIn } from 'lucide-react';
+import { IgCamera, IgDownload, IgGrid2x2, IgLayoutGrid, IgRotate } from '@agahiram/ui';
 import { IconButton } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { captureSuperzoomFrame, downloadBlob, makeBoomerangBlob } from '../story-media-utils';
@@ -304,7 +295,7 @@ export function StoryCamera({
             aria-label="تعویض دوربین"
             variant="ghost"
             className="text-white"
-            icon={<RotateCcw className="size-5" />}
+            icon={<IgRotate className="size-5" />}
             onClick={() => setFacing((f) => (f === 'user' ? 'environment' : 'user'))}
           />
           <IconButton
@@ -318,7 +309,7 @@ export function StoryCamera({
             aria-label="ذخیره در گالری"
             variant="ghost"
             className="text-white"
-            icon={<Download className="size-5" />}
+            icon={<IgDownload className="size-5" />}
             onClick={() => void saveLastToRoll()}
           />
         </div>
@@ -342,7 +333,7 @@ export function StoryCamera({
           ) : mode === 'superzoom' ? (
             <ZoomIn className="inline size-3.5" />
           ) : (
-            <Camera className="inline size-3.5" />
+            <IgCamera className="inline size-3.5" />
           )}{' '}
           {modeLabel}
         </button>
@@ -354,7 +345,7 @@ export function StoryCamera({
         </button>
         {onLayout ? (
           <button type="button" onClick={onLayout} className="text-white/90" aria-label="کلاژ">
-            <Grid2x2 className="size-6" />
+            <IgGrid2x2 className="size-6" />
           </button>
         ) : null}
 

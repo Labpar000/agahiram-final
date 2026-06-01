@@ -15,6 +15,9 @@ const badgeVariants = cva(
         destructive: 'bg-destructive/15 text-destructive ring-destructive/30',
         outline: 'bg-transparent text-foreground ring-border',
         solid: 'bg-foreground text-background ring-transparent',
+        'ig-dot': 'size-1.5 min-h-0 min-w-0 rounded-full bg-[var(--ig-badge)] p-0 ring-0',
+        'ig-count':
+          'min-w-[1.125rem] justify-center bg-[var(--ig-badge)] px-1 py-0 text-[0.625rem] font-semibold text-white ring-0',
       },
       size: {
         sm: 'h-5 px-2 text-[0.625rem]',

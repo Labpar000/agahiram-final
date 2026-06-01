@@ -1,6 +1,6 @@
 'use client';
 
-import { cloneElement, isValidElement, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -20,6 +20,7 @@ import {
   AvatarFallback,
   AvatarImage,
   Button,
+  CarouselDots,
   Drawer,
   DrawerBody,
   DrawerContent,
@@ -30,14 +31,12 @@ import {
   DropdownMenuTrigger,
   HeartBurst,
   IconButton,
-  IgBookmark,
   IgChevron,
   IgComment,
   IgEye,
-  IgHeart,
   IgMore,
   IgPhone,
-  IgShare2026,
+  PostActionRow,
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -403,63 +402,34 @@ export function PostCard({
 
         {/* Dot indicators (mobile + desktop) */}
         {post.media.length > 1 ? (
-          <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center gap-1">
-            {post.media.map((_, i) => (
-              <span
-                key={i}
-                aria-hidden
-                className={cn(
-                  'h-1.5 rounded-full transition-all',
-                  i === activeIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/60',
-                )}
-              />
-            ))}
-          </div>
+          <CarouselDots
+            count={post.media.length}
+            activeIndex={activeIndex}
+            className="pointer-events-none absolute inset-x-0 bottom-2"
+          />
         ) : null}
       </div>
 
       {/* Actions */}
       <div className="px-4 pb-3 pt-1">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <ActionButton
-              ariaLabel={liked ? 'حذف لایک' : 'لایک'}
-              onClick={() => onLikeToggle()}
-              filled={liked}
-              filledClass="text-[var(--like)]"
-            >
-              <span
-                key={String(liked)}
-                className={cn('inline-flex', liked ? 'like-pop' : 'like-pop-off')}
-              >
-                <IgHeart className="size-[var(--ig-icon)]" filled={liked} />
-              </span>
-            </ActionButton>
-            <ActionButton
-              ariaLabel="نظرات"
-              onClick={() => {
-                if (enableCommentsDrawer) {
-                  setCommentsOpen(true);
-                } else {
-                  document.getElementById('post-comments')?.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
-            >
-              <IgComment className="size-[var(--ig-icon)]" />
-            </ActionButton>
-            <ActionButton ariaLabel="اشتراک‌گذاری" onClick={onShare}>
-              <IgShare2026 className="size-[var(--ig-icon)]" strokeWidth={2} />
-            </ActionButton>
-          </div>
-          <ActionButton
-            ariaLabel={saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
-            onClick={onSaveToggle}
-            filled={saved}
-            filledClass="text-foreground"
-          >
-            <IgBookmark className="size-[var(--ig-icon)]" filled={saved} />
-          </ActionButton>
-        </div>
+        <PostActionRow
+          liked={liked}
+          saved={saved}
+          onLike={() => onLikeToggle()}
+          onComment={() => {
+            if (enableCommentsDrawer) {
+              setCommentsOpen(true);
+            } else {
+              document.getElementById('post-comments')?.scrollIntoView({ behavior: 'smooth' });
+            }
+          }}
+          onShare={onShare}
+          onSave={() => onSaveToggle()}
+          likeLabel={liked ? 'حذف لایک' : 'لایک'}
+          commentLabel="نظرات"
+          shareLabel="اشتراک‌گذاری"
+          saveLabel={saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
+        />
 
         {likeCount > 0 ? (
           <p
@@ -592,48 +562,6 @@ export function PostCard({
         title="گزارش آگهی"
       />
     </article>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  asChild,
-  ariaLabel,
-  filled,
-  filledClass,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  asChild?: boolean;
-  ariaLabel: string;
-  filled?: boolean;
-  filledClass?: string;
-}) {
-  const className = cn(
-    'inline-grid size-[var(--ig-action)] place-items-center rounded-full transition-[background-color,color,transform] tap-none active:scale-[0.96]',
-    'text-foreground hover:bg-muted/80',
-    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-    filled && filledClass,
-  );
-  if (asChild) {
-    return isValidElement<{ className?: string; 'aria-label'?: string }>(children)
-      ? cloneElement(children, {
-          'aria-label': ariaLabel,
-          className: cn(className, children.props.className),
-        })
-      : null;
-  }
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      aria-pressed={!!filled}
-      onClick={onClick}
-      className={className}
-    >
-      {children}
-    </button>
   );
 }
 
