@@ -123,6 +123,21 @@ extract_source() {
   tar -xzf "$tarball" -C "$APP_DIR"
 }
 
+# Optional: set GHCR_DNS_IP on VPS when a local mirror is available (e.g. 87.107.110.109).
+ensure_ghcr_hosts() {
+  [[ -n "${GHCR_DNS_IP:-}" ]] || return 0
+  local ip="$GHCR_DNS_IP"
+  if getent hosts ghcr.io | awk '{print $1}' | grep -qxF "$ip"; then
+    log "ghcr.io DNS OK ($ip)"
+    return 0
+  fi
+  log "pinning ghcr.io -> $ip in /etc/hosts"
+  if grep -q '[[:space:]]ghcr\.io$' /etc/hosts 2>/dev/null; then
+    sed -i '/[[:space:]]ghcr\.io$/d' /etc/hosts
+  fi
+  echo "$ip ghcr.io" >> /etc/hosts
+}
+
 ghcr_login() {
   if [[ -z "${GHCR_TOKEN:-}" ]]; then
     return 0
@@ -204,7 +219,7 @@ deploy_transfer() {
     recreate+=("$CONFIG_ONLY")
   fi
   # shellcheck disable=SC2086
-  docker compose $COMPOSE up -d --force-recreate "${recreate[@]}"
+  docker compose $COMPOSE up -d --pull never --no-deps --force-recreate "${recreate[@]}"
   docker image prune -f
   docker compose $COMPOSE ps
 }
@@ -219,6 +234,7 @@ deploy_pull() {
   migrate_minio_env
   migrate_voice_video_env
   sync_image_tag_env
+  ensure_ghcr_hosts
   ghcr_login
 
   cd "$APP_DIR/docker"
@@ -242,15 +258,15 @@ deploy_pull() {
       log "pulling images sequentially (tag=$tag): $BUILD_SERVICES"
       local svc attempt
       for svc in $BUILD_SERVICES; do
-        for attempt in 1 2 3 4 5; do
-          log "pull $svc (tag=$tag) attempt $attempt/5"
+        for attempt in 1 2 3 4 5 6 7 8; do
+          log "pull $svc (tag=$tag) attempt $attempt/8"
           if docker compose $COMPOSE pull "$svc"; then
             break
           fi
-          if [[ "$attempt" -eq 5 ]]; then
+          if [[ "$attempt" -eq 8 ]]; then
             return 1
           fi
-          sleep 5
+          sleep 10
         done
       done
       return 0
