@@ -19,6 +19,7 @@ import {
 } from '@agahiram/ui';
 import type { ConversationSummary } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
+import { formatLastMessagePreview } from '@/hooks/useConversation';
 
 type UserHit = {
   id: string;
@@ -210,7 +211,7 @@ export default function MessagesPage() {
                         : 'text-muted-foreground')
                     }
                   >
-                    {c.lastMessage?.content ?? 'گفتگو را شروع کنید'}
+                    {formatLastMessagePreview(c.lastMessage)}
                   </p>
                 </div>
                 {c.unreadCount > 0 ? (

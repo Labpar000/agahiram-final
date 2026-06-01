@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { EmptyState, IgArrowBack, IgReels, IgSearch, Spinner } from '@agahiram/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -11,9 +11,10 @@ import { ReelPlayer } from '@/components/reel-player';
 import { videoPlaybackController } from '@/lib/video-playback-controller';
 
 const WINDOW = 1;
-const REEL_VIEWPORT_HEIGHT = 'calc(100svh - var(--bottom-nav) - var(--safe-bottom))';
 
 export default function ReelsPage() {
+  const pathname = usePathname() ?? '/';
+  const onReelsTab = pathname === '/reels';
   const router = useRouter();
   const qc = useQueryClient();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -73,10 +74,14 @@ export default function ReelsPage() {
   }, [updateActiveFromScroll]);
 
   useEffect(() => {
+    if (!onReelsTab) {
+      videoPlaybackController.pauseKind('reel');
+      return;
+    }
     if (!activeReelId) return;
     videoPlaybackController.pauseExcept(`reel-${activeReelId}`);
     void videoPlaybackController.requestPlay(`reel-${activeReelId}`, { resetUserPaused: true });
-  }, [activeIndex, activeReelId]);
+  }, [onReelsTab, activeIndex, activeReelId]);
 
   useEffect(() => {
     return () => videoPlaybackController.pauseAll();
@@ -120,11 +125,7 @@ export default function ReelsPage() {
       <div
         ref={scrollRef}
         className="reels-scroll bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll overscroll-y-contain"
-        style={{
-          height: REEL_VIEWPORT_HEIGHT,
-          minHeight: '100dvh',
-          WebkitOverflowScrolling: 'touch',
-        }}
+        style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {isLoading && !data ? (
           <div className="grid h-full place-items-center text-white">
@@ -147,8 +148,7 @@ export default function ReelsPage() {
                 <div
                   key={r.id}
                   data-reel-index={i}
-                  className="relative flex h-full min-h-full w-full snap-start snap-always items-center justify-center bg-black"
-                  style={{ height: REEL_VIEWPORT_HEIGHT }}
+                  className="relative flex w-full snap-start snap-always items-center justify-center bg-black"
                 >
                   {inWindow ? (
                     <ReelPlayer reel={r} active={i === activeIndex} />

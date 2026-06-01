@@ -101,6 +101,7 @@
 
 /* Reels: WebKit scroll-snap + momentum (Safari iOS 18+) */
 .reels-scroll {
+  height: var(--app-reels-height);
   scroll-snap-type: y mandatory;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
@@ -109,6 +110,30 @@
 .reels-scroll [data-reel-index] {
   scroll-snap-align: start;
   scroll-snap-stop: always;
+  height: var(--app-reels-height);
+}
+
+/* Video sizing — consistent across feed, reels, stories */
+video {
+  display: block;
+  max-width: 100%;
+}
+
+.media-video-frame video {
+  object-fit: cover;
+  object-position: center;
+}
+
+.media-video-frame--contain video {
+  object-fit: contain;
+}
+
+.post-media-carousel {
+  transition: aspect-ratio 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.post-media-slide {
+  min-height: 0;
 }
 
 /* IG Reels layout tokens — extend theme variables */

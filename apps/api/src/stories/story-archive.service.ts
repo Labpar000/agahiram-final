@@ -162,6 +162,7 @@ export class StoryArchiveService {
     sourceAudience: string;
     altText: string | null;
     hashtag: string | null;
+    hlsUrl?: string | null;
     archivedAt: Date;
     createdAt: Date;
   }) {
@@ -176,6 +177,7 @@ export class StoryArchiveService {
       sourceAudience: a.sourceAudience,
       altText: a.altText,
       hashtag: a.hashtag,
+      hlsUrl: a.hlsUrl ?? null,
       stickers,
       archivedAt: a.archivedAt.toISOString(),
       createdAt: a.createdAt.toISOString(),

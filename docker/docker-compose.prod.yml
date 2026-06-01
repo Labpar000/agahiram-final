@@ -142,6 +142,23 @@ services:
     networks:
       - agahiram
 
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: agahiram-livekit
+    restart: always
+    command: --config /etc/livekit.yaml
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "50000-50100:50000-50100/udp"
+    networks:
+      - agahiram
+
   caddy:
     image: caddy:2-alpine
     container_name: agahiram-caddy
@@ -159,6 +176,7 @@ services:
       - admin
       - api
       - minio
+      - livekit
     networks:
       - agahiram
 

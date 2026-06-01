@@ -52,6 +52,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { CommentComposer, CommentList, CommentSectionProvider } from './comment-section';
 import { CommentsDrawerHeader } from './comments-drawer-header';
 import { FeedPostVideo } from './feed-post-video';
+import { aspectRatioStyle, getFeedMediaAspect } from '@/lib/media-aspect';
 
 interface Props {
   post: PostSummary & { user: PostSummary['user'] & { phone?: string | null } };
@@ -114,19 +115,14 @@ export function PostCard({
   }, [post.id, post.viewedByMe, locallyViewed]);
   const showSeenBadge = Boolean(post.viewedByMe) || locallyViewed;
 
-  // Use the first media's aspect ratio (clamped) so non-square uploads are not
-  // hard-cropped to 1:1. Instagram allows 1:1, 4:5 (portrait), 1.91:1 (landscape).
-  const firstMedia = post.media[0];
   const me = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
   const isOwner = me?.id === post.user.id;
   const tier = karmaTier(post.user.karma);
   const postQualityLabel = qualityLabel(post.qualityScore);
-  const rawAspect =
-    firstMedia?.width && firstMedia?.height ? firstMedia.width / firstMedia.height : 1;
-  // Clamp to Instagram-friendly range; default to 1 if unknown.
-  const aspectRatio = Math.min(Math.max(rawAspect, 4 / 5), 1.91);
+  const activeMedia = post.media[activeIndex] ?? post.media[0];
+  const aspectRatio = getFeedMediaAspect(activeMedia, post.type);
 
   useEffect(() => {
     if (!embla) return;
@@ -311,11 +307,11 @@ export function PostCard({
         ) : null}
         <div
           ref={emblaRef}
-          className="relative overflow-hidden bg-muted"
-          style={{ aspectRatio: String(aspectRatio) }}
+          className="post-media-carousel relative overflow-hidden bg-muted"
+          style={aspectRatioStyle(aspectRatio)}
           onClick={onDoubleTap}
         >
-          <div className="flex h-full">
+          <div className="flex h-full min-h-0">
             {post.media.length === 0 ? (
               <div className="grid size-full place-items-center bg-surface-muted p-6 text-center text-sm text-muted-foreground">
                 این آگهی رسانه‌ای ندارد
@@ -327,19 +323,22 @@ export function PostCard({
                   return (
                     <div
                       key={m.id ?? i}
-                      className="relative h-full min-w-full shrink-0 bg-muted"
+                      className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden bg-muted"
                       aria-hidden
                     />
                   );
                 }
                 return m.type === 'video' ? (
-                  <div key={m.id ?? i} className="relative h-full min-w-full shrink-0">
+                  <div
+                    key={m.id ?? i}
+                    className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden"
+                  >
                     <FeedPostVideo
                       id={`${post.id}-${m.id ?? i}`}
                       hlsUrl={m.hlsUrl}
                       mp4Url={m.url}
                       poster={m.thumbnailUrl ?? undefined}
-                      className="size-full object-cover"
+                      className="size-full"
                       active={activeIndex === i}
                       onDoubleTap={() => {
                         void onLikeToggle(true);
@@ -352,7 +351,7 @@ export function PostCard({
                     key={m.id ?? i}
                     postId={post.id}
                     post={post}
-                    className="relative h-full min-w-full shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                    className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     onClick={(e: MouseEvent<HTMLAnchorElement>) => {
                       if (Date.now() - lastTapRef.current < 320) {
                         e.preventDefault();

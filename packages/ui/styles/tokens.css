@@ -127,6 +127,7 @@
   --ig-reel-icon: 2rem; /* 32px reels side-rail icons */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-top: env(safe-area-inset-top, 0px);
+  --app-reels-height: calc(100dvh - var(--bottom-nav) - var(--safe-bottom));
 
   /* Typography metrics (Vazirmatn tuned) */
   --leading-tight: 1.25;

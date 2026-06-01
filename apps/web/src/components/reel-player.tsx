@@ -35,6 +35,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { runEngagementAction } from '@/lib/inp';
 import { useManagedVideo } from '@/hooks/use-managed-video';
 import { getReelsMutedPreference, setReelsMutedPreference } from '@/lib/video-playback';
+import { MediaVideoFrame } from '@/components/media-video-frame';
 import { ReelCommentSheet } from '@/components/reel-comment-sheet';
 import { ReportDialog } from '@/components/report-dialog';
 
@@ -222,17 +223,14 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   }, [videoRef]);
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex h-full min-h-full w-full snap-start items-center justify-center bg-black"
-    >
-      <video
+    <div ref={containerRef} className="relative h-full min-h-0 w-full snap-start bg-black">
+      <MediaVideoFrame
         ref={videoRef}
-        playsInline
+        fit="cover"
         preload="metadata"
         onClick={onVideoTap}
         onError={() => setVideoError(true)}
-        className="absolute inset-0 size-full object-cover select-none [-webkit-touch-callout:none]"
+        className="select-none [-webkit-touch-callout:none]"
         poster={reel.media[0]?.thumbnailUrl ?? undefined}
       />
 

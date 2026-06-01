@@ -43,7 +43,7 @@ export class MediaController {
     // optimizer reject them with a 400. Recover the correct MIME from the
     // file extension so images keep working regardless of how they were
     // originally uploaded.
-    const contentType = pickContentType(object.ContentType, key);
+    const contentType = pickContentType(object.ContentType, key, normalizedFolderFromKey(key));
 
     res.header('Content-Type', contentType);
     res.header('Cache-Control', 'public, max-age=31536000, immutable');
@@ -90,6 +90,9 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
   mp4: 'video/mp4',
   webm: 'video/webm',
   mov: 'video/quicktime',
+  m4a: 'audio/mp4',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
   m3u8: 'application/vnd.apple.mpegurl',
   ts: 'video/mp2t',
 };
@@ -101,10 +104,18 @@ const EXTENSION_CONTENT_TYPES: Record<string, string> = {
  * is giving us a generic/unknown type, fall back to the extension-derived MIME
  * so browsers and image optimizers can render the file correctly.
  */
-function pickContentType(stored: string | undefined, key: string): string {
+function normalizedFolderFromKey(key: string): string | null {
+  const segment = key.split('/')[0]?.toLowerCase() ?? '';
+  return segment || null;
+}
+
+function pickContentType(stored: string | undefined, key: string, folder: string | null): string {
   const generic =
     !stored || stored === 'application/octet-stream' || stored === 'binary/octet-stream';
   if (!generic && stored) return stored;
   const ext = key.split('.').pop()?.toLowerCase() ?? '';
+  if (ext === 'webm' && folder === 'messages') {
+    return 'audio/webm';
+  }
   return EXTENSION_CONTENT_TYPES[ext] ?? stored ?? 'application/octet-stream';
 }

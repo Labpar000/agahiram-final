@@ -8,3 +8,4 @@ export * from './admin';
 export * from './report';
 export * from './push';
 export * from './story';
+export * from './call';

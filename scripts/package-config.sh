@@ -10,10 +10,12 @@ tar -czf "$OUT" \
   docker/Caddyfile \
   docker/docker-compose.prod.yml \
   docker/docker-compose.build.yml \
+  docker/livekit.yaml \
   scripts/remote-deploy.sh \
   scripts/detect-build-services.sh \
   scripts/package-config.sh \
   scripts/update.sh \
+  scripts/configure-voice-video.sh \
   2>/dev/null || \
 tar -czf "$OUT" \
   -C "$ROOT" \
@@ -21,6 +23,7 @@ tar -czf "$OUT" \
   scripts/remote-deploy.sh \
   scripts/detect-build-services.sh \
   scripts/package-config.sh \
-  scripts/update.sh
+  scripts/update.sh \
+  scripts/configure-voice-video.sh
 
 echo "$OUT"

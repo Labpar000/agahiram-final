@@ -37,6 +37,8 @@ interface Payload {
   commentId?: string;
   postTitle?: string;
   conversationId?: string;
+  callId?: string;
+  initiatorName?: string;
   reason?: string;
   message?: string;
   mentioned?: boolean;
@@ -59,6 +61,8 @@ const ICON_MAP: Record<NotificationType, { icon: IconCmp; tone: string; filled?:
   [NotificationType.WALLET_DEBIT]: { icon: Wallet, tone: 'text-warning' },
   [NotificationType.BROADCAST]: { icon: Megaphone, tone: 'text-ig-link' },
   [NotificationType.SYSTEM_ANNOUNCEMENT]: { icon: IgBell, tone: 'text-ig-link' },
+  [NotificationType.INCOMING_CALL]: { icon: IgDirect, tone: 'text-ig-link' },
+  [NotificationType.MISSED_CALL]: { icon: IgDirect, tone: 'text-destructive' },
 };
 
 function buildHref(notif: Notif): string | null {
@@ -77,6 +81,9 @@ function buildHref(notif: Notif): string | null {
     case NotificationType.FOLLOW:
       return p.fromUser?.username ? `/profile/${p.fromUser.username}` : null;
     case NotificationType.MESSAGE:
+      return p.conversationId ? `/messages/${p.conversationId}` : '/messages';
+    case NotificationType.INCOMING_CALL:
+    case NotificationType.MISSED_CALL:
       return p.conversationId ? `/messages/${p.conversationId}` : '/messages';
     case NotificationType.STORY_MENTION: {
       const storyUserId = p.fromUserId ?? p.fromUser?.id ?? p.userId;
@@ -103,6 +110,10 @@ function buildMessage(notif: Notif): string {
       return `${u} شما را دنبال کرد`;
     case NotificationType.MESSAGE:
       return `${u} پیام جدیدی برای شما فرستاد`;
+    case NotificationType.INCOMING_CALL:
+      return `${p.initiatorName ?? u} در حال تماس است`;
+    case NotificationType.MISSED_CALL:
+      return `تماس تصویری از دست‌رفته`;
     case NotificationType.AD_APPROVED:
       return `آگهی شما تأیید شد${p.postTitle ? `: ${p.postTitle}` : ''}`;
     case NotificationType.AD_REJECTED:

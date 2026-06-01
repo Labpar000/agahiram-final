@@ -19,6 +19,7 @@ import {
 interface StoryItem {
   id: string;
   mediaUrl: string;
+  hlsUrl?: string | null;
   type: 'image' | 'video';
   durationMs?: number;
   overlayJson?: unknown;
@@ -96,15 +97,16 @@ export default function HighlightViewerPage({ params }: { params: Promise<{ id: 
               {current.type === 'video' ? (
                 <StoryVideo
                   mediaUrl={current.mediaUrl}
+                  hlsUrl={current.hlsUrl}
                   playbackId={`highlight-${current.id}`}
                   active
                   autoPlay
                   muted
-                  className="size-full object-cover"
+                  fit="contain"
                 />
               ) : (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={current.mediaUrl} alt="" className="size-full object-cover" />
+                <img src={current.mediaUrl} alt="" className="size-full object-contain" />
               )}
               <StoryOverlayView overlay={overlay} className="absolute inset-0 size-full" />
               {(current.stickers?.length ?? 0) > 0 ? (

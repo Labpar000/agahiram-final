@@ -30,6 +30,7 @@
     "bullmq": "^5.53.0",
     "cookie-parser": "^1.4.7",
     "ioredis": "^5.6.1",
+    "livekit-server-sdk": "^2.15.4",
     "meilisearch": "^0.50.0",
     "minio": "^8.0.7",
     "passport": "^0.7.0",
@@ -40,6 +41,7 @@
     "sharp": "^0.34.2",
     "socket.io": "^4.8.3",
     "uuid": "^11.1.0",
+    "web-push": "^3.6.7",
     "zod": "^3.25.28"
   },
   "devDependencies": {
@@ -50,6 +52,7 @@
     "@types/node": "^22.15.21",
     "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^10.0.0",
+    "@types/web-push": "^3.6.4",
     "rimraf": "^6.0.1",
     "typescript": "^5.8.3"
   }

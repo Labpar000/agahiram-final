@@ -29,6 +29,16 @@ www.{$DOMAIN:agahiram.ir} {
         reverse_proxy api:4000
     }
 
+    handle /livekit/* {
+        uri strip_prefix /livekit
+        reverse_proxy livekit:7880 {
+            header_up Host {host}
+            transport http {
+                versions 1.1
+            }
+        }
+    }
+
     # MinIO (browser presigned uploads). Uses /storage on the apex domain so
     # uploads work even when s3.<DOMAIN> has no DNS record yet.
     handle_path /storage/* {

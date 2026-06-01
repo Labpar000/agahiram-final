@@ -453,7 +453,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                 active={!paused}
                 autoPlay
                 muted
-                className="size-full object-contain"
+                fit="contain"
               />
             ) : (
               <Image

@@ -13,7 +13,7 @@ export function MainViewport({ children }: { children: React.ReactNode }) {
       className="mx-auto max-w-2xl"
       style={{
         minHeight: immersive
-          ? 'calc(100svh - var(--bottom-nav) - var(--safe-bottom))'
+          ? 'var(--app-reels-height)'
           : 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
       }}
     >

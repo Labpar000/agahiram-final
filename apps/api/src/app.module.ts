@@ -24,6 +24,7 @@ import { MessagesModule } from './messages/messages.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AdminModule } from './admin/admin.module';
 import { LiveModule } from './live/live.module';
+import { CallsModule } from './calls/calls.module';
 import { AiModule } from './ai/ai.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { ReputationModule } from './reputation/reputation.module';
@@ -73,6 +74,7 @@ import { PushModule } from './push/push.module';
     PaymentsModule,
     AdminModule,
     LiveModule,
+    CallsModule,
     AiModule,
     MetricsModule,
     ReputationModule,

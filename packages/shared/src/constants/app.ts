@@ -32,12 +32,28 @@ export const MAX_STORY_DURATION = 15;
  * final stored size. */
 export const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB
 export const MAX_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
+export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB ≈ 5min opus
+export const MAX_VOICE_DURATION_MS = 5 * 60 * 1000;
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
-export const ALLOWED_UPLOAD_TYPES: string[] = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
+export const ALLOWED_AUDIO_TYPES = [
+  'audio/webm',
+  'audio/webm;codecs=opus',
+  'audio/mp4',
+  'audio/aac',
+  'audio/ogg',
+  'audio/ogg;codecs=opus',
+] as const;
+export const ALLOWED_UPLOAD_TYPES: string[] = [
+  ...ALLOWED_IMAGE_TYPES,
+  ...ALLOWED_VIDEO_TYPES,
+  ...ALLOWED_AUDIO_TYPES,
+];
 
 export function maxUploadBytesFor(contentType: string): number {
-  return contentType.startsWith('video/') ? MAX_VIDEO_UPLOAD_BYTES : MAX_IMAGE_UPLOAD_BYTES;
+  if (contentType.startsWith('video/')) return MAX_VIDEO_UPLOAD_BYTES;
+  if (contentType.startsWith('audio/')) return MAX_AUDIO_UPLOAD_BYTES;
+  return MAX_IMAGE_UPLOAD_BYTES;
 }
 
 export const DEFAULT_PAGE_SIZE = 20;
@@ -72,6 +88,19 @@ export const SOCKET_EVENTS = {
   STORY_NEW: 'story:new',
   STORY_EXPIRED: 'story:expired',
   STORY_VIEW: 'story:view',
+} as const;
+
+export const CALL_RING_TIMEOUT_MS = 45_000;
+
+export const CALL_EVENTS = {
+  INVITE: 'call:invite',
+  ACCEPT: 'call:accept',
+  REJECT: 'call:reject',
+  END: 'call:end',
+  BUSY: 'call:busy',
+  CONNECTED: 'call:connected',
+  MISSED: 'call:missed',
+  CANCEL: 'call:cancel',
 } as const;
 
 export const BULL_QUEUES = {

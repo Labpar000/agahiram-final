@@ -24,7 +24,8 @@ export class MediaService {
     if (!normalizedFolder) {
       throw new BadRequestException('پوشه نامعتبر');
     }
-    if (!ALLOWED_TYPES.includes(contentType)) {
+    const normalizedType = contentType.split(';')[0]?.trim() ?? contentType;
+    if (!ALLOWED_TYPES.includes(contentType) && !ALLOWED_TYPES.includes(normalizedType)) {
       throw new BadRequestException('نوع فایل نامعتبر');
     }
 
@@ -101,6 +102,7 @@ export class MediaService {
     const cleaned = extension?.replace(/^\./, '').toLowerCase();
     if (cleaned) return cleaned;
 
+    const baseType = contentType.split(';')[0]?.trim() ?? contentType;
     const fromType: Record<string, string> = {
       'image/jpeg': 'jpg',
       'image/png': 'png',
@@ -108,7 +110,12 @@ export class MediaService {
       'image/gif': 'gif',
       'video/mp4': 'mp4',
       'video/quicktime': 'mov',
+      'video/webm': 'webm',
+      'audio/webm': 'webm',
+      'audio/mp4': 'm4a',
+      'audio/aac': 'aac',
+      'audio/ogg': 'ogg',
     };
-    return fromType[contentType] ?? 'bin';
+    return fromType[baseType] ?? fromType[contentType] ?? 'bin';
   }
 }

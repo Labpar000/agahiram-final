@@ -263,6 +263,7 @@ export class MessagesService {
         type: input.type,
         postId: input.postId,
         storyId: input.storyId,
+        metadata: input.metadata ?? undefined,
       },
       include: {
         sender: { select: { id: true, username: true, name: true, avatar: true } },
@@ -279,11 +280,19 @@ export class MessagesService {
     });
 
     if (recipient) {
+      const preview =
+        input.type === 'voice'
+          ? 'پیام صوتی'
+          : input.type === 'image'
+            ? 'تصویر'
+            : input.type === 'call_event'
+              ? input.content.slice(0, 100)
+              : input.content.slice(0, 100);
       await this.prisma.notification.create({
         data: {
           userId: recipient.userId,
           type: 'message',
-          payload: { senderId, conversationId, preview: input.content.slice(0, 100) },
+          payload: { senderId, conversationId, preview },
         },
       });
     }

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { PageTransition } from '@/components/page-transition';
 import { videoPlaybackController } from '@/lib/video-playback-controller';
+import { isVideoPlaybackRoute } from '@/lib/video-playback-routes';
 
 function isKeepAliveTab(
   pathname: string,
@@ -62,11 +63,10 @@ export function TabShell({ children, feed, explore, reels, messages, profile }: 
   const overlay = isOverlayRoute(pathname);
 
   useEffect(() => {
-    const onVideoTab =
-      !overlay && (active === 'feed' || active === 'explore' || active === 'reels');
-    videoPlaybackController.setPlaybackEnabled(onVideoTab);
-    if (!onVideoTab) videoPlaybackController.pauseAll();
-  }, [active, overlay]);
+    const playbackAllowed = isVideoPlaybackRoute(pathname);
+    videoPlaybackController.setPlaybackEnabled(playbackAllowed);
+    if (!playbackAllowed) videoPlaybackController.pauseAll();
+  }, [pathname]);
 
   if (overlay) {
     return (

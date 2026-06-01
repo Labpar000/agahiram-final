@@ -46,6 +46,8 @@ export enum NotificationType {
   WALLET_DEBIT = 'walletDebit',
   BROADCAST = 'broadcast',
   SYSTEM_ANNOUNCEMENT = 'systemAnnouncement',
+  INCOMING_CALL = 'incomingCall',
+  MISSED_CALL = 'missedCall',
 }
 
 export enum PaymentStatus {
@@ -66,6 +68,7 @@ export enum MessageType {
   IMAGE = 'image',
   VOICE = 'voice',
   POST = 'post',
+  CALL_EVENT = 'call_event',
 }
 
 export enum AttributeType {

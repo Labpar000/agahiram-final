@@ -68,6 +68,30 @@ migrate_minio_env() {
   fi
 }
 
+migrate_voice_video_env() {
+  local script="$APP_DIR/scripts/configure-voice-video.sh"
+  if [[ -f "$script" ]]; then
+    chmod +x "$script" 2>/dev/null || true
+    bash "$script" "$ENV_FILE"
+  fi
+}
+
+# Keep docker/.env in sync so manual `compose up` does not resurrect an old IMAGE_TAG.
+sync_image_tag_env() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  [[ -n "${IMAGE_TAG:-}" ]] || return 0
+  if grep -q '^IMAGE_TAG=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^IMAGE_TAG=.*|IMAGE_TAG=${IMAGE_TAG}|" "$ENV_FILE"
+  else
+    echo "IMAGE_TAG=${IMAGE_TAG}" >> "$ENV_FILE"
+  fi
+  if grep -q '^IMAGE_REGISTRY=' "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^IMAGE_REGISTRY=.*|IMAGE_REGISTRY=${IMAGE_REGISTRY}|" "$ENV_FILE"
+  else
+    echo "IMAGE_REGISTRY=${IMAGE_REGISTRY}" >> "$ENV_FILE"
+  fi
+}
+
 verify_checksum() {
   local file="$1"
   local expected="${2:-}"
@@ -123,6 +147,8 @@ deploy_transfer() {
   fi
 
   migrate_minio_env
+  migrate_voice_video_env
+  sync_image_tag_env
 
   if [[ -n "${IMAGE_SERVICES:-}" ]]; then
     read -r -a image_services <<< "$IMAGE_SERVICES"
@@ -148,7 +174,7 @@ deploy_transfer() {
   export IMAGE_REGISTRY IMAGE_TAG
 
   log "ensuring infra containers..."
-  docker compose $COMPOSE up -d postgres redis meilisearch minio
+  docker compose $COMPOSE up -d postgres redis meilisearch minio livekit
   docker compose $COMPOSE up -d createbuckets
 
   if [[ -z "${BUILD_SERVICES// /}" && -z "${IMAGE_SERVICES:-}" && -z "${IMAGES_TARBALL:-}" ]]; then
@@ -173,7 +199,7 @@ deploy_transfer() {
   if [[ -n "${BUILD_SERVICES// /}" ]]; then
     read -r -a recreate <<< "$BUILD_SERVICES"
   fi
-  recreate+=("caddy")
+  recreate+=("caddy" "livekit")
   if [[ -n "$CONFIG_ONLY" && " ${recreate[*]} " != *" $CONFIG_ONLY "* ]]; then
     recreate+=("$CONFIG_ONLY")
   fi
@@ -191,13 +217,15 @@ deploy_pull() {
   fi
 
   migrate_minio_env
+  migrate_voice_video_env
+  sync_image_tag_env
   ghcr_login
 
   cd "$APP_DIR/docker"
   export IMAGE_REGISTRY IMAGE_TAG
 
   log "ensuring infra containers..."
-  docker compose $COMPOSE up -d postgres redis meilisearch minio
+  docker compose $COMPOSE up -d postgres redis meilisearch minio livekit
   docker compose $COMPOSE up -d createbuckets
 
   if [[ -n "$CONFIG_ONLY" && -z "${BUILD_SERVICES// /}" ]]; then
@@ -228,13 +256,10 @@ deploy_pull() {
       return 0
     }
     if ! pull_services "$IMAGE_TAG"; then
-      if [[ "$IMAGE_TAG" != "latest" ]]; then
-        log "pull failed for tag=$IMAGE_TAG (images may not have been built for this commit); trying latest"
-        pull_services "latest"
-      else
-        exit 1
-      fi
+      log "pull failed for tag=$IMAGE_TAG — aborting (refusing stale latest fallback)"
+      exit 1
     fi
+    sync_image_tag_env
   fi
 
   if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
@@ -248,7 +273,7 @@ deploy_pull() {
   if [[ -n "${BUILD_SERVICES// /}" ]]; then
     read -r -a recreate <<< "$BUILD_SERVICES"
   fi
-  recreate+=("caddy")
+  recreate+=("caddy" "livekit")
   if [[ -n "$CONFIG_ONLY" && " ${recreate[*]} " != *" $CONFIG_ONLY "* ]]; then
     recreate+=("$CONFIG_ONLY")
   fi
@@ -265,13 +290,15 @@ deploy_build() {
   fi
 
   migrate_minio_env
+  migrate_voice_video_env
+  sync_image_tag_env
 
   cd "$APP_DIR/docker"
   export DOCKER_BUILDKIT=1
   export COMPOSE_DOCKER_CLI_BUILD=1
 
   log "ensuring infra containers..."
-  docker compose $COMPOSE up -d postgres redis meilisearch minio
+  docker compose $COMPOSE up -d postgres redis meilisearch minio livekit
   docker compose $COMPOSE up -d createbuckets
 
   log "building (parallel, fallback mode): $BUILD_SERVICES"
@@ -286,7 +313,7 @@ deploy_build() {
 
   log "restarting application containers..."
   # shellcheck disable=SC2086
-  docker compose $COMPOSE up -d --force-recreate $BUILD_SERVICES caddy
+  docker compose $COMPOSE up -d --force-recreate $BUILD_SERVICES caddy livekit
   docker image prune -f
   docker compose $COMPOSE ps
 }

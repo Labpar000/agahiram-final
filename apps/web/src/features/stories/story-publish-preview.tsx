@@ -43,12 +43,7 @@ export function StoryPublishPreview({
       <div className="relative mx-auto aspect-[9/16] w-full max-w-sm overflow-hidden rounded-2xl bg-black shadow-lg ring-1 ring-border">
         <div className="relative size-full" style={{ filter: filterCss }}>
           {mediaType === 'video' ? (
-            <StoryVideo
-              mediaUrl={previewUrl}
-              autoPlay
-              muted={false}
-              className="size-full object-cover"
-            />
+            <StoryVideo mediaUrl={previewUrl} autoPlay muted fit="cover" />
           ) : (
             <Image
               src={previewUrl}

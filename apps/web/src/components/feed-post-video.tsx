@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { IgPlay, IgVolume } from '@agahiram/ui';
 import { useManagedVideo } from '@/hooks/use-managed-video';
 import { observeFeedVideo } from '@/lib/video-playback';
-import { cn } from '@agahiram/shared';
+import { MediaVideoFrame } from '@/components/media-video-frame';
 
 type Props = {
   id: string;
@@ -75,13 +75,13 @@ export function FeedPostVideo({
   }, []);
 
   return (
-    <div ref={containerRef} className="relative size-full">
-      <video
+    <div ref={containerRef} className="relative size-full min-h-0">
+      <MediaVideoFrame
         ref={videoRef}
+        fit="cover"
         poster={poster}
-        playsInline
         preload="metadata"
-        className={cn(className, 'size-full cursor-pointer')}
+        className={className}
         onClick={onTap}
       />
 
@@ -93,16 +93,14 @@ export function FeedPostVideo({
         </div>
       ) : null}
 
-      {!playing ? (
-        <button
-          type="button"
-          aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
-          onClick={toggleMuted}
-          className="absolute end-2 top-2 grid size-8 place-items-center rounded-full bg-black/50 text-white tap-none"
-        >
-          <IgVolume muted={muted} className="size-4" strokeWidth={1.75} aria-hidden />
-        </button>
-      ) : null}
+      <button
+        type="button"
+        aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
+        onClick={toggleMuted}
+        className="absolute end-2 top-2 z-10 grid size-8 place-items-center rounded-full bg-black/50 text-white tap-none"
+      >
+        <IgVolume muted={muted} className="size-4" strokeWidth={1.75} aria-hidden />
+      </button>
     </div>
   );
 }

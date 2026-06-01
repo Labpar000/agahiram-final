@@ -6,6 +6,7 @@ import { MessageType, type SendMessageInput } from '@agahiram/shared';
 import { toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { connectSocket, SOCKET_EVENTS } from '@/lib/socket';
+import type { VoiceMessageMetadata } from '@/components/chat-message';
 
 export interface StoryPreviewInMessage {
   id: string;
@@ -23,6 +24,7 @@ export interface ChatMessageRow {
   type: string;
   senderId: string;
   createdAt: string;
+  metadata?: VoiceMessageMetadata | null;
   sender: { id: string; username: string | null; avatar: string | null };
   storyPreview?: StoryPreviewInMessage;
 }
@@ -71,7 +73,7 @@ export function useConversation(conversationId: string) {
       setLiveMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
         const cleaned = prev.filter(
-          (m) => !(m.id.startsWith('temp-') && m.senderId === msg.senderId),
+          (m) => !(m.id.startsWith('temp-') && m.senderId === msg.senderId && m.type === msg.type),
         );
         return [...cleaned, msg];
       });
@@ -106,31 +108,38 @@ export function useConversation(conversationId: string) {
       content,
       type = MessageType.TEXT,
       tempId,
+      metadata,
     }: {
       content: string;
       type?: SendMessageInput['type'];
       tempId?: string;
+      metadata?: SendMessageInput['metadata'];
     }) => {
       const r = await apiClient.post<{ message: ChatMessageRow }>('/messages', {
         conversationId,
         content,
         type,
+        metadata,
       } satisfies SendMessageInput);
       if (!r.success || !r.data?.message) throw r;
       return { message: r.data.message, tempId };
     },
-    onMutate: async ({ content, type = MessageType.TEXT, tempId }) => {
+    onMutate: async ({ content, type = MessageType.TEXT, tempId, metadata }) => {
       const optimisticId = tempId ?? `temp-${Date.now()}`;
       const me = messagesQuery.data?.meId;
       const optimistic: ChatMessageRow = {
         id: optimisticId,
         content,
         type,
+        metadata: metadata ?? null,
         senderId: me ?? 'me',
         createdAt: new Date().toISOString(),
         sender: { id: me ?? 'me', username: null, avatar: null },
       };
-      setLiveMessages((prev) => [...prev, optimistic]);
+      setLiveMessages((prev) => {
+        if (prev.some((m) => m.id === optimisticId)) return prev;
+        return [...prev, optimistic];
+      });
       return { optimisticId };
     },
     onSuccess: ({ message, tempId }, _vars, ctx) => {
@@ -171,5 +180,28 @@ export function useConversation(conversationId: string) {
     meId: messagesQuery.data?.meId ?? null,
     isLoading: messagesQuery.isLoading && !messagesQuery.data,
     sendMessage,
+    addOptimisticMessage: (msg: ChatMessageRow) => {
+      setLiveMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+    },
+    removeOptimisticMessage: (id: string) => {
+      setLiveMessages((prev) => prev.filter((m) => m.id !== id));
+    },
   };
+}
+
+export function formatLastMessagePreview(
+  msg?: {
+    type: string;
+    content: string;
+  } | null,
+): string {
+  if (!msg) return 'گفتگو را شروع کنید';
+  if (msg.type === 'voice') return 'پیام صوتی';
+  if (msg.type === 'image') return 'تصویر';
+  if (msg.type === 'post') return 'آگهی';
+  if (msg.type === 'call_event') return msg.content;
+  return msg.content;
 }

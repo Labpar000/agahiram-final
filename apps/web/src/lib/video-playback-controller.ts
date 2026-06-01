@@ -108,6 +108,16 @@ class VideoPlaybackControllerImpl {
     }
   }
 
+  pauseKind(kind: VideoPlaybackKind) {
+    for (const entry of this.videos.values()) {
+      if (entry.kind !== kind) continue;
+      entry.video.pause();
+      entry.onPlayingChange?.(false);
+      if (this.activeId === entry.id) this.activeId = null;
+    }
+    this.notifyListeners();
+  }
+
   pauseVideo(id: string) {
     const entry = this.videos.get(id);
     if (!entry) return;

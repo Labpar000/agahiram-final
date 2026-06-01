@@ -3,7 +3,7 @@
 import { useEffect, useRef } from 'react';
 import { useManagedVideo } from '@/hooks/use-managed-video';
 import { applySafariVideoAttrs, setupVideoSource } from '@/lib/video-playback';
-import { videoPlaybackController } from '@/lib/video-playback-controller';
+import { MediaVideoFrame } from '@/components/media-video-frame';
 
 type Props = {
   mediaUrl: string;
@@ -11,6 +11,7 @@ type Props = {
   autoPlay?: boolean;
   muted?: boolean;
   className?: string;
+  fit?: 'cover' | 'contain';
   /** When set, video joins the global playback controller (story viewer). */
   playbackId?: string;
   active?: boolean;
@@ -25,7 +26,14 @@ export function StoryVideo(props: Props) {
   return <PreviewStoryVideo {...props} />;
 }
 
-function PreviewStoryVideo({ mediaUrl, hlsUrl, autoPlay = true, muted = true, className }: Props) {
+function PreviewStoryVideo({
+  mediaUrl,
+  hlsUrl,
+  autoPlay = true,
+  muted = true,
+  className,
+  fit = 'cover',
+}: Props) {
   const ref = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -36,10 +44,10 @@ function PreviewStoryVideo({ mediaUrl, hlsUrl, autoPlay = true, muted = true, cl
   }, [hlsUrl, mediaUrl]);
 
   return (
-    <video
+    <MediaVideoFrame
       ref={ref}
+      fit={fit}
       autoPlay={autoPlay}
-      playsInline
       muted={muted}
       className={className}
       preload="metadata"
@@ -53,6 +61,7 @@ function ManagedStoryVideo({
   autoPlay = true,
   muted = true,
   className,
+  fit = 'contain',
   playbackId,
   active = true,
   loop = false,
@@ -68,13 +77,13 @@ function ManagedStoryVideo({
     autoplayWhenActive: autoPlay,
   });
 
-  useEffect(() => {
-    if (!active || !autoPlay) return;
-    videoPlaybackController.pauseExcept(playbackId);
-    void videoPlaybackController.requestPlay(playbackId, { resetUserPaused: true });
-  }, [active, autoPlay, playbackId]);
-
   return (
-    <video ref={videoRef} playsInline muted={muted} className={className} preload="metadata" />
+    <MediaVideoFrame
+      ref={videoRef}
+      fit={fit}
+      muted={muted}
+      className={className}
+      preload="metadata"
+    />
   );
 }

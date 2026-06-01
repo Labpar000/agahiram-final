@@ -9,6 +9,7 @@ import { UploadManagerProvider } from '@/lib/upload-manager';
 import { PwaInstallBanner } from '@/components/pwa-install-banner';
 import { SwUpdateBanner } from '@/components/sw-update-banner';
 import { WebPushRegister } from '@/components/web-push-register';
+import { CallProvider } from '@/features/calls/call-provider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -33,11 +34,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <NavigationLifecycleInstaller />
           <WebPushRegister />
           <UploadManagerProvider>
-            <TooltipProvider>
-              <SwUpdateBanner />
-              {children}
-              <PwaInstallBanner />
-            </TooltipProvider>
+            <CallProvider>
+              <TooltipProvider>
+                <SwUpdateBanner />
+                {children}
+                <PwaInstallBanner />
+              </TooltipProvider>
+            </CallProvider>
           </UploadManagerProvider>
         </AuthSessionProvider>
         <Toaster />

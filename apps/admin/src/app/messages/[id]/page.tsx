@@ -28,6 +28,7 @@ const MESSAGE_TYPE_LABEL: Record<string, string> = {
   image: 'تصویر',
   voice: 'صدا',
   post: 'آگهی',
+  call_event: 'تماس',
 };
 
 interface MessageRow {
@@ -114,7 +115,14 @@ export default function ConversationDetailPage({ params }: { params: Promise<{ i
       {
         key: 'content',
         header: 'متن',
-        cell: (m) => <p className="text-sm whitespace-pre-wrap max-w-xl">{m.content}</p>,
+        cell: (m) =>
+          m.type === 'voice' ? (
+            <audio src={m.content} controls className="max-w-xs" preload="metadata" />
+          ) : m.type === 'call_event' ? (
+            <p className="text-sm italic text-muted-foreground">{m.content}</p>
+          ) : (
+            <p className="text-sm whitespace-pre-wrap max-w-xl">{m.content}</p>
+          ),
       },
       {
         key: 'type',

@@ -4,7 +4,13 @@ import { useState } from 'react';
 import { IgCheck, IgCheckDouble, IgClose, Avatar, AvatarFallback, AvatarImage } from '@agahiram/ui';
 import { cn, formatJalaliDate } from '@agahiram/shared';
 import { StoryReplyPreview } from '@/components/story-reply-preview';
+import { VoiceMessagePlayer } from '@/components/voice-message-player';
 import type { StoryPreviewInMessage } from '@/hooks/useConversation';
+
+export type VoiceMessageMetadata = {
+  durationMs?: number;
+  mimeType?: string;
+};
 
 export interface ChatMessageProps {
   id: string;
@@ -14,6 +20,7 @@ export interface ChatMessageProps {
   createdAt: string;
   sender?: { username?: string | null; avatar?: string | null };
   storyPreview?: StoryPreviewInMessage;
+  metadata?: VoiceMessageMetadata | null;
   status?: 'sending' | 'sent' | 'delivered' | 'read';
   isFirstOfGroup?: boolean;
   isLastOfGroup?: boolean;
@@ -26,11 +33,13 @@ export function ChatMessage({
   createdAt,
   sender,
   storyPreview,
+  metadata,
   status,
   isFirstOfGroup = true,
   isLastOfGroup = true,
 }: ChatMessageProps) {
   const [lightbox, setLightbox] = useState(false);
+  const voiceUploading = type === 'voice' && status === 'sending' && !content;
 
   return (
     <>
@@ -41,7 +50,6 @@ export function ChatMessage({
           isFirstOfGroup ? 'mt-3' : 'mt-0.5',
         )}
       >
-        {/* Their avatar — start side; reserve space for grouped messages */}
         {!isMine && (
           <div className="w-8 shrink-0">
             {isLastOfGroup ? (
@@ -68,7 +76,14 @@ export function ChatMessage({
                 <img src={content} alt="" className="max-h-48 rounded-xl object-cover" />
               </button>
             ) : type === 'voice' ? (
-              <audio src={content} controls className="max-w-full" preload="metadata" />
+              <VoiceMessagePlayer
+                src={content}
+                durationMs={metadata?.durationMs}
+                isMine={isMine}
+                uploading={voiceUploading}
+              />
+            ) : type === 'call_event' ? (
+              <p className="text-xs text-muted-foreground italic">{content}</p>
             ) : storyPreview ? (
               <div className="space-y-2">
                 <StoryReplyPreview preview={storyPreview} isMine={isMine} />

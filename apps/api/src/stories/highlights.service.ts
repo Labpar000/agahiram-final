@@ -151,6 +151,7 @@ export class HighlightsService {
             overlayJson: live.overlayJson,
             durationMs: live.durationMs,
             linkedPostId: live.linkedPostId,
+            hlsUrl: live.hlsUrl ?? null,
             stickers: live.stickers,
             createdAt: live.createdAt.toISOString(),
           };

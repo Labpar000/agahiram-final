@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect, useMemo, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MessageType } from '@agahiram/shared';
 import {
@@ -19,14 +19,81 @@ import {
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ChatMessage } from '@/components/chat-message';
+import { VoiceRecordOverlay } from '@/components/voice-record-overlay';
 import { useConversation } from '@/hooks/useConversation';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
+import { useCall } from '@/features/calls/call-provider';
+import type { VoiceRecordingResult } from '@/lib/voice-recorder';
 
 export default function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { uploadFile } = useUploadManager();
+  const { startOutgoingCall, phase: callPhase } = useCall();
   const [text, setText] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { head, messages, meId, isLoading, sendMessage } = useConversation(id);
+  const {
+    head,
+    messages,
+    meId,
+    isLoading,
+    sendMessage,
+    addOptimisticMessage,
+    removeOptimisticMessage,
+  } = useConversation(id);
+
+  const sendVoiceRecording = useCallback(
+    async (result: VoiceRecordingResult) => {
+      const tempId = `temp-voice-${Date.now()}`;
+      const me = meId ?? 'me';
+      addOptimisticMessage({
+        id: tempId,
+        content: '',
+        type: MessageType.VOICE,
+        metadata: { durationMs: result.durationMs, mimeType: result.mimeType },
+        senderId: me,
+        createdAt: new Date().toISOString(),
+        sender: { id: me, username: null, avatar: null },
+      });
+
+      try {
+        const file = new File([result.blob], `voice-${Date.now()}.${result.extension}`, {
+          type: result.mimeType,
+        });
+        const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
+          '/media/presign',
+          {
+            folder: 'messages',
+            fileName: file.name,
+            contentType: result.mimeType,
+            extension: result.extension,
+          },
+        );
+        if (!presign.success || !presign.data) {
+          throw new Error('presign failed');
+        }
+        const ok = await uploadFile({
+          label: 'ارسال پیام صوتی',
+          url: presign.data.uploadUrl,
+          file,
+          contentType: result.mimeType,
+        });
+        if (!ok) throw new Error('upload failed');
+        await apiClient.post('/media/confirm', { key: presign.data.key });
+        await sendMessage.mutateAsync({
+          content: presign.data.publicUrl,
+          type: MessageType.VOICE,
+          tempId,
+          metadata: { durationMs: result.durationMs, mimeType: result.mimeType },
+        });
+      } catch {
+        removeOptimisticMessage(tempId);
+        toast.error('خطا در آپلود صدا');
+      }
+    },
+    [addOptimisticMessage, meId, removeOptimisticMessage, sendMessage, uploadFile],
+  );
+
+  const voice = useVoiceRecorder(sendVoiceRecording);
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -80,59 +147,6 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const voiceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [recording, setRecording] = useState(false);
-
-  const startVoice = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      const chunks: BlobPart[] = [];
-      rec.ondataavailable = (e) => chunks.push(e.data);
-      rec.onstop = async () => {
-        if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
-        const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
-          '/media/presign',
-          { folder: 'messages', fileName: file.name, contentType: file.type, extension: 'webm' },
-        );
-        if (!presign.success || !presign.data) {
-          toast.error('خطا در آپلود صدا');
-          return;
-        }
-        const ok = await uploadFile({
-          label: 'ارسال پیام صوتی',
-          url: presign.data.uploadUrl,
-          file,
-          contentType: file.type,
-        });
-        if (!ok) return;
-        await apiClient.post('/media/confirm', { key: presign.data.key });
-        await sendMedia(presign.data.publicUrl, MessageType.VOICE);
-      };
-      mediaRecorderRef.current = rec;
-      rec.start();
-      setRecording(true);
-      voiceTimerRef.current = setTimeout(
-        () => {
-          toast.error('حداکثر زمان ضبط ۵ دقیقه است');
-          stopVoice();
-        },
-        5 * 60 * 1000,
-      );
-    } catch {
-      toast.error('دسترسی به میکروفون ممکن نیست');
-    }
-  };
-
-  const stopVoice = () => {
-    if (voiceTimerRef.current) clearTimeout(voiceTimerRef.current);
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  };
 
   return (
     <div
@@ -163,7 +177,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           aria-label="تماس ویدیویی"
           icon={<IgVideoCall className="size-5" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
-          disabled
+          disabled={!head?.otherUser || callPhase !== 'idle'}
+          onClick={() => {
+            if (head?.otherUser) void startOutgoingCall(id, head.otherUser);
+          }}
         />
         <IconButton
           aria-label="اطلاعات گفتگو"
@@ -196,6 +213,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               id={m.id}
               content={m.content}
               type={m.type}
+              metadata={m.metadata}
               isMine={m.isMine}
               createdAt={m.createdAt}
               sender={m.sender ?? undefined}
@@ -213,8 +231,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           e.preventDefault();
           void send();
         }}
-        className="flex items-center gap-2 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur-md"
+        className="relative flex items-center gap-2 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur-md"
       >
+        <VoiceRecordOverlay elapsedLabel={voice.elapsedLabel} visible={voice.isRecording} />
         <input
           ref={fileInputRef}
           type="file"
@@ -236,12 +255,17 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         </button>
         <button
           type="button"
-          aria-label={recording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
-          className={`grid size-10 place-items-center rounded-full ${recording ? 'bg-destructive text-destructive-foreground' : 'text-muted-foreground hover:bg-muted'}`}
-          onMouseDown={() => void startVoice()}
-          onMouseUp={stopVoice}
-          onTouchStart={() => void startVoice()}
-          onTouchEnd={stopVoice}
+          aria-label={voice.isRecording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
+          disabled={voice.isProcessing || callPhase !== 'idle'}
+          className={`grid size-10 place-items-center rounded-full touch-none select-none ${
+            voice.isRecording
+              ? 'bg-destructive text-destructive-foreground'
+              : 'text-muted-foreground hover:bg-muted'
+          }`}
+          onPointerDown={voice.handlePointerDown}
+          onPointerUp={voice.handlePointerUp}
+          onPointerCancel={voice.handlePointerCancel}
+          onContextMenu={(e) => e.preventDefault()}
         >
           <IgMic className="size-5" strokeWidth={1.75} aria-hidden />
         </button>
