@@ -16,6 +16,7 @@ import {
   IgUser,
 } from '@agahiram/ui';
 import { useAuthStore } from '@/lib/auth-store';
+import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
 
 const items = [
   {
@@ -60,6 +61,7 @@ const TAB_PREFETCH: Record<string, 'feed' | 'explore' | 'reels' | 'profile' | un
 
 export function BottomNav() {
   const pathname = usePathname() ?? '/';
+  const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const router = useRouter();
   const qc = useQueryClient();
   const myUsername = useAuthStore((s) => s.user?.username);
@@ -90,6 +92,8 @@ export function BottomNav() {
       }
     });
   }, [pathname]);
+
+  if (hideOnStoryViewer) return null;
 
   return (
     <nav

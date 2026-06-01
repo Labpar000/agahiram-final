@@ -18,6 +18,7 @@ import {
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useUnreadMessages, useUnreadNotifications } from '@/hooks/useUnreadCounts';
+import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
 
 const RECENT_KEY = 'agahiram_recent_searches';
 
@@ -25,6 +26,7 @@ export function TopBar() {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
   const hideOnReels = pathname === '/reels';
+  const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const notifUnread = useUnreadNotifications();
   const msgUnread = useUnreadMessages();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -90,7 +92,7 @@ export function TopBar() {
     router.push(`/explore?q=${encodeURIComponent(term)}`);
   };
 
-  if (hideOnReels) return null;
+  if (hideOnReels || hideOnStoryViewer) return null;
 
   return (
     <>

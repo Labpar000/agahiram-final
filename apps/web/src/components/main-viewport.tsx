@@ -1,11 +1,12 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
 
 /** Adjust main viewport height when TopBar is hidden (e.g. reels). */
 export function MainViewport({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '/';
-  const immersive = pathname === '/reels';
+  const immersive = pathname === '/reels' || isImmersiveStoryViewerRoute(pathname);
 
   return (
     <main

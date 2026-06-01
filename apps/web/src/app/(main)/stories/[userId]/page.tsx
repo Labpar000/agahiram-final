@@ -55,6 +55,7 @@ import { downloadBlob } from '@/features/stories/story-media-utils';
 import { useStoryPlayback } from '@/hooks/use-story-playback';
 import { StoryViewerFrame } from '@/features/stories/story-viewer-frame';
 import { StoryViewerTapZones } from '@/features/stories/story-viewer-tap-zones';
+import { StoryViewerOverlay } from '@/features/stories/story-viewer-overlay';
 import { Input, toast } from '@agahiram/ui';
 
 interface StoryGroup {
@@ -220,11 +221,6 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
   });
 
   useEffect(() => {
-    document.documentElement.classList.add('overflow-hidden');
-    return () => document.documentElement.classList.remove('overflow-hidden');
-  }, []);
-
-  useEffect(() => {
     if (index >= stories.length && stories.length > 0) {
       setIndex(stories.length - 1);
     }
@@ -320,15 +316,15 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black">
+      <StoryViewerOverlay className="grid place-items-center">
         <Spinner size="xl" className="text-white" />
-      </div>
+      </StoryViewerOverlay>
     );
   }
 
   if (!group || !current) {
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black text-white">
+      <StoryViewerOverlay className="grid place-items-center text-white">
         <div className="text-center">
           <p className="mb-3 text-sm">استوری در دسترس نیست</p>
           <button
@@ -339,7 +335,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
             بازگشت
           </button>
         </div>
-      </div>
+      </StoryViewerOverlay>
     );
   }
 

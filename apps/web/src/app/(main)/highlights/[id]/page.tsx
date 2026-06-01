@@ -19,6 +19,7 @@ import {
 import { useStoryPlayback } from '@/hooks/use-story-playback';
 import { StoryViewerFrame } from '@/features/stories/story-viewer-frame';
 import { StoryViewerTapZones } from '@/features/stories/story-viewer-tap-zones';
+import { StoryViewerOverlay } from '@/features/stories/story-viewer-overlay';
 
 interface StoryItem {
   id: string;
@@ -72,11 +73,6 @@ export default function HighlightViewerPage({ params }: { params: Promise<{ id: 
   });
 
   useEffect(() => {
-    document.documentElement.classList.add('overflow-hidden');
-    return () => document.documentElement.classList.remove('overflow-hidden');
-  }, []);
-
-  useEffect(() => {
     setIndex(0);
   }, [id]);
 
@@ -88,15 +84,15 @@ export default function HighlightViewerPage({ params }: { params: Promise<{ id: 
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black">
+      <StoryViewerOverlay className="grid place-items-center">
         <Spinner size="xl" className="text-white" />
-      </div>
+      </StoryViewerOverlay>
     );
   }
 
   if (!current || !stories?.length) {
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black text-white">
+      <StoryViewerOverlay className="grid place-items-center text-white">
         <div className="text-center">
           <p className="mb-3 text-sm">هایلایت در دسترس نیست</p>
           <button
@@ -107,7 +103,7 @@ export default function HighlightViewerPage({ params }: { params: Promise<{ id: 
             بازگشت
           </button>
         </div>
-      </div>
+      </StoryViewerOverlay>
     );
   }
 
