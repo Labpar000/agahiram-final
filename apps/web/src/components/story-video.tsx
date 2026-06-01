@@ -1,9 +1,19 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
 import { useManagedVideo } from '@/hooks/use-managed-video';
 import { applySafariVideoAttrs, setupVideoSource } from '@/lib/video-playback';
 import { MediaVideoFrame } from '@/components/media-video-frame';
+
+function mergeVideoRef(
+  target: MutableRefObject<HTMLVideoElement | null>,
+  onVideoRef?: (video: HTMLVideoElement | null) => void,
+) {
+  return (node: HTMLVideoElement | null) => {
+    target.current = node;
+    onVideoRef?.(node);
+  };
+}
 
 type Props = {
   mediaUrl: string;
@@ -16,6 +26,8 @@ type Props = {
   playbackId?: string;
   active?: boolean;
   loop?: boolean;
+  /** Called when the underlying video element is mounted (for story progress sync). */
+  onVideoRef?: (video: HTMLVideoElement | null) => void;
 };
 
 /** Story video — HLS + optional managed playback for single-audio policy. */
@@ -33,6 +45,7 @@ function PreviewStoryVideo({
   muted = true,
   className,
   fit = 'cover',
+  onVideoRef,
 }: Props) {
   const ref = useRef<HTMLVideoElement>(null);
 
@@ -43,9 +56,11 @@ function PreviewStoryVideo({
     return setupVideoSource(video, hlsUrl ?? undefined, mediaUrl);
   }, [hlsUrl, mediaUrl]);
 
+  const setRef = useCallback(mergeVideoRef(ref, onVideoRef), [onVideoRef]);
+
   return (
     <MediaVideoFrame
-      ref={ref}
+      ref={setRef}
       fit={fit}
       autoPlay={autoPlay}
       muted={muted}
@@ -61,10 +76,11 @@ function ManagedStoryVideo({
   autoPlay = true,
   muted = true,
   className,
-  fit = 'contain',
+  fit = 'cover',
   playbackId,
   active = true,
   loop = false,
+  onVideoRef,
 }: Props & { playbackId: string }) {
   const { videoRef } = useManagedVideo({
     id: playbackId,
@@ -77,9 +93,11 @@ function ManagedStoryVideo({
     autoplayWhenActive: autoPlay,
   });
 
+  const setRef = useCallback(mergeVideoRef(videoRef, onVideoRef), [onVideoRef]);
+
   return (
     <MediaVideoFrame
-      ref={videoRef}
+      ref={setRef}
       fit={fit}
       muted={muted}
       className={className}

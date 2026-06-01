@@ -30,7 +30,7 @@ export function StoryProgressBar({
       {Array.from({ length: segments }).map((_, i) => {
         const fill = i < activeIndex ? 1 : i > activeIndex ? 0 : Math.min(1, Math.max(0, progress));
         return (
-          <div key={i} className="h-[2px] flex-1 overflow-hidden rounded-full bg-white/30">
+          <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
             <div
               className="h-full rounded-full bg-white transition-[width] duration-75 ease-linear"
               style={{ width: `${fill * 100}%` }}

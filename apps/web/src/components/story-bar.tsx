@@ -9,6 +9,7 @@ import { Skeleton, STORY_INNER, StoryTrayItem } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { connectStoriesSocket } from '@/lib/stories-socket';
 import { useAuthStore } from '@/lib/auth-store';
+import { YourStoryTrayCell } from '@/features/stories/your-story-tray-cell';
 
 interface StoryGroup {
   userId: string;
@@ -63,29 +64,13 @@ export function StoryBar() {
         className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-4 py-2 scrollbar-hide"
       >
         <li>
-          <Link
-            href={myStoryGroup ? `/stories/${myStoryGroup.userId}` : '/create/story'}
-            aria-label={myStoryGroup ? 'استوری شما' : 'افزودن استوری'}
-            className={linkClass}
-          >
-            <StoryTrayItem
-              variant={myStoryGroup ? 'story' : 'add'}
-              hasUnviewed={false}
-              label={myStoryGroup ? 'استوری شما' : 'شما'}
-              ringImage={
-                me?.avatar ? (
-                  <Image
-                    src={me.avatar}
-                    alt=""
-                    width={68}
-                    height={68}
-                    className={cn(STORY_INNER, 'rounded-full object-cover')}
-                  />
-                ) : undefined
-              }
-              className="transition-transform group-active:scale-95"
-            />
-          </Link>
+          <YourStoryTrayCell
+            userId={myStoryGroup?.userId ?? me?.id ?? ''}
+            hasStories={!!myStoryGroup}
+            hasUnviewed={false}
+            avatarUrl={me?.avatar}
+            username={me?.username}
+          />
         </li>
 
         {isLoading
