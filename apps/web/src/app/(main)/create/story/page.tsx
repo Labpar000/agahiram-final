@@ -186,9 +186,10 @@ export default function CreateStoryPage() {
           mediaKey: s.mediaKey,
           type: s.mediaType,
           overlayJson: s.overlay,
-          durationMs: s.videoDurationMs
-            ? Math.min(s.videoDurationMs, MAX_STORY_DURATION * 1000)
-            : undefined,
+          durationMs:
+            s.mediaType === 'video' && s.videoDurationMs
+              ? Math.max(1000, Math.min(s.videoDurationMs, MAX_STORY_DURATION * 1000))
+              : undefined,
           audience: s.audience,
           allowReplies: s.allowReplies,
           linkedPostId: s.linkedPostId,

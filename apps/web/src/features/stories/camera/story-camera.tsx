@@ -50,9 +50,11 @@ export function StoryCamera({
   const [torchOn, setTorchOn] = useState(false);
   const [superzoom, setSuperzoom] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const startCamera = useCallback(async () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
+    setCameraError(null);
     const constraints: MediaStreamConstraints = {
       video: {
         facingMode: facing,
@@ -63,22 +65,25 @@ export function StoryCamera({
       },
       audio: mode !== 'superzoom',
     };
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const attachStream = async (stream: MediaStream) => {
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
+    };
+    try {
+      await attachStream(await navigator.mediaDevices.getUserMedia(constraints));
     } catch {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing },
-        audio: mode !== 'superzoom',
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      try {
+        await attachStream(
+          await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing },
+            audio: mode !== 'superzoom',
+          }),
+        );
+      } catch {
+        setCameraError('دوربین در دسترس نیست. از گالری یا آپلود فایل استفاده کنید.');
       }
     }
   }, [facing, torchOn, mode]);
@@ -278,6 +283,18 @@ export function StoryCamera({
       {busy ? (
         <div className="absolute inset-0 z-20 grid place-items-center bg-black/30 text-sm text-white">
           در حال پردازش…
+        </div>
+      ) : null}
+      {cameraError ? (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center text-sm text-white">
+          <p>{cameraError}</p>
+          <button
+            type="button"
+            className="rounded-full bg-white/15 px-4 py-2 text-xs font-medium"
+            onClick={onGallery}
+          >
+            انتخاب از گالری
+          </button>
         </div>
       ) : null}
 

@@ -7,6 +7,29 @@
 
 /* Web-app specific overrides go below. */
 
+/* Mobile viewport lock — IG-style shell must not pinch/double-tap zoom or drift horizontally. */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  max-width: 100%;
+}
+
+/* iOS Safari auto-zooms focused inputs when font-size < 16px (ignores viewport on some versions). */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 /* Lightweight route transition (replaces framer-motion in the global shell).
    Keyed remount on pathname change replays this entrance animation. */
 @keyframes page-enter {

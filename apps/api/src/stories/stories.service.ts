@@ -124,6 +124,8 @@ export class StoriesService {
       searchableText = [searchableText, extra].filter(Boolean).join(' ').slice(0, 2000);
     }
 
+    const sessionId = await this.ensurePublishSession(userId, input.sessionId, { publishAt });
+
     const story = await this.prisma.story.create({
       data: {
         userId,
@@ -141,7 +143,7 @@ export class StoriesService {
         audience: input.audience ?? StoryAudience.PUBLIC,
         allowReplies:
           input.allowReplies ?? user?.defaultStoryAllowReplies ?? StoryAllowReplies.EVERYONE,
-        sessionId: input.sessionId,
+        sessionId,
         sequenceIndex: input.sequenceIndex ?? 0,
         altText: input.altText,
         hashtag: resolvedHashtag,
@@ -183,6 +185,45 @@ export class StoriesService {
     return this.getStoryById(story.id);
   }
 
+  /** Client-generated session ids must exist before Story.sessionId FK insert. */
+  private async ensurePublishSession(
+    userId: string,
+    sessionId: string | undefined,
+    opts?: { publishAt?: Date; scheduledAt?: Date | null },
+  ): Promise<string | undefined> {
+    if (!sessionId) return undefined;
+
+    const publishAt = opts?.publishAt ?? new Date();
+    const existing = await this.prisma.storyPublishSession.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+
+    if (existing) {
+      if (existing.userId !== userId) {
+        throw new ForbiddenException('دسترسی به این نشست انتشار مجاز نیست');
+      }
+      await this.prisma.storyPublishSession.update({
+        where: { id: sessionId },
+        data: {
+          ...(opts?.scheduledAt !== undefined ? { scheduledAt: opts.scheduledAt } : {}),
+          ...(publishAt.getTime() <= Date.now() ? { publishedAt: publishAt } : {}),
+        },
+      });
+      return sessionId;
+    }
+
+    await this.prisma.storyPublishSession.create({
+      data: {
+        id: sessionId,
+        userId,
+        scheduledAt: opts?.scheduledAt ?? null,
+        publishedAt: publishAt.getTime() <= Date.now() ? publishAt : null,
+      },
+    });
+    return sessionId;
+  }
+
   private emitStoryNewToFollowers(userId: string, storyId: string, username: string | null) {
     void this.prisma.follow
       .findMany({ where: { followingId: userId }, select: { followerId: true } })
@@ -207,25 +248,10 @@ export class StoriesService {
     const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : undefined;
     const publishAt = scheduledAt && scheduledAt.getTime() > Date.now() ? scheduledAt : new Date();
 
-    let sessionId = input.sessionId;
-    if (!sessionId) {
-      const session = await this.prisma.storyPublishSession.create({
-        data: {
-          userId,
-          publishedAt: publishAt.getTime() <= Date.now() ? publishAt : null,
-          scheduledAt: scheduledAt ?? null,
-        },
-      });
-      sessionId = session.id;
-    } else if (scheduledAt) {
-      await this.prisma.storyPublishSession.updateMany({
-        where: { id: sessionId, userId },
-        data: {
-          scheduledAt,
-          publishedAt: publishAt.getTime() <= Date.now() ? publishAt : null,
-        },
-      });
-    }
+    const sessionId = await this.ensurePublishSession(userId, input.sessionId, {
+      publishAt,
+      scheduledAt: scheduledAt ?? null,
+    });
 
     const created = [];
     for (let i = 0; i < input.stories.length; i++) {
