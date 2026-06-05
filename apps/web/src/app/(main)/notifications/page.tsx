@@ -1,13 +1,16 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { NotificationType, type NotificationItem as Notif } from '@agahiram/shared';
 import {
   EmptyState,
   ErrorState,
   IgActivity,
+  IgArrowBack,
   IgCheckDouble,
   IgPageHeader,
+  IconButton,
   Skeleton,
   toast,
 } from '@agahiram/ui';
@@ -53,6 +56,7 @@ const GROUP_LABELS: Record<GroupKey, string> = {
 };
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const { data, isLoading, isError, refetch, markAllRead, markRead, unreadCount } =
     useNotifications();
   const [tab, setTab] = useState<Tab>('all');
@@ -76,7 +80,19 @@ export default function NotificationsPage() {
   return (
     <div className="bg-background">
       <IgPageHeader
-        title="اعلان‌ها"
+        title={
+          <div className="flex items-center gap-1">
+            <IconButton
+              aria-label="بازگشت"
+              icon={
+                <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
+              }
+              variant="ghost"
+              onClick={() => router.back()}
+            />
+            <span>اعلان‌ها</span>
+          </div>
+        }
         action={
           unreadCount > 0 ? (
             <button

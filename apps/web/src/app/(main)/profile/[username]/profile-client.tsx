@@ -15,6 +15,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  IgArrowBack,
   IgBookmark,
   IgComment,
   IgGrid,
@@ -22,6 +23,7 @@ import {
   IgReels,
   IgSettings,
   IgShare2026,
+  IconButton,
   Skeleton,
   Tabs,
   TabsContent,
@@ -184,6 +186,16 @@ export function ProfileClient({ username }: { username: string }) {
       <header className="space-y-3 bg-surface px-4 pb-4 pt-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
+            {!isMe ? (
+              <IconButton
+                aria-label="بازگشت"
+                icon={
+                  <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
+                }
+                variant="ghost"
+                onClick={() => router.back()}
+              />
+            ) : null}
             <p className="min-w-0 truncate text-sm font-semibold" dir="ltr">
               @{profile.username}
             </p>

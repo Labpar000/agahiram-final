@@ -40,6 +40,7 @@ export function BottomNav() {
   const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const router = useRouter();
   const qc = useQueryClient();
+  const isAuthenticated = useAuthStore((s) => !!s.user);
   const myUsername = useAuthStore((s) => s.user?.username);
   const myAvatar = useAuthStore((s) => s.user?.avatar);
   const prevPath = useRef(pathname);
@@ -49,11 +50,17 @@ export function BottomNav() {
       const tab = TAB_PREFETCH[href];
       if (!tab) return;
       const target =
-        href === '/profile' ? (myUsername ? `/profile/${myUsername}` : '/onboarding') : href;
+        href === '/profile'
+          ? !isAuthenticated
+            ? '/login'
+            : myUsername
+              ? `/profile/${myUsername}`
+              : '/onboarding'
+          : href;
       void router.prefetch(target);
       import('@/lib/tab-prefetch').then((m) => m.prefetchMainTab(qc, tab, myUsername ?? null));
     },
-    [qc, router, myUsername],
+    [qc, router, myUsername, isAuthenticated],
   );
 
   useEffect(() => {
@@ -79,7 +86,13 @@ export function BottomNav() {
         const { href, label, Icon, filledWhenActive } = item;
         const useAvatar = 'useAvatar' in item && item.useAvatar;
         const resolvedHref =
-          href === '/profile' ? (myUsername ? `/profile/${myUsername}` : '/onboarding') : href;
+          href === '/profile'
+            ? !isAuthenticated
+              ? '/login'
+              : myUsername
+                ? `/profile/${myUsername}`
+                : '/onboarding'
+            : href;
         const active =
           href === '/feed'
             ? pathname === '/' || pathname === '/feed'

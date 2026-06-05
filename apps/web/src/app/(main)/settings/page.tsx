@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Avatar,
@@ -10,6 +11,7 @@ import {
   Button,
   Card,
   CardContent,
+  IgArrowBack,
   IgBell,
   IgGallery,
   IgHelp,
@@ -19,6 +21,7 @@ import {
   IgShield,
   IgUser,
   IgWallet,
+  IconButton,
   Input,
   Label,
   Separator,
@@ -55,6 +58,7 @@ interface BlockedUser {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const updateUser = useAuthStore((s) => s.updateUser);
   const { user, logout, refetch } = useAuth();
@@ -292,7 +296,13 @@ export default function SettingsPage() {
 
   return (
     <div className="bg-background pb-12">
-      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-4">
+      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-4">
+        <IconButton
+          aria-label="بازگشت"
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
+          variant="ghost"
+          onClick={() => router.back()}
+        />
         <h1 className="text-h2 font-bold tracking-tight">تنظیمات</h1>
       </div>
 

@@ -69,8 +69,20 @@ jobs:
       - name: Unit and API tests
         run: pnpm test
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @agahiram/web exec playwright install --with-deps chromium
+
+      - name: Install Playwright system deps (if cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @agahiram/web exec playwright install-deps chromium
 
       - name: E2E smoke tests
         run: pnpm test:e2e

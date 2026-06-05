@@ -24,7 +24,12 @@ export default function OnboardingPage() {
   const [bio, setBio] = useState('');
 
   useEffect(() => {
-    if (!isLoading && user?.username) {
+    if (isLoading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (user.username) {
       router.replace(`/profile/${user.username}`);
     }
   }, [user, isLoading, router]);

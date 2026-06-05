@@ -10,13 +10,13 @@
 flowchart TD
   push[push to main] --> ci[CI quality]
   ci -->|success| scope[detect scope]
-  scope --> build[Build images on GHA]
-  build --> ghcr[Push to GHCR]
-  scope --> config[Package config tarball]
+  scope --> build[Build images on GHA — parallel matrix]
+  build --> ghcr[Push to GHCR\nghcr.io/labpar000/agahiram]
+  scope --> config[Package tiny config tarball\n~10 KB]
   config --> scp[SCP config to VPS]
-  ghcr --> pull[docker pull on VPS]
+  ghcr --> pull[docker pull on VPS\nonly changed layers]
   scp --> pull
-  pull --> up[compose up + migrate]
+  pull --> up[compose up --force-recreate + prisma migrate]
   up --> live[alooche.com]
 ```
 
@@ -28,6 +28,8 @@ flowchart TD
 | **فقط Caddyfile**                  | سرور          | ~30 ثانیه   |
 
 **دیگر build روی VPS انجام نمی‌شود** — علت اصلی deployهای ۴۵+ دقیقه‌ای و `Broken pipe` برطرف شده است.
+
+**روش pull (نه transfer):** VPS مستقیماً image را از GHCR می‌کشد — فقط لایه‌های تغییر‌یافته دانلود می‌شوند (Docker layer cache). هیچ tarball بزرگی از runner به VPS منتقل نمی‌شود.
 
 ## Workflowها
 
@@ -44,7 +46,9 @@ flowchart TD
 
 1. **scope** — [`scripts/detect-build-services.sh`](../scripts/detect-build-services.sh) سرویس‌های لازم + `CONFIG_ONLY` (مثلاً فقط caddy)
 2. **build** — matrix روی GHA، push به `ghcr.io/labpar000/agahiram/{service}:{sha}`
-3. **deploy** — SCP config کوچک + `remote-deploy.sh` در حالت **pull** از GHCR (DNS سرور: `87.107.110.109`)
+3. **deploy** — SCP config کوچک (~10KB) + `remote-deploy.sh` در حالت **pull** از GHCR
+
+   سرور مستقیماً image را از GHCR می‌کشد (فقط لایه‌های تغییریافته). در صورت نیاز DNS override از `GHCR_DNS_IP` variable استفاده می‌شود.
 
 ## Secrets و Variables
 
@@ -59,6 +63,9 @@ flowchart TD
 | `GHCR_PULL_TOKEN`         | PAT با `read:packages` | اختیاری؛ اگر خالی باشد `GITHUB_TOKEN` موقت deploy استفاده می‌شود |
 | `APP_DIR` (var)           | `/opt/agahiram`        |                                                                  |
 | `PRODUCTION_DOMAIN` (var) | `alooche.com`          |                                                                  |
+| `GHCR_DNS_IP` (var)       | `87.107.110.109`       | اختیاری؛ اگر سرور به `ghcr.io` دسترسی ندارد — DNS override       |
+
+> **نکته GHCR_DNS_IP:** اگر VPS نمی‌تواند به `ghcr.io` متصل شود، مقدار `87.107.110.109` را به عنوان variable (نه secret) ست کنید. `remote-deploy.sh` این IP را در `/etc/hosts` اضافه می‌کند.
 
 ### ست کردن SSH deploy key
 

@@ -31,6 +31,9 @@ if [[ -f "$APP_DIR/docker/.env.example" && ! -f "$NEW_ENV" ]]; then
   sed -i "s|DOMAIN=.*|DOMAIN=alooche.com|" "$NEW_ENV"
   sed -i "s|ADMIN_PHONES=.*|ADMIN_PHONES=09127477990|" "$NEW_ENV"
   sed -i "s|SMS_PROVIDER=.*|SMS_PROVIDER=smsir|" "$NEW_ENV"
+  sed -i "s|^SMS_IR_API_KEY=.*|SMS_IR_API_KEY=95rdSxrnOS2hHkbbkdSt6jlIjnMaHyYuY2p5E6qNqHwAQa5E|" "$NEW_ENV"
+  sed -i "s|^SMS_IR_TEMPLATE_ID=.*|SMS_IR_TEMPLATE_ID=307289|" "$NEW_ENV"
+  sed -i "s|^SMS_IR_PARAM_NAME=.*|SMS_IR_PARAM_NAME=Code|" "$NEW_ENV"
   sed -i "s|LIVEKIT_API_SECRET=.*|LIVEKIT_API_SECRET=$LK_SEC|" "$NEW_ENV"
   echo "env-bootstrapped"
 fi

@@ -19,11 +19,11 @@ export function StoryTray({ children, className, ariaLabel = 'استوری‌ه�
         className,
       )}
     >
-      <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-gradient-to-r from-surface via-surface/90 to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-gradient-to-l from-surface via-surface/90 to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-3 bg-gradient-to-r from-surface to-transparent" />
+      <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-3 bg-gradient-to-l from-surface to-transparent" />
       <ul
         aria-label={ariaLabel}
-        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-4 py-2.5 scrollbar-hide"
+        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-6 py-3 scrollbar-hide"
       >
         {children}
       </ul>

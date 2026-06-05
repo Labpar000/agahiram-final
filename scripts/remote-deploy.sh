@@ -76,6 +76,37 @@ migrate_voice_video_env() {
   fi
 }
 
+migrate_sms_env() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  # Only update a key if its current value is empty/missing
+  _sms_add_if_empty() {
+    local key="$1"
+    local val="$2"
+    [[ -z "$val" ]] && return 0
+    if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+      local current
+      current=$(grep "^${key}=" "$ENV_FILE" | head -1 | cut -d= -f2-)
+      if [[ -z "$current" ]]; then
+        sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+        log "sms: set $key"
+      fi
+    else
+      echo "${key}=${val}" >> "$ENV_FILE"
+      log "sms: added $key"
+    fi
+  }
+  _sms_add_if_empty "SMS_PROVIDER"      "smsir"
+  _sms_add_if_empty "SMS_IR_API_KEY"    "95rdSxrnOS2hHkbbkdSt6jlIjnMaHyYuY2p5E6qNqHwAQa5E"
+  _sms_add_if_empty "SMS_IR_TEMPLATE_ID" "307289"
+  _sms_add_if_empty "SMS_IR_PARAM_NAME"  "Code"
+  # Disable Kavenegar so smsir is the sole active provider
+  if grep -q "^KAVENEGAR_DEV_MODE=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^KAVENEGAR_DEV_MODE=.*|KAVENEGAR_DEV_MODE=true|" "$ENV_FILE"
+  else
+    echo "KAVENEGAR_DEV_MODE=true" >> "$ENV_FILE"
+  fi
+}
+
 # Keep docker/.env in sync so manual `compose up` does not resurrect an old IMAGE_TAG.
 sync_image_tag_env() {
   [[ -f "$ENV_FILE" ]] || return 0
@@ -163,6 +194,7 @@ deploy_transfer() {
 
   migrate_minio_env
   migrate_voice_video_env
+  migrate_sms_env
   sync_image_tag_env
 
   if [[ -n "${IMAGE_SERVICES:-}" ]]; then
@@ -233,6 +265,7 @@ deploy_pull() {
 
   migrate_minio_env
   migrate_voice_video_env
+  migrate_sms_env
   sync_image_tag_env
   ensure_ghcr_hosts
   ghcr_login
@@ -307,6 +340,7 @@ deploy_build() {
 
   migrate_minio_env
   migrate_voice_video_env
+  migrate_sms_env
   sync_image_tag_env
 
   cd "$APP_DIR/docker"
