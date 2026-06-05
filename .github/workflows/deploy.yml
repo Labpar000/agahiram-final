@@ -24,7 +24,7 @@ env:
   APP_DIR: ${{ vars.APP_DIR || '/opt/agahiram' }}
   SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
   PRODUCTION_DOMAIN: ${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
-  IMAGE_REGISTRY: ghcr.io/labpar000/agahiram
+  IMAGE_REGISTRY: ghcr.io/labpar000/agahiram-final
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
