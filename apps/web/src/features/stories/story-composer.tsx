@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import type { StoryOverlayDocument } from '@agahiram/shared';
-import { Button } from '@agahiram/ui';
+import { Button, Drawer, DrawerBody, DrawerContent, DrawerHeader, DrawerTitle } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
@@ -93,6 +93,7 @@ export function StoryComposer({
   const [linkedPostId, setLinkedPostId] = useState(defaultLinkedPostId ?? linkedFromUrl ?? '');
   const [stickers, setStickers] = useState<PublishSticker[]>([]);
   const [showStickers, setShowStickers] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [filterId, setFilterId] = useState('none');
   const [altText, setAltText] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
@@ -147,6 +148,21 @@ export function StoryComposer({
     setStickers((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const publishNow = () => {
+    const overlay = editorRef.current?.getDocument() ?? overlayRef.current;
+    overlayRef.current = overlay;
+    setEditedOverlay(overlay);
+    onPublish({ ...collectPayload(), overlay });
+  };
+
+  const addSlideNow = () => {
+    if (!onAddSlide) return;
+    const overlay = editorRef.current?.getDocument() ?? overlayRef.current;
+    overlayRef.current = overlay;
+    setEditedOverlay(overlay);
+    onAddSlide({ ...collectPayload(), overlay });
+  };
+
   if (phase === 'preview' && previewDraft) {
     return (
       <StoryPublishPreview
@@ -185,73 +201,8 @@ export function StoryComposer({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap gap-2 text-xs">
-        <select
-          className="rounded-lg border border-border bg-background px-2 py-1"
-          value={audience}
-          onChange={(e) => setAudience(e.target.value as 'PUBLIC' | 'CLOSE_FRIENDS')}
-        >
-          <option value="PUBLIC">همه</option>
-          <option value="CLOSE_FRIENDS">دوستان نزدیک</option>
-        </select>
-        <select
-          className="rounded-lg border border-border bg-background px-2 py-1"
-          value={allowReplies}
-          onChange={(e) => setAllowReplies(e.target.value)}
-        >
-          <option value="EVERYONE">پاسخ: همه</option>
-          <option value="FOLLOWERS">فقط دنبال‌کنندگان</option>
-          <option value="FOLLOWING">فقط دنبال‌شده</option>
-          <option value="OFF">بدون پاسخ</option>
-        </select>
-        <select
-          className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-1"
-          value={linkedPostId}
-          onChange={(e) => setLinkedPostId(e.target.value)}
-        >
-          <option value="">بدون آگهی</option>
-          {(myPosts ?? []).map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.title}
-            </option>
-          ))}
-        </select>
-        <Button size="sm" variant="outline" onClick={() => setShowStickers((s) => !s)}>
-          استیکر ({stickers.length})
-        </Button>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-xs text-muted-foreground" htmlFor="alt-text">
-          متن جایگزین (دسترسی‌پذیری)
-        </label>
-        <input
-          id="alt-text"
-          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
-          value={altText}
-          onChange={(e) => setAltText(e.target.value)}
-          maxLength={500}
-          placeholder="توضیح کوتاه برای بینایی"
-        />
-        <label className="text-xs text-muted-foreground" htmlFor="schedule">
-          زمان‌بندی انتشار (اختیاری)
-        </label>
-        <input
-          id="schedule"
-          type="datetime-local"
-          className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
-          value={scheduledAt}
-          onChange={(e) => setScheduledAt(e.target.value)}
-        />
-        <p className="text-[10px] text-muted-foreground">ویدیو حداکثر {MAX_STORY_DURATION} ثانیه</p>
-      </div>
-
-      {showStickers ? (
-        <StoryStickerEditorPanel onAdd={(s) => setStickers((prev) => [...prev, s])} />
-      ) : null}
-
       {stickers.length > 0 ? (
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1 px-1">
           {stickers.map((s, i) => (
             <button
               key={`${s.type}-${i}`}
@@ -280,18 +231,120 @@ export function StoryComposer({
           defaultOverlay={editedOverlay}
         />
         <StoryStickerComposerPreview stickers={stickers} />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-2">
-          <Button variant="outline" fullWidth onClick={onCancel}>
-            لغو
+        <div className="absolute end-2 top-2 z-10 flex flex-col gap-1">
+          <Button size="sm" variant="secondary" onClick={() => setShowStickers(true)}>
+            استیکر {stickers.length > 0 ? `(${stickers.length})` : ''}
           </Button>
-          <Button variant="brand" fullWidth onClick={goToPreview}>
+          <Button size="sm" variant="secondary" onClick={() => setShowAdvanced(true)}>
+            بیشتر
+          </Button>
+          <Button size="sm" variant="secondary" onClick={goToPreview}>
             پیش‌نمایش
           </Button>
         </div>
       </div>
+
+      <p className="text-[10px] text-muted-foreground">ویدیو حداکثر {MAX_STORY_DURATION} ثانیه</p>
+
+      <div className="flex flex-col gap-2">
+        {onAddSlide ? (
+          <Button variant="outline" fullWidth onClick={addSlideNow} disabled={isPublishing}>
+            افزودن به صف و ادامه
+          </Button>
+        ) : null}
+        <div className="flex gap-2">
+          <Button variant="outline" fullWidth onClick={onCancel} disabled={isPublishing}>
+            لغو
+          </Button>
+          <Button variant="brand" fullWidth onClick={publishNow} isLoading={isPublishing}>
+            اشتراک‌گذاری
+          </Button>
+        </div>
+      </div>
+
+      <Drawer open={showStickers} onOpenChange={setShowStickers}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>افزودن استیکر</DrawerTitle>
+          </DrawerHeader>
+          <DrawerBody className="pb-5">
+            <StoryStickerEditorPanel onAdd={(s) => setStickers((prev) => [...prev, s])} />
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer open={showAdvanced} onOpenChange={setShowAdvanced}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>تنظیمات پیشرفته</DrawerTitle>
+          </DrawerHeader>
+          <DrawerBody className="space-y-3 pb-5 text-xs">
+            <div className="flex flex-wrap gap-2">
+              <select
+                className="rounded-lg border border-border bg-background px-2 py-1"
+                value={audience}
+                onChange={(e) => setAudience(e.target.value as 'PUBLIC' | 'CLOSE_FRIENDS')}
+              >
+                <option value="PUBLIC">همه</option>
+                <option value="CLOSE_FRIENDS">دوستان نزدیک</option>
+              </select>
+              <select
+                className="rounded-lg border border-border bg-background px-2 py-1"
+                value={allowReplies}
+                onChange={(e) => setAllowReplies(e.target.value)}
+              >
+                <option value="EVERYONE">پاسخ: همه</option>
+                <option value="FOLLOWERS">فقط دنبال‌کنندگان</option>
+                <option value="FOLLOWING">فقط دنبال‌شده</option>
+                <option value="OFF">بدون پاسخ</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground" htmlFor="linked-post">
+                لینک آگهی
+              </label>
+              <select
+                id="linked-post"
+                className="w-full rounded-lg border border-border bg-background px-2 py-1"
+                value={linkedPostId}
+                onChange={(e) => setLinkedPostId(e.target.value)}
+              >
+                <option value="">بدون آگهی</option>
+                {(myPosts ?? []).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground" htmlFor="alt-text">
+                متن جایگزین
+              </label>
+              <input
+                id="alt-text"
+                className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                value={altText}
+                onChange={(e) => setAltText(e.target.value)}
+                maxLength={500}
+                placeholder="توضیح کوتاه برای بینایی"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground" htmlFor="schedule">
+                زمان‌بندی انتشار
+              </label>
+              <input
+                id="schedule"
+                type="datetime-local"
+                className="w-full rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+              />
+            </div>
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
 
       <input type="hidden" value={mediaKey} readOnly />
       <input type="hidden" value={videoDurationMs ?? ''} readOnly />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -23,6 +23,8 @@ import {
   type PublishSticker,
   type StoryComposerPayload,
 } from '@/features/stories/story-composer';
+import { buildStoryPublishRequest } from '@/features/stories/story-publish-request';
+import { parseStoryTextDraft } from '@/features/stories/story-text-draft';
 import { StoryCamera, type CapturedMedia } from '@/features/stories/camera/story-camera';
 import { StoryLayoutCollage } from '@/features/stories/camera/story-layout-collage';
 type Step = 'pick' | 'camera' | 'layout' | 'edit' | 'previewBatch';
@@ -67,6 +69,7 @@ export default function CreateStoryPage() {
   const [sessionPrefs, setSessionPrefs] = useState<SessionPrefs | null>(null);
   const [slides, setSlides] = useState<PendingSlide[]>([]);
   const [current, setCurrent] = useState<PendingSlide | null>(null);
+  const draftOverlayRef = useRef<StoryOverlayDocument | null>(null);
 
   const uploadBlob = async (file: File | Blob, fileName: string, contentType: string) => {
     const isVideo = contentType.startsWith('video/');
@@ -109,19 +112,44 @@ export default function CreateStoryPage() {
         linkedPostId?: string;
       },
     ) => {
+      const initialOverlay = repost?.overlay ?? draftOverlayRef.current ?? undefined;
       setCurrent({
         ...data,
         audience: sessionPrefs?.audience ?? 'PUBLIC',
         allowReplies: sessionPrefs?.allowReplies ?? 'EVERYONE',
         linkedPostId: repost?.linkedPostId ?? sessionPrefs?.linkedPostId,
-        overlay: repost?.overlay,
+        overlay: initialOverlay,
         repost: repost ? { type: repost.type, id: repost.id } : undefined,
         stickers: [],
       });
+      if (draftOverlayRef.current) draftOverlayRef.current = null;
       setStep('edit');
     },
     [sessionPrefs],
   );
+
+  useEffect(() => {
+    if (current || slides.length > 0) return;
+    const draft = searchParams.get('draftText');
+    if (draft !== '1') return;
+    if (typeof window === 'undefined') return;
+    const raw = window.sessionStorage.getItem('story-text-draft');
+    const parsed = parseStoryTextDraft(raw);
+    if (!parsed) {
+      window.sessionStorage.removeItem('story-text-draft');
+      return;
+    }
+    const file = dataUrlToFile(parsed.dataUrl, 'story-text.jpg');
+    if (!file) {
+      window.sessionStorage.removeItem('story-text-draft');
+      return;
+    }
+    if (parsed.overlay?.layers?.length) draftOverlayRef.current = parsed.overlay;
+    void handleFile(file);
+    window.sessionStorage.removeItem('story-text-draft');
+    router.replace('/create/story');
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reads URL payload once
+  }, [searchParams, current, slides.length]);
 
   useEffect(() => {
     const repostPost = searchParams.get('repostPost');
@@ -172,39 +200,8 @@ export default function CreateStoryPage() {
 
   const publish = useMutation({
     mutationFn: async (queue: PendingSlide[]) => {
-      if (queue.length === 0) throw new Error('اسلایدی برای انتشار نیست');
-      const scheduledAt = queue[0]?.scheduledAt
-        ? new Date(queue[0].scheduledAt).toISOString()
-        : undefined;
-      const body = {
-        sessionId,
-        audience: queue[0]!.audience,
-        allowReplies: queue[0]!.allowReplies,
-        ...(scheduledAt ? { scheduledAt } : {}),
-        stories: queue.map((s, i) => ({
-          mediaKey: s.mediaKey,
-          type: s.mediaType,
-          overlayJson: s.overlay,
-          durationMs:
-            s.mediaType === 'video' && s.videoDurationMs
-              ? Math.max(1000, Math.min(s.videoDurationMs, MAX_STORY_DURATION * 1000))
-              : undefined,
-          audience: s.audience,
-          allowReplies: s.allowReplies,
-          linkedPostId: s.linkedPostId,
-          hashtag: s.hashtag,
-          cityId: s.cityId,
-          stickers: s.stickers,
-          altText: s.altText,
-          repost: s.repost,
-          sequenceIndex: i,
-          sessionId,
-        })),
-      };
-      const r =
-        queue.length === 1
-          ? await apiClient.post('/stories', body.stories[0])
-          : await apiClient.post('/stories/batch', body);
+      const request = buildStoryPublishRequest(queue, sessionId);
+      const r = await apiClient.post(request.endpoint, request.body);
       if (!r.success) throw new Error(r.error ?? 'خطا در انتشار استوری');
       return r.data;
     },
@@ -302,6 +299,17 @@ export default function CreateStoryPage() {
     if (url.startsWith('blob:')) URL.revokeObjectURL(url);
   };
 
+  const dataUrlToFile = (dataUrl: string, fileName: string): File | null => {
+    const match = dataUrl.match(/^data:(.+);base64,(.+)$/);
+    if (!match) return null;
+    const mime = match[1] ?? 'image/jpeg';
+    const b64 = match[2] ?? '';
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new File([bytes], fileName, { type: mime });
+  };
+
   const finalizeSlide = (payload: StoryComposerPayload) => {
     if (!current) return null;
     return {
@@ -372,7 +380,7 @@ export default function CreateStoryPage() {
                 </ul>
               </>
             ) : null}
-            <div className="flex gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Button variant="outline" fullWidth onClick={() => setStep('camera')}>
                 دوربین
               </Button>
@@ -395,11 +403,11 @@ export default function CreateStoryPage() {
             </div>
             {slides.length >= MAX_STORY_SLIDES_PER_BATCH ? (
               <Button variant="brand" fullWidth onClick={() => setStep('previewBatch')}>
-                پیش‌نمایش و انتشار {slides.length} اسلاید
+                انتشار {slides.length} اسلاید
               </Button>
             ) : slides.length > 0 ? (
               <Button variant="outline" fullWidth onClick={() => setStep('previewBatch')}>
-                پیش‌نمایش صف ({slides.length} اسلاید)
+                پیش‌نمایش صف ({slides.length})
               </Button>
             ) : null}
             <div className="relative aspect-[9/16] overflow-hidden rounded-2xl border border-dashed border-border bg-muted">

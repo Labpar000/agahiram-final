@@ -2,13 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, IconButton, IgArrowBack, Input, toast } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { Button, IconButton, IgArrowBack, Input } from '@agahiram/ui';
 import { cn, STORY_CREATE_BACKGROUNDS, type StoryTextFont } from '@agahiram/shared';
-import { useUploadManager } from '@/lib/upload-manager';
-import { StoryStickerEditorPanel } from '@/features/stories/stickers/story-sticker-editor-panel';
-import { StoryStickerComposerPreview } from '@/features/stories/stickers/story-sticker-composer-preview';
 
 const FONTS: Array<{ id: StoryTextFont; label: string }> = [
   { id: 'classic', label: 'کلاسیک' },
@@ -23,8 +18,6 @@ const TEXT_COLORS = ['#ffffff', '#000000', '#f43f5e', '#fef08a', '#86efac'];
 
 export default function CreateTextStoryPage() {
   const router = useRouter();
-  const qc = useQueryClient();
-  const { uploadFile } = useUploadManager();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [bgIndex, setBgIndex] = useState(0);
   const [text, setText] = useState('');
@@ -32,26 +25,17 @@ export default function CreateTextStoryPage() {
   const [color, setColor] = useState('#ffffff');
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
   const [animation, setAnimation] = useState<'none' | 'bounce'>('none');
-  const [phase, setPhase] = useState<'edit' | 'preview'>('edit');
-  const [stickers, setStickers] = useState<
-    Array<{
-      type: string;
-      payload: Record<string, unknown>;
-      x?: number;
-      y?: number;
-      scale?: number;
-      rotation?: number;
-    }>
-  >([]);
+  const [building, setBuilding] = useState(false);
 
   const bg = STORY_CREATE_BACKGROUNDS[bgIndex]!;
 
-  const publish = useMutation({
-    mutationFn: async () => {
-      const canvas = canvasRef.current;
-      if (!canvas) throw new Error('خطا در رندر');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) throw new Error('خطا در رندر');
+  const continueToComposer = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    setBuilding(true);
+    try {
       const w = 1080;
       const h = 1920;
       canvas.width = w;
@@ -86,59 +70,30 @@ export default function CreateTextStoryPage() {
         }
         ctx.fillText(text.trim(), tx, h / 2);
       }
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error('رندر ناموفق'))),
-          'image/jpeg',
-          0.92,
-        );
-      });
-      const presign = await apiClient.post<{ uploadUrl: string; key: string }>('/media/presign', {
-        folder: 'stories',
-        fileName: 'story-text.jpg',
-        contentType: 'image/jpeg',
-        extension: 'jpg',
-      });
-      if (!presign.success || !presign.data) throw new Error('خطا در آپلود');
-      const ok = await uploadFile({
-        label: 'آپلود استوری متنی',
-        url: presign.data.uploadUrl,
-        file: new File([blob], 'story-text.jpg', { type: 'image/jpeg' }),
-        contentType: 'image/jpeg',
-      });
-      if (!ok) throw new Error('آپلود ناموفق');
-      await apiClient.post('/media/confirm', { key: presign.data.key });
-      const r = await apiClient.post('/stories', {
-        mediaKey: presign.data.key,
-        type: 'image',
-        overlayJson: {
-          layers: text.trim()
-            ? [
-                {
-                  type: 'text',
-                  text: text.trim(),
-                  x: 0.5,
-                  y: 0.5,
-                  color,
-                  font,
-                  align,
-                  animation: animation === 'bounce' ? 'bounce' : undefined,
-                },
-              ]
-            : [],
-          backgroundColor: bg,
-        },
-        stickers,
-      });
-      if (!r.success) throw new Error(r.error ?? 'خطا');
-    },
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['stories', 'feed'] });
-      toast.success('استوری منتشر شد');
-      router.push('/feed');
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      const overlay = {
+        layers: text.trim()
+          ? [
+              {
+                type: 'text' as const,
+                text: text.trim(),
+                x: 0.5,
+                y: 0.5,
+                color,
+                font,
+                align,
+                animation: animation === 'bounce' ? 'bounce' : undefined,
+              },
+            ]
+          : [],
+        backgroundColor: bg,
+      };
+      window.sessionStorage.setItem('story-text-draft', JSON.stringify({ dataUrl, overlay }));
+      router.push('/create/story?draftText=1');
+    } finally {
+      setBuilding(false);
+    }
+  };
 
   return (
     <div className="bg-background p-4">
@@ -149,12 +104,12 @@ export default function CreateTextStoryPage() {
           variant="ghost"
           onClick={() => router.back()}
         />
-        <h1 className="text-lg font-bold">استوری متنی (Create Mode)</h1>
+        <h1 className="text-lg font-bold">استوری متنی</h1>
       </div>
       <div
         className={cn(
           'relative mb-4 aspect-[9/16] overflow-hidden rounded-2xl',
-          animation === 'bounce' && phase === 'preview' && 'animate-pulse',
+          animation === 'bounce' && 'animate-pulse',
         )}
         style={{ background: bg }}
       >
@@ -175,101 +130,74 @@ export default function CreateTextStoryPage() {
             {text || 'متن شما'}
           </p>
         </div>
-        <StoryStickerComposerPreview stickers={stickers} />
       </div>
-      {phase === 'edit' ? (
-        <>
+      <button
+        type="button"
+        className="mb-3 text-xs text-ig-link"
+        onClick={() => setBgIndex((i) => (i + 1) % STORY_CREATE_BACKGROUNDS.length)}
+      >
+        تغییر پس‌زمینه ({bgIndex + 1}/{STORY_CREATE_BACKGROUNDS.length})
+      </button>
+      <Input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="متن استوری"
+        className="mb-3"
+      />
+      <div className="mb-3 flex flex-wrap gap-1">
+        {FONTS.map((f) => (
           <button
+            key={f.id}
             type="button"
-            className="mb-3 text-xs text-ig-link"
-            onClick={() => setBgIndex((i) => (i + 1) % STORY_CREATE_BACKGROUNDS.length)}
+            onClick={() => setFont(f.id)}
+            className={cn(
+              'rounded-md border px-2 py-1 text-xs',
+              font === f.id && 'border-primary bg-accent',
+            )}
           >
-            تغییر پس‌زمینه ({bgIndex + 1}/{STORY_CREATE_BACKGROUNDS.length})
+            {f.label}
           </button>
-          <Input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="متن استوری"
-            className="mb-3"
+        ))}
+      </div>
+      <div className="mb-3 flex gap-1">
+        {TEXT_COLORS.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setColor(c)}
+            className={cn('size-8 rounded-full border-2', color === c && 'border-primary')}
+            style={{ backgroundColor: c }}
           />
-          <div className="mb-3 flex flex-wrap gap-1">
-            {FONTS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => setFont(f.id)}
-                className={cn(
-                  'rounded-md border px-2 py-1 text-xs',
-                  font === f.id && 'border-primary bg-accent',
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          <div className="mb-3 flex gap-1">
-            {TEXT_COLORS.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setColor(c)}
-                className={cn('size-8 rounded-full border-2', color === c && 'border-primary')}
-                style={{ backgroundColor: c }}
-              />
-            ))}
-          </div>
-          <div className="mb-3 flex gap-1">
-            {(['right', 'center', 'left'] as const).map((a) => (
-              <button
-                key={a}
-                type="button"
-                onClick={() => setAlign(a)}
-                className={cn(
-                  'flex-1 rounded border py-1 text-xs',
-                  align === a && 'border-primary',
-                )}
-              >
-                {a === 'center' ? 'وسط' : a === 'right' ? 'راست' : 'چپ'}
-              </button>
-            ))}
-          </div>
-          <label className="mb-3 flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={animation === 'bounce'}
-              onChange={(e) => setAnimation(e.target.checked ? 'bounce' : 'none')}
-            />
-            انیمیشن پرش
-          </label>
-        </>
-      ) : null}
-      {phase === 'edit' ? (
-        <>
-          <StoryStickerEditorPanel onAdd={(s) => setStickers((p) => [...p, s])} />
-          <Button variant="brand" fullWidth className="mt-4" onClick={() => setPhase('preview')}>
-            پیش‌نمایش
-          </Button>
-        </>
-      ) : (
-        <>
-          <p className="mb-3 text-center text-sm text-muted-foreground">
-            پیش‌نمایش — دقیقاً همین‌طور منتشر می‌شود
-          </p>
-          <div className="flex gap-2">
-            <Button variant="outline" fullWidth onClick={() => setPhase('edit')}>
-              بازگشت به ویرایش
-            </Button>
-            <Button
-              variant="brand"
-              fullWidth
-              isLoading={publish.isPending}
-              onClick={() => publish.mutate()}
-            >
-              انتشار
-            </Button>
-          </div>
-        </>
-      )}
+        ))}
+      </div>
+      <div className="mb-3 flex gap-1">
+        {(['right', 'center', 'left'] as const).map((a) => (
+          <button
+            key={a}
+            type="button"
+            onClick={() => setAlign(a)}
+            className={cn('flex-1 rounded border py-1 text-xs', align === a && 'border-primary')}
+          >
+            {a === 'center' ? 'وسط' : a === 'right' ? 'راست' : 'چپ'}
+          </button>
+        ))}
+      </div>
+      <label className="mb-3 flex items-center gap-2 text-xs">
+        <input
+          type="checkbox"
+          checked={animation === 'bounce'}
+          onChange={(e) => setAnimation(e.target.checked ? 'bounce' : 'none')}
+        />
+        انیمیشن پرش
+      </label>
+      <Button
+        variant="brand"
+        fullWidth
+        isLoading={building}
+        onClick={() => void continueToComposer()}
+      >
+        ادامه در ویرایشگر استوری
+      </Button>
     </div>
   );
 }
