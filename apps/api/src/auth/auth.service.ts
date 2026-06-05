@@ -7,8 +7,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomInt, createHash, timingSafeEqual } from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import {
-  isAdminPhone,
+  JWT_ACCESS_EXPIRY,
+  JWT_REFRESH_EXPIRY,
   OTP_EXPIRY_MINUTES,
   OTP_MAX_ATTEMPTS,
   OTP_RATE_LIMIT,
@@ -21,6 +24,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SmsService } from './sms.service';
 import { SettingsService } from '../admin/settings.service';
+import { isAdminPhone, canAccessAdminPanel } from '../config/admin-phones';
+import { getJwtRefreshSecret } from '../config/secrets';
 
 @Injectable()
 export class AuthService {
@@ -44,12 +49,13 @@ export class AuthService {
       );
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = randomInt(100_000, 1_000_000).toString();
     const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
+    const hashedCode = createHash('sha256').update(code).digest('hex');
     await this.prisma.otpCode.deleteMany({ where: { phone } });
     await this.prisma.otpCode.create({
-      data: { phone, code, expiresAt },
+      data: { phone, code: hashedCode, expiresAt },
     });
 
     await this.sms.sendOtp(phone, code);
@@ -74,7 +80,11 @@ export class AuthService {
     if (otp.attempts >= OTP_MAX_ATTEMPTS) {
       throw new ForbiddenException('تعداد تلاش‌های مجاز بیش از حد');
     }
-    if (otp.code !== code) {
+    const inputHash = createHash('sha256').update(code).digest('hex');
+    const storedHash = Buffer.from(otp.code, 'hex');
+    const inputBuf = Buffer.from(inputHash, 'hex');
+    const match = storedHash.length === inputBuf.length && timingSafeEqual(storedHash, inputBuf);
+    if (!match) {
       await this.prisma.otpCode.update({
         where: { id: otp.id },
         data: { attempts: { increment: 1 } },
@@ -136,8 +146,17 @@ export class AuthService {
 
     try {
       const payload = this.jwt.verify<JwtPayload>(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET ?? 'agahiram-dev-refresh-secret',
+        secret: getJwtRefreshSecret(),
       });
+      const jti = (payload as JwtPayload).jti;
+      if (!jti) throw new UnauthorizedException('توکن نامعتبر است');
+
+      const stored = await this.redis.get(`rt:${jti}`);
+      if (!stored || stored !== payload.sub)
+        throw new UnauthorizedException('توکن منقضی یا استفاده‌شده است');
+
+      // Rotate — delete old jti
+      await this.redis.del(`rt:${jti}`);
 
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || user.isBanned) throw new UnauthorizedException('کاربر معتبر نیست');
@@ -147,10 +166,21 @@ export class AuthService {
         phone: user.phone,
         role: user.role as UserRole,
       });
-
       return { ...tokens, user: this.toUserProfile(user) };
-    } catch {
+    } catch (e) {
+      if (e instanceof UnauthorizedException) throw e;
       throw new UnauthorizedException('توکن نامعتبر است');
+    }
+  }
+
+  async revokeRefreshToken(refreshToken: string | undefined) {
+    if (!refreshToken) return;
+    try {
+      const payload = this.jwt.verify<JwtPayload>(refreshToken, { secret: getJwtRefreshSecret() });
+      const jti = (payload as JwtPayload).jti;
+      if (jti) await this.redis.del(`rt:${jti}`);
+    } catch {
+      /* ignore invalid tokens on logout */
     }
   }
 
@@ -200,11 +230,18 @@ export class AuthService {
   }
 
   private async generateTokens(payload: JwtPayload) {
-    const accessToken = this.jwt.sign(payload, { expiresIn: '1d' });
-    const refreshToken = this.jwt.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET ?? 'agahiram-dev-refresh-secret',
-      expiresIn: '30d',
-    });
+    const jti = uuidv4();
+    const accessToken = this.jwt.sign({ ...payload, jti }, { expiresIn: JWT_ACCESS_EXPIRY });
+    const refreshJti = uuidv4();
+    const refreshToken = this.jwt.sign(
+      { ...payload, jti: refreshJti },
+      {
+        secret: getJwtRefreshSecret(),
+        expiresIn: JWT_REFRESH_EXPIRY,
+      },
+    );
+    // Store refreshJti in Redis — TTL = 30 days in seconds
+    await this.redis.set(`rt:${refreshJti}`, payload.sub, 2_592_000);
     return { accessToken, refreshToken };
   }
 
@@ -236,6 +273,7 @@ export class AuthService {
       role: user.role as UserRole,
       defaultCityId: user.defaultCityId,
       storyArchiveEnabled: user.storyArchiveEnabled ?? true,
+      canAccessAdminPanel: canAccessAdminPanel(user.role, user.phone),
       createdAt: user.createdAt.toISOString(),
     };
   }

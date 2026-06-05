@@ -1,17 +1,22 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { MeiliSearch, type Index } from 'meilisearch';
-import { MEILI_INDEX_POSTS } from '@agahiram/shared';
+import { MEILI_INDEX_POSTS, MEILI_INDEX_STORIES } from '@agahiram/shared';
 
 @Injectable()
 export class MeiliService implements OnModuleInit {
   private readonly logger = new Logger(MeiliService.name);
   public readonly client: MeiliSearch;
   public postsIndex!: Index;
+  public storiesIndex!: Index;
 
   constructor() {
+    const key = process.env.MEILI_MASTER_KEY;
+    if (!key && process.env.NODE_ENV === 'production') {
+      throw new Error('MEILI_MASTER_KEY is required in production');
+    }
     this.client = new MeiliSearch({
       host: process.env.MEILI_HOST ?? 'http://localhost:7700',
-      apiKey: process.env.MEILI_MASTER_KEY ?? 'agahiram_meili_dev_key',
+      apiKey: key ?? 'agahiram_meili_dev_key',
     });
   }
 
@@ -19,7 +24,9 @@ export class MeiliService implements OnModuleInit {
     try {
       await this.client.health();
       this.postsIndex = this.client.index(MEILI_INDEX_POSTS);
+      this.storiesIndex = this.client.index(MEILI_INDEX_STORIES);
       await this.ensureIndexSettings();
+      await this.ensureStoriesIndexSettings();
       this.logger.log('MeiliSearch connected');
     } catch (e) {
       this.logger.warn(`MeiliSearch not available: ${(e as Error).message}`);
@@ -71,5 +78,34 @@ export class MeiliService implements OnModuleInit {
   async deletePost(id: string) {
     if (!this.postsIndex) return;
     await this.postsIndex.deleteDocument(id);
+  }
+
+  private async ensureStoriesIndexSettings() {
+    try {
+      await this.client.createIndex(MEILI_INDEX_STORIES, { primaryKey: 'id' }).catch(() => null);
+      await this.storiesIndex.updateSettings({
+        searchableAttributes: [
+          'normalizedSearchableText',
+          'searchableText',
+          'hashtag',
+          'altText',
+          'username',
+        ],
+        filterableAttributes: ['userId', 'cityId', 'audience', 'expiresAt'],
+        sortableAttributes: ['createdAt', 'expiresAt'],
+      });
+    } catch (e) {
+      this.logger.warn(`Stories settings update failed: ${(e as Error).message}`);
+    }
+  }
+
+  async indexStory(doc: Record<string, unknown>) {
+    if (!this.storiesIndex) return;
+    await this.storiesIndex.addDocuments([doc]);
+  }
+
+  async deleteStory(id: string) {
+    if (!this.storiesIndex) return;
+    await this.storiesIndex.deleteDocument(id);
   }
 }

@@ -14,10 +14,9 @@ export function resolveSocketOrigin(): string {
 
 let socket: Socket | null = null;
 
+// Keep for any legacy callers, but it always returns null for httpOnly cookies
 export function getAccessToken(): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(/(?:^|; )accessToken=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  return null;
 }
 
 export function getSocket(): Socket {
@@ -26,7 +25,7 @@ export function getSocket(): Socket {
     socket = io(`${origin}/messages`, {
       path: '/socket.io',
       autoConnect: false,
-      auth: (cb) => cb({ token: getAccessToken() }),
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
   }

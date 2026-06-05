@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
+import { ErrorState } from '@agahiram/ui/components/error-state';
+import './globals.css';
 
 export default function GlobalError({
   error,
@@ -30,45 +32,18 @@ export default function GlobalError({
 
   return (
     <html lang="fa" dir="rtl">
-      <body style={{ fontFamily: 'system-ui, sans-serif', padding: 16, lineHeight: 1.6 }}>
-        <h1 style={{ fontSize: 18, marginBottom: 12 }}>یک خطای غیرمنتظره رخ داد</h1>
-        <p style={{ marginBottom: 8 }}>
-          پیام: <code>{String(error?.message ?? '')}</code>
-        </p>
-        {error?.digest ? (
-          <p style={{ marginBottom: 8 }}>
-            شناسه: <code>{error.digest}</code>
-          </p>
-        ) : null}
-        <details style={{ marginBottom: 12 }}>
-          <summary>جزئیات فنی (Stack)</summary>
-          <pre
-            style={{
-              fontSize: 12,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              background: '#0001',
-              padding: 8,
-              borderRadius: 6,
-            }}
-          >
-            {String(error?.stack ?? '')}
-          </pre>
-        </details>
-        <button
-          type="button"
-          onClick={() => reset()}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 8,
-            background: '#111',
-            color: '#fff',
-            border: 0,
-            cursor: 'pointer',
-          }}
-        >
-          تلاش دوباره
-        </button>
+      <body className="min-h-svh bg-background font-[family-name:var(--font-vazir)] text-foreground antialiased">
+        <div className="flex min-h-svh items-center justify-center px-4">
+          <ErrorState
+            title="یک خطای غیرمنتظره رخ داد"
+            description={
+              error?.digest
+                ? `شناسه خطا: ${error.digest}`
+                : 'مشکلی در بارگذاری صفحه پیش آمد. لطفاً دوباره تلاش کنید.'
+            }
+            onRetry={reset}
+          />
+        </div>
       </body>
     </html>
   );

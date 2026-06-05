@@ -20,8 +20,13 @@ export class MessagesController {
   }
 
   @Get('conversations')
-  conversations(@CurrentUser('sub') userId: string) {
-    return this.service.listConversations(userId);
+  conversations(
+    @CurrentUser('sub') userId: string,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? Math.min(50, Math.max(1, parseInt(limit, 10) || 30)) : 30;
+    return this.service.listConversations(userId, cursor, parsedLimit);
   }
 
   @Get('conversations/:id/head')

@@ -1,5 +1,23 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
+import {
+  createCollectionSchema,
+  updateCollectionSchema,
+  type CreateCollectionInput,
+  type UpdateCollectionInput,
+} from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { LikesService } from './likes.service';
@@ -120,7 +138,35 @@ export class EngagementController {
 
   @UseGuards(JwtAuthGuard)
   @Post('me/collections')
-  createCollection(@CurrentUser('sub') userId: string, @Body() body: { name: string }) {
+  @UsePipes(new ZodValidationPipe(createCollectionSchema))
+  createCollection(@CurrentUser('sub') userId: string, @Body() body: CreateCollectionInput) {
     return this.saves.createCollection(userId, body.name);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/collections/:id')
+  @UsePipes(new ZodValidationPipe(updateCollectionSchema))
+  updateCollection(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body() body: UpdateCollectionInput,
+  ) {
+    return this.saves.updateCollection(userId, id, body.name);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('me/collections/:id')
+  deleteCollection(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.saves.deleteCollection(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me/collections/:id/saves')
+  collectionSaves(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.saves.listCollectionSaves(userId, id, cursor);
   }
 }

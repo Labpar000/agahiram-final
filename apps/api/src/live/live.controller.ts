@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards, UsePipes } from '@nestjs/common';
+import { createLiveSchema, type CreateLiveInput } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { LiveService } from './live.service';
@@ -16,10 +18,8 @@ export class LiveController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  create(
-    @CurrentUser('sub') userId: string,
-    @Body() body: { title: string; linkedPostId?: string },
-  ) {
+  @UsePipes(new ZodValidationPipe(createLiveSchema))
+  create(@CurrentUser('sub') userId: string, @Body() body: CreateLiveInput) {
     return this.service.create(userId, body.title, body.linkedPostId);
   }
 

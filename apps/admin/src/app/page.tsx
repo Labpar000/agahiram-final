@@ -14,7 +14,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { cn, formatPersianCompact, formatPersianNumber } from '@agahiram/shared';
-import { Card, CardContent } from '@agahiram/ui';
+import { Card, CardContent, ErrorState } from '@agahiram/ui';
 import Shell from './layout-shell';
 import { apiClient } from '@/lib/api';
 import { StatCard } from '@/components/stat-card';
@@ -47,11 +47,20 @@ interface Stats {
 }
 
 export default function Dashboard() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'stats'],
     queryFn: async () => (await apiClient.get<Stats>('/admin/stats')).data,
     refetchInterval: 60_000,
   });
+
+  if (isError) {
+    return (
+      <Shell>
+        <PageHeader title="داشبورد" description="نمای کلی از وضعیت پلتفرم در هفت روز اخیر" />
+        <ErrorState onRetry={() => void refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell>

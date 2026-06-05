@@ -21,7 +21,28 @@ pnpm qa:preflight
 MEDIA_RANGE_TEST_URL=https://YOUR_HOST/api/v1/media/object?key=... pnpm media:range
 ```
 
+## فازهای ۶–۷ پلن Fix (تکمیل‌شده)
+
+| فاز | آیتم                      | وضعیت     | پیاده‌سازی                                                                                                                          |
+| --- | ------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 6   | `useInfiniteScroll` مشترک | **انجام** | [`use-infinite-scroll.ts`](../apps/web/src/hooks/use-infinite-scroll.ts) — feed، explore، reels، آرشیو استوری                       |
+| 6   | حذف کد مرده               | **انجام** | `usePost` / `useUserPosts` از `usePosts.ts`؛ `sharp` از `apps/api/package.json`                                                     |
+| 7   | UI مجموعه‌ها              | **انجام** | [`collection-picker-drawer.tsx`](../apps/web/src/components/collection-picker-drawer.tsx)، تنظیمات، `post-card` → `/me/collections` |
+| 7   | UI برداشت کیف پول         | **انجام** | [`settings/page.tsx`](<../apps/web/src/app/(main)/settings/page.tsx>) → `POST /payments/payouts`                                    |
+| 7   | اسکرول بی‌نهایت پیام‌ها   | **انجام** | [`messages/page.tsx`](<../apps/web/src/app/(main)/messages/page.tsx>) — `nextCursor` / `hasMore`                                    |
+| 7   | پیشنهاد قیمت AI           | **انجام** | [`ai.service.ts`](../apps/api/src/ai/ai.service.ts) — میانه آگهی‌های مشابه                                                          |
+| 7   | endpoint اعتبار           | **انجام** | `GET /users/:username/reputation` در [`users.controller.ts`](../apps/api/src/users/users.controller.ts)                             |
+| 7   | seed محله‌ها              | **انجام** | [`seed.ts`](../packages/database/prisma/seed.ts) — تهران، اصفهان، شیراز                                                             |
+| 7   | QA preflight + تست        | **انجام** | [`qa-preflight.sh`](../scripts/qa-preflight.sh) — `pnpm test`                                                                       |
+
+```bash
+pnpm --filter @agahiram/web lint
+pnpm --filter @agahiram/api lint
+pnpm test
+```
+
 ## آنچه عمداً اجرا نشده
 
 - **ارتقای Next 16** — نیاز به شاخه جدا و QA کامل (ریسک PPR/loading).
 - **Swipe gesture** بین پست‌ها — فقط ناوبری قبلی/بعدی (`PostDetailNav`) پیاده شده.
+- **تقسیم فایل‌های ۹۰۰+ خطی** — خارج از محدوده این پاس (ریسک بالا).

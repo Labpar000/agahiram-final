@@ -3,22 +3,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import { formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   EmptyState,
+  ErrorState,
   IgClose,
   IgDirect,
+  IgPageHeader,
   IgSearch,
   Input,
   Skeleton,
+  Spinner,
   toast,
 } from '@agahiram/ui';
-import type { ConversationSummary } from '@agahiram/shared';
-import { apiClient } from '@/lib/api';
+import type { ConversationSummary, PaginatedResponse } from '@agahiram/shared';
+import { apiClient, assertSuccess } from '@/lib/api';
+import { isMocksEnabled } from '@/lib/mock-data';
 import { formatLastMessagePreview } from '@/hooks/useConversation';
 
 type UserHit = {
@@ -40,17 +45,35 @@ export default function MessagesPage() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: async () => {
-      const r = await apiClient.get<ConversationSummary[]>('/messages/conversations');
-      if (r.success && r.data) return r.data;
-      if (process.env.NODE_ENV === 'development') {
-        const { mockConversations } = await import('@/lib/mock-data');
-        return mockConversations;
-      }
-      return [] as ConversationSummary[];
-    },
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['conversations'],
+      queryFn: async ({ pageParam }) => {
+        const r = await apiClient.get<PaginatedResponse<ConversationSummary>>(
+          '/messages/conversations',
+          pageParam ? { cursor: pageParam as string } : undefined,
+        );
+        if (r.success && r.data) return r.data;
+        if (isMocksEnabled() && !pageParam) {
+          const { mockConversations } = await import('@/lib/mock-data');
+          return {
+            data: mockConversations,
+            nextCursor: null,
+            hasMore: false,
+          } satisfies PaginatedResponse<ConversationSummary>;
+        }
+        return assertSuccess(r);
+      },
+      getNextPageParam: (last) => (last.hasMore ? (last.nextCursor ?? undefined) : undefined),
+      initialPageParam: undefined as string | undefined,
+    });
+
+  const conversations = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
+
+  const loaderRef = useInfiniteScroll({
+    hasMore: !!hasNextPage,
+    isFetching: isFetchingNextPage,
+    fetchNextPage,
   });
 
   const userQuery = useQuery({
@@ -64,7 +87,7 @@ export default function MessagesPage() {
   });
 
   const filteredConversations = useMemo(() => {
-    const all = data ?? [];
+    const all = conversations;
     if (!debouncedQ) return all;
     const needle = debouncedQ.toLowerCase();
     return all.filter((c) => {
@@ -75,7 +98,7 @@ export default function MessagesPage() {
         (u.name ?? '').toLowerCase().includes(needle)
       );
     });
-  }, [data, debouncedQ]);
+  }, [conversations, debouncedQ]);
 
   const startWith = async (username: string) => {
     if (!username || starting) return;
@@ -99,29 +122,30 @@ export default function MessagesPage() {
 
   return (
     <div className="bg-background">
-      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-3">
-        <h1 className="mb-3 text-base font-semibold">پیام‌ها</h1>
-        <Input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="جستجو"
-          className="h-9 rounded-full border-0 bg-muted text-sm"
-          aria-label="جستجوی کاربر"
-          leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
-          trailingIcon={
-            q ? (
-              <button
-                type="button"
-                onClick={() => setQ('')}
-                aria-label="پاک کردن"
-                className="pointer-events-auto -me-1 grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted/80"
-              >
-                <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
-              </button>
-            ) : null
-          }
-        />
-      </div>
+      <IgPageHeader title="پیام‌ها">
+        <div className="mt-3">
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="جستجو"
+            className="h-9 rounded-full border-0 bg-muted text-sm"
+            aria-label="جستجوی کاربر"
+            leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
+            trailingIcon={
+              q ? (
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  aria-label="پاک کردن"
+                  className="pointer-events-auto -me-1 grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-muted/80"
+                >
+                  <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
+                </button>
+              ) : null
+            }
+          />
+        </div>
+      </IgPageHeader>
 
       {hasSearch && userHits.length > 0 ? (
         <section aria-label="کاربران" className="bg-surface">
@@ -155,7 +179,9 @@ export default function MessagesPage() {
         </section>
       ) : null}
 
-      {isLoading ? (
+      {isError ? (
+        <ErrorState onRetry={() => void refetch()} />
+      ) : isLoading ? (
         <ul className="divide-y divide-border bg-surface">
           {Array.from({ length: 5 }).map((_, i) => (
             <li key={i} className="flex items-center gap-3 px-4 py-3">
@@ -224,6 +250,15 @@ export default function MessagesPage() {
           ))}
         </ul>
       )}
+      {!isLoading && !isError && filteredConversations.length > 0 ? (
+        <div ref={loaderRef} className="flex h-14 items-center justify-center" aria-live="polite">
+          {isFetchingNextPage ? (
+            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner size="sm" /> در حال بارگذاری
+            </span>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

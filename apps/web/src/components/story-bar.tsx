@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SOCKET_EVENTS, cn, formatPersianNumber } from '@agahiram/shared';
-import { Skeleton, STORY_INNER, StoryTrayItem } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { ErrorState, Skeleton, STORY_INNER, StoryTray, StoryTrayItem } from '@agahiram/ui';
+import { apiClient, assertSuccess } from '@/lib/api';
 import { connectStoriesSocket } from '@/lib/stories-socket';
 import { useAuthStore } from '@/lib/auth-store';
 import { YourStoryTrayCell } from '@/features/stories/your-story-tray-cell';
@@ -32,13 +32,9 @@ const linkClass =
 export function StoryBar() {
   const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
-  const scrollRef = useRef<HTMLUListElement>(null);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['stories', 'feed'],
-    queryFn: async () => {
-      const r = await apiClient.get<StoryGroup[]>('/stories/feed');
-      return r.data ?? [];
-    },
+    queryFn: async () => assertSuccess(await apiClient.get<StoryGroup[]>('/stories/feed')),
   });
 
   useEffect(() => {
@@ -54,40 +50,40 @@ export function StoryBar() {
 
   const myStoryGroup = (data ?? []).find((g) => g.isMe);
 
-  return (
-    <div className="relative border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
-      <div className="pointer-events-none absolute inset-y-0 start-0 z-10 w-6 bg-gradient-to-r from-surface to-transparent" />
-      <div className="pointer-events-none absolute inset-y-0 end-0 z-10 w-6 bg-gradient-to-l from-surface to-transparent" />
-      <ul
-        ref={scrollRef}
-        aria-label="استوری‌ها"
-        className="mx-auto flex max-w-2xl gap-3 overflow-x-auto px-4 py-2 scrollbar-hide"
-      >
-        <li>
-          <YourStoryTrayCell
-            userId={myStoryGroup?.userId ?? me?.id ?? ''}
-            hasStories={!!myStoryGroup}
-            hasUnviewed={false}
-            avatarUrl={me?.avatar}
-            username={me?.username}
-          />
-        </li>
+  if (isError) {
+    return (
+      <div className="px-3 py-2">
+        <ErrorState onRetry={() => void refetch()} className="py-4" />
+      </div>
+    );
+  }
 
-        {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <li key={i}>
-                <StorySkeleton />
+  return (
+    <StoryTray>
+      <li>
+        <YourStoryTrayCell
+          userId={myStoryGroup?.userId ?? me?.id ?? ''}
+          hasStories={!!myStoryGroup}
+          hasUnviewed={false}
+          avatarUrl={me?.avatar}
+          username={me?.username}
+        />
+      </li>
+
+      {isLoading
+        ? Array.from({ length: 6 }).map((_, i) => (
+            <li key={i}>
+              <StorySkeleton />
+            </li>
+          ))
+        : (data ?? [])
+            .filter((g) => !g.isMe)
+            .map((g) => (
+              <li key={g.userId}>
+                <StoryItem group={g} />
               </li>
-            ))
-          : (data ?? [])
-              .filter((g) => !g.isMe)
-              .map((g) => (
-                <li key={g.userId}>
-                  <StoryItem group={g} />
-                </li>
-              ))}
-      </ul>
-    </div>
+            ))}
+    </StoryTray>
   );
 }
 

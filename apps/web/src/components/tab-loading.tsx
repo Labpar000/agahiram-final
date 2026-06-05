@@ -3,7 +3,7 @@ import { Skeleton } from '@agahiram/ui';
 /** Minimal IG-style shell while RSC loads — client Query cache shows content immediately. */
 export function TabLoadingPlaceholder() {
   return (
-    <div className="bg-background" aria-hidden>
+    <div className="bg-background" role="status" aria-live="polite" aria-label="در حال بارگذاری">
       <div className="flex gap-3 overflow-hidden px-3 py-3">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="size-[4.625rem] shrink-0 rounded-full" shimmer={false} />

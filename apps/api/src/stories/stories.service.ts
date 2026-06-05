@@ -20,6 +20,8 @@ import {
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../media/minio.service';
+import { MediaService } from '../media/media.service';
+import { SearchService } from '../search/search.service';
 import { MessagesService } from '../messages/messages.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { StoryArchiveService } from './story-archive.service';
@@ -63,6 +65,8 @@ export class StoriesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minio: MinioService,
+    private readonly media: MediaService,
+    private readonly search: SearchService,
     private readonly messages: MessagesService,
     private readonly notifications: NotificationsService,
     private readonly archive: StoryArchiveService,
@@ -70,6 +74,8 @@ export class StoriesService {
     private readonly stickers: StoryStickersService,
     private readonly gateway: StoriesGateway,
     @InjectQueue(BULL_QUEUES.MEDIA_PROCESSING) private readonly mediaQueue: Queue,
+    @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
+    @InjectQueue(BULL_QUEUES.STORY_SCHEDULED) private readonly scheduledQueue: Queue,
   ) {}
 
   async create(userId: string, input: CreateStoryInput, options?: { skipNotify?: boolean }) {
@@ -94,6 +100,9 @@ export class StoriesService {
     const mediaKey = repostResolved?.mediaKey ?? input.mediaKey;
     if (!mediaKey) {
       throw new BadRequestException('فایل رسانه یا منبع اشتراک لازم است');
+    }
+    if (!repostResolved) {
+      await this.media.assertUploadConfirmed(userId, mediaKey);
     }
     const linkedPostId = repostResolved?.linkedPostId ?? input.linkedPostId;
     let overlayJson = input.overlayJson;
@@ -180,6 +189,7 @@ export class StoriesService {
 
     if (isPublished) {
       this.emitStoryNewToFollowers(userId, story.id, story.user.username);
+      void this.searchQueue.add('index-story', { storyId: story.id }, { removeOnComplete: true });
     }
 
     return this.getStoryById(story.id);
@@ -272,6 +282,15 @@ export class StoriesService {
         ),
       );
     }
+    if (sessionId && publishAt.getTime() > Date.now()) {
+      const delay = publishAt.getTime() - Date.now();
+      void this.scheduledQueue.add(
+        'publish',
+        { sessionId },
+        { delay, removeOnComplete: true, jobId: `story-scheduled:${sessionId}` },
+      );
+    }
+
     return { sessionId, stories: created, scheduled: publishAt.getTime() > Date.now() };
   }
 
@@ -342,6 +361,32 @@ export class StoriesService {
     const term = q.trim().slice(0, 100);
     if (!term) return { groups: [] as never[] };
 
+    const storyInclude = {
+      user: { select: { id: true, username: true, avatar: true, isVerified: true } },
+      stickers: true,
+      views: viewerId ? { where: { userId: viewerId }, select: { id: true } } : false,
+      _count: { select: { views: true, comments: true, reactions: true } },
+    } as const;
+
+    const meiliIds = await this.search.searchStoriesMeili(term);
+    if (meiliIds?.length) {
+      const stories = await this.prisma.story.findMany({
+        where: {
+          id: { in: meiliIds },
+          expiresAt: { gt: new Date() },
+          publishAt: { lte: new Date() },
+        },
+        include: storyInclude,
+      });
+      const byId = new Map(stories.map((s) => [s.id, s]));
+      const out = [];
+      for (const id of meiliIds) {
+        const s = byId.get(id);
+        if (s && (await this.canViewStory(viewerId, s))) out.push(s);
+      }
+      if (out.length) return { groups: this.groupDiscoverStories(out, viewerId) };
+    }
+
     const stories = await this.prisma.story.findMany({
       where: {
         expiresAt: { gt: new Date() },
@@ -352,12 +397,7 @@ export class StoriesService {
           { altText: { contains: term, mode: 'insensitive' } },
         ],
       },
-      include: {
-        user: { select: { id: true, username: true, avatar: true, isVerified: true } },
-        stickers: true,
-        views: viewerId ? { where: { userId: viewerId }, select: { id: true } } : false,
-        _count: { select: { views: true, comments: true, reactions: true } },
-      },
+      include: storyInclude,
       take: 50,
       orderBy: { createdAt: 'desc' },
     });
@@ -966,6 +1006,11 @@ export class StoriesService {
     await this.archive.archiveFromStory(story as never);
     await this.prisma.story.delete({ where: { id: story.id } });
     await this.archive.safeDeleteMediaIfOrphaned(story.mediaKey);
+    void this.searchQueue.add(
+      'index-story',
+      { storyId: story.id, remove: true },
+      { removeOnComplete: true },
+    );
     this.gateway.emitStoryExpired(story.userId, story.id);
     return { deleted: true };
   }

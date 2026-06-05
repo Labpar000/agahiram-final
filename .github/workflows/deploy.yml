@@ -24,7 +24,7 @@ env:
   APP_DIR: ${{ vars.APP_DIR || '/opt/agahiram' }}
   SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
   PRODUCTION_DOMAIN: ${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
-  IMAGE_REGISTRY: ghcr.io/labpar000/agahiram
+  IMAGE_REGISTRY: ghcr.io/labpar000/agahiram-final
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
 
 jobs:
@@ -42,7 +42,7 @@ jobs:
       need_deploy: ${{ steps.detect.outputs.need_deploy }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 2
@@ -90,7 +90,7 @@ jobs:
         service: ${{ fromJson(needs.scope.outputs.services_json) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
@@ -179,7 +179,7 @@ jobs:
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 

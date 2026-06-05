@@ -61,11 +61,34 @@ export class MediaService {
       throw new BadRequestException('دسترسی غیرمجاز');
     }
 
-    let head: { size: number };
+    const parts = key.split('/');
+    const folder = parts[0];
+    const ownerId = parts[1];
+    if (!folder || ownerId !== userId) {
+      throw new BadRequestException('کلید فایل نامعتبر است');
+    }
+
+    let head: { size: number; contentType?: string };
     try {
       head = await this.minio.statObject(key);
     } catch {
       throw new BadRequestException('فایل در MinIO یافت نشد');
+    }
+
+    if (head.size === 0) {
+      await this.minio.deleteObject(key).catch(() => undefined);
+      await this.redis.del(`upload:${key}`);
+      throw new BadRequestException('فایل خالی است');
+    }
+
+    const storedType = head.contentType?.split(';')[0]?.trim();
+    const expectedType = parsed.contentType?.split(';')[0]?.trim();
+    if (storedType && expectedType && storedType !== expectedType) {
+      const bothAllowed =
+        ALLOWED_TYPES.includes(storedType) && ALLOWED_TYPES.includes(expectedType);
+      if (!bothAllowed || storedType !== expectedType) {
+        throw new BadRequestException('نوع فایل با آپلود مطابقت ندارد');
+      }
     }
 
     const maxBytes = maxUploadBytesFor(parsed.contentType ?? '');
@@ -87,6 +110,24 @@ export class MediaService {
 
   buildPublicUrl(key: string): string {
     return `/api/v1/media/object?key=${encodeURIComponent(key)}`;
+  }
+
+  async assertUploadConfirmed(userId: string, key: string): Promise<void> {
+    if (!key) throw new BadRequestException('کلید فایل الزامی است');
+    const parts = key.split('/');
+    const folder = parts[0];
+    const ownerId = parts[1];
+    if (!folder || ownerId !== userId) {
+      throw new BadRequestException('کلید فایل نامعتبر است');
+    }
+
+    const meta = await this.redis.get(`upload:${key}`);
+    if (!meta) throw new BadRequestException('آپلود تأیید نشده است');
+
+    const parsed = JSON.parse(meta) as { userId: string; confirmed: boolean };
+    if (parsed.userId !== userId || !parsed.confirmed) {
+      throw new BadRequestException('آپلود تأیید نشده است');
+    }
   }
 
   private normalizeFolder(folder: string) {

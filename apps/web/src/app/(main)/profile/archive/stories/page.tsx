@@ -4,7 +4,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { IgArrowBack, IgGrid, IconButton, LoadingState } from '@agahiram/ui';
+import { IgArrowBack, IgGrid, IconButton, LoadingState, Spinner } from '@agahiram/ui';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import { formatJalaliCustom, formatPersianNumber } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 import type { ArchivedStory } from '@/features/stories/story-archive-picker';
@@ -43,6 +44,11 @@ export default function StoryArchivePage() {
 
   const items = query.data?.pages.flatMap((p) => p.data) ?? [];
   const grouped = groupByDay(items);
+  const loaderRef = useInfiniteScroll({
+    hasMore: !!query.hasNextPage,
+    isFetching: query.isFetchingNextPage,
+    fetchNextPage: query.fetchNextPage,
+  });
 
   return (
     <div className="min-h-svh bg-background pb-8">
@@ -104,16 +110,19 @@ export default function StoryArchivePage() {
                 </div>
               </section>
             ))}
-            {query.hasNextPage ? (
-              <button
-                type="button"
-                className="w-full rounded-lg border border-border py-2.5 text-sm"
-                disabled={query.isFetchingNextPage}
-                onClick={() => void query.fetchNextPage()}
-              >
-                {query.isFetchingNextPage ? 'در حال بارگذاری…' : 'بارگذاری بیشتر'}
-              </button>
-            ) : null}
+            <div
+              ref={loaderRef}
+              className="flex h-16 items-center justify-center text-sm text-muted-foreground"
+              aria-live="polite"
+            >
+              {query.isFetchingNextPage ? (
+                <span className="inline-flex items-center gap-2">
+                  <Spinner size="sm" /> در حال بارگذاری
+                </span>
+              ) : query.hasNextPage ? null : (
+                'به انتهای آرشیو رسیدید'
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
+  BarChart3,
   Bell,
   Coins,
   FileCheck,
@@ -25,6 +26,7 @@ import {
   Settings,
   Sparkles,
   Star,
+  TrendingUp,
   Users,
   Video,
   Wallet,
@@ -46,6 +48,7 @@ interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: '/', icon: LayoutDashboard, label: 'داشبورد' },
+  { href: '/analytics', icon: BarChart3, label: 'آمار و تحلیل', adminOnly: true },
   { href: '/pending', icon: FileCheck, label: 'صف تأیید آگهی', badgeKey: 'pending' },
   { href: '/posts', icon: FileText, label: 'آگهی‌ها' },
   { href: '/stories', icon: Sparkles, label: 'استوری‌ها' },
@@ -60,7 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/payouts', icon: Wallet, label: 'تسویه‌ها', adminOnly: true },
   { href: '/categories', icon: Folder, label: 'دسته‌بندی‌ها', adminOnly: true },
   { href: '/locations', icon: MapPin, label: 'مناطق', adminOnly: true },
-  { href: '/boost-plans', icon: Sparkles, label: 'پلن‌های نردبان', adminOnly: true },
+  { href: '/boost-plans', icon: TrendingUp, label: 'پلن‌های نردبان', adminOnly: true },
   { href: '/search-alerts', icon: Search, label: 'هشدار جستجو', adminOnly: true },
   { href: '/broadcast', icon: Megaphone, label: 'اعلان همگانی', adminOnly: true },
   { href: '/live', icon: Radio, label: 'لایو', adminOnly: true },

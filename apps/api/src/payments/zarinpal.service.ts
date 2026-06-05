@@ -27,7 +27,14 @@ export class ZarinpalService {
     process.env.ZARINPAL_MERCHANT_ID ?? '00000000-0000-0000-0000-000000000000';
   private readonly callbackUrl =
     process.env.ZARINPAL_CALLBACK_URL ?? 'http://localhost:3000/payment/callback';
-  private readonly devMode = !process.env.ZARINPAL_MERCHANT_ID;
+  private readonly devMode =
+    !process.env.ZARINPAL_MERCHANT_ID && process.env.NODE_ENV !== 'production';
+
+  constructor() {
+    if (process.env.NODE_ENV === 'production' && this.devMode) {
+      throw new Error('ZARINPAL_MERCHANT_ID is required in production');
+    }
+  }
 
   async request(amountToman: number, description: string, mobile?: string, email?: string) {
     if (this.devMode) {

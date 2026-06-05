@@ -8,21 +8,27 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
-import { SOCKET_EVENTS, type JwtPayload, type SendMessageInput } from '@agahiram/shared';
+import {
+  SOCKET_EVENTS,
+  sendMessageSchema,
+  type JwtPayload,
+  type SendMessageInput,
+} from '@agahiram/shared';
 import { MessagesService } from './messages.service';
+import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
-  cors: { origin: true, credentials: true },
+  cors: { origin: getCorsOrigins(), credentials: true },
   namespace: '/messages',
   transports: ['websocket', 'polling'],
 })
 export class MessagesGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
-  private readonly jwt = new JwtService({
-    secret: process.env.JWT_SECRET ?? 'agahiram-dev-jwt-secret-change-in-production',
-  });
 
-  constructor(private readonly service: MessagesService) {}
+  constructor(
+    private readonly service: MessagesService,
+    private readonly jwt: JwtService,
+  ) {}
 
   handleConnection(@ConnectedSocket() socket: Socket) {
     try {
@@ -39,7 +45,12 @@ export class MessagesGateway implements OnGatewayConnection {
   async onMessage(@ConnectedSocket() socket: Socket, @MessageBody() body: SendMessageInput) {
     const userId = socket.data.userId as string;
     if (!userId) return;
-    const result = await this.service.send(userId, body);
+    const parsed = sendMessageSchema.safeParse(body);
+    if (!parsed.success) {
+      socket.emit('error', { message: 'payload نامعتبر است' });
+      return;
+    }
+    const result = await this.service.send(userId, parsed.data);
     this.broadcastMessage(result);
   }
 
@@ -60,20 +71,30 @@ export class MessagesGateway implements OnGatewayConnection {
   }
 
   @SubscribeMessage(SOCKET_EVENTS.TYPING_START)
-  onTypingStart(
-    @ConnectedSocket() _socket: Socket,
+  async onTypingStart(
+    @ConnectedSocket() socket: Socket,
     @MessageBody() body: { conversationId: string; recipientId: string },
   ) {
+    const userId = socket.data.userId as string;
+    if (!userId || !body.conversationId || !body.recipientId) return;
+    if (!(await this.service.isConversationParticipant(userId, body.conversationId))) return;
+    const otherId = await this.service.getOtherParticipantId(userId, body.conversationId);
+    if (!otherId || otherId !== body.recipientId) return;
     this.server
       .to(`user:${body.recipientId}`)
       .emit(SOCKET_EVENTS.TYPING_START, { conversationId: body.conversationId });
   }
 
   @SubscribeMessage(SOCKET_EVENTS.TYPING_STOP)
-  onTypingStop(
-    @ConnectedSocket() _socket: Socket,
+  async onTypingStop(
+    @ConnectedSocket() socket: Socket,
     @MessageBody() body: { conversationId: string; recipientId: string },
   ) {
+    const userId = socket.data.userId as string;
+    if (!userId || !body.conversationId || !body.recipientId) return;
+    if (!(await this.service.isConversationParticipant(userId, body.conversationId))) return;
+    const otherId = await this.service.getOtherParticipantId(userId, body.conversationId);
+    if (!otherId || otherId !== body.recipientId) return;
     this.server
       .to(`user:${body.recipientId}`)
       .emit(SOCKET_EVENTS.TYPING_STOP, { conversationId: body.conversationId });

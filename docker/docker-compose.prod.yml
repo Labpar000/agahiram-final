@@ -64,8 +64,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # One-shot: create the bucket and make objects publicly readable
-  # (consistent with the previous public-read object storage model).
+  # One-shot: create the bucket (no anonymous download — media served via API proxy).
   createbuckets:
     image: minio/mc:latest
     container_name: agahiram-createbuckets
@@ -76,8 +75,7 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
       mc mb --ignore-existing local/${MINIO_BUCKET:-agahiram} &&
-      mc anonymous set download local/${MINIO_BUCKET:-agahiram} &&
-      echo 'bucket ready';
+      echo 'bucket ready (no anonymous download — media served via API proxy)';
       "
     networks:
       - agahiram

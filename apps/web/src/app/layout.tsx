@@ -16,20 +16,37 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agahiram.ir';
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'آگهی‌گرام',
-    template: '%s | آگهی‌گرام',
+    default: 'آگهیرام',
+    template: '%s | آگهیرام',
   },
-  description: 'پلتفرم آگهی با ظاهر اینستاگرام - ترکیب اینستاگرام و دیوار',
+  description: 'بازار آگهی آنلاین — ترکیب اینستاگرام و دیوار',
   alternates: { languages: { fa: SITE_URL } },
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'آگهی‌گرام',
+    title: 'آگهیرام',
   },
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-192.png',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'آگهیرام',
+    locale: 'fa_IR',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'آگهیرام — بازار آگهی آنلاین',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/og-image.png'],
   },
 };
 
@@ -40,9 +57,6 @@ export const viewport: Viewport = {
   ],
   width: 'device-width',
   initialScale: 1,
-  minimumScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   viewportFit: 'cover',
   colorScheme: 'light dark',
 };

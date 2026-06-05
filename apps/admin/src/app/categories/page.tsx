@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   IconButton,
   Input,
   Label,
@@ -361,7 +362,9 @@ export default function CategoriesPage() {
 
       <Card>
         <CardContent className="!p-4 space-y-1">
-          {list.isLoading ? (
+          {list.isError ? (
+            <ErrorState onRetry={() => void list.refetch()} />
+          ) : list.isLoading ? (
             <div className="text-sm text-muted-foreground py-8 text-center">در حال بارگذاری…</div>
           ) : (tree.get(null) ?? []).length === 0 ? (
             <EmptyState

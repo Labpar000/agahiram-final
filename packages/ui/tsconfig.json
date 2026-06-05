@@ -1,6 +1,7 @@
 {
-  "extends": "@agahiram/config/typescript/base.json",
+  "extends": "../../packages/config/typescript/base.json",
   "compilerOptions": {
+    "types": [],
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "module": "ESNext",
     "moduleResolution": "Bundler",

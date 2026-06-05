@@ -1,37 +1,20 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { serverApi } from '@/lib/server-api';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
+interface AuthMe {
+  username?: string | null;
+}
 
-export default function MyProfilePage() {
-  const { user, isLoading, refetch } = useAuth();
-  const router = useRouter();
+export default async function MyProfilePage() {
+  const res = await serverApi<AuthMe>('/auth/me');
 
-  useEffect(() => {
-    if (isLoading) return;
+  if (!res.success || !res.data) {
+    redirect('/login');
+  }
 
-    if (user?.username) {
-      router.replace(`/profile/${user.username}`);
-      return;
-    }
+  if (!res.data.username) {
+    redirect('/onboarding');
+  }
 
-    if (!user) {
-      router.replace('/login');
-      return;
-    }
-
-    let cancelled = false;
-    void refetch().then(({ data }) => {
-      if (cancelled) return;
-      if (data?.username) router.replace(`/profile/${data.username}`);
-      else router.replace('/onboarding');
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user, isLoading, router, refetch]);
-
-  return null;
+  redirect(`/profile/${res.data.username}`);
 }

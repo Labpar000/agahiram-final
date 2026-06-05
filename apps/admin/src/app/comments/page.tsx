@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, MessageSquareWarning, Search, Trash2, X } from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber } from '@agahiram/shared';
@@ -12,8 +13,10 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   Input,
+  Spinner,
   toast,
 } from '@agahiram/ui';
 import Shell from '../layout-shell';
@@ -37,10 +40,12 @@ interface Comment {
 
 const PAGE_SIZE = 30;
 
-export default function CommentsPage() {
+function CommentsInner() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get('q') ?? '';
   const [page, setPage] = useState(1);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(initialQ);
   const [userId, setUserId] = useState('');
   const [postId, setPostId] = useState('');
   const [del, setDel] = useState<Comment | null>(null);
@@ -141,6 +146,15 @@ export default function CommentsPage() {
     [],
   );
 
+  if (list.isError) {
+    return (
+      <Shell>
+        <PageHeader title="مدیریت کامنت‌ها" description="جستجو و حذف کامنت‌های نامناسب" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <PageHeader title="مدیریت کامنت‌ها" description="جستجو و حذف کامنت‌های نامناسب" />
@@ -230,5 +244,21 @@ export default function CommentsPage() {
         onConfirm={() => del && remove.mutate(del.id)}
       />
     </Shell>
+  );
+}
+
+export default function CommentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <Shell>
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-8" />
+          </div>
+        </Shell>
+      }
+    >
+      <CommentsInner />
+    </Suspense>
   );
 }

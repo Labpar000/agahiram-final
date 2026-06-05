@@ -38,8 +38,14 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'agahiram-auth',
       partialize: (state) => ({
-        user: state.user,
+        user: state.user
+          ? (() => {
+              const { phone: _phone, ...rest } = state.user as any;
+              return rest;
+            })()
+          : null,
         isAuthenticated: state.isAuthenticated,
+        isLoading: false,
       }),
     },
   ),

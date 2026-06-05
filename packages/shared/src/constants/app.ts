@@ -9,17 +9,6 @@ export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_RATE_LIMIT = 3;
 export const OTP_RATE_WINDOW_MINUTES = 10;
 
-/**
- * Single source of truth for who may access the admin panel. ONLY these phone
- * numbers can ever hold an elevated (admin/moderator) role. Enforced on login
- * (auto promote/demote), in the API RolesGuard, and in the admin app gate.
- */
-export const ADMIN_PHONES: readonly string[] = ['09127477990', '09132609737'];
-
-export function isAdminPhone(phone: string | null | undefined): boolean {
-  return !!phone && ADMIN_PHONES.includes(phone);
-}
-
 export const POST_EXPIRY_DAYS = 30;
 export const STORY_EXPIRY_HOURS = 24;
 export const MAX_POST_MEDIA = 10;
@@ -109,6 +98,7 @@ export const BULL_QUEUES = {
   SEARCH_INDEX: 'search-index',
   STORY_CLEANUP: 'story-cleanup',
   STORY_SCHEDULED: 'story-scheduled',
+  CALL_TIMEOUT: 'call-timeout',
 } as const;
 
 export const MAX_STORY_SLIDES_PER_BATCH = 10;

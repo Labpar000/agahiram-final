@@ -10,10 +10,14 @@ import {
   IgActivity,
   IgClose,
   IgDirect,
+  IgHeaderBadge,
   IgMoon,
   IgSearch,
   IgSun,
+  IgTopNav,
+  IgWordmark,
   Input,
+  igHeaderIconClass,
   useTheme,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -57,10 +61,7 @@ export function TopBar() {
     queryFn: async () => {
       const r = await apiClient.get<{ suggestions: SearchSuggestionItem[] }>(
         '/search/suggestions',
-        {
-          q: debounced,
-          limit: 8,
-        },
+        { q: debounced, limit: 8 },
       );
       return r.data?.suggestions ?? [];
     },
@@ -96,19 +97,18 @@ export function TopBar() {
 
   return (
     <>
-      <header className="glass sticky top-0 z-30 border-b border-border-subtle pt-safe">
-        <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center justify-between gap-2 px-4 py-2">
+      <IgTopNav
+        brand={
           <Link
             href="/feed"
             aria-label="آگهی‌گرام — صفحه اصلی"
-            className="min-w-0 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            className="inline-flex min-w-0 items-center gap-2 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
           >
-            <span className="truncate text-lg font-semibold leading-none tracking-tight text-foreground">
-              آگهی‌گرام
-            </span>
+            <IgWordmark>Agahiram</IgWordmark>
           </Link>
-
-          <div className="flex shrink-0 items-center">
+        }
+        actions={
+          <>
             <HeaderIconButton
               label="جستجو"
               onClick={() => setSearchOpen(true)}
@@ -133,9 +133,9 @@ export function TopBar() {
               badge={msgUnread}
               icon={<IgDirect className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
             />
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {searchOpen ? (
         <div className="fixed inset-0 z-50 bg-surface">
@@ -228,9 +228,6 @@ export function TopBar() {
   );
 }
 
-const headerIconClass =
-  'grid size-10 place-items-center rounded-full text-foreground transition-colors hover:bg-muted/60 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
-
 function ThemeButton() {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -243,7 +240,7 @@ function ThemeButton() {
       type="button"
       aria-label={isDark ? 'تغییر به حالت روشن' : 'تغییر به حالت تیره'}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      className={headerIconClass}
+      className={igHeaderIconClass}
     >
       {isDark ? (
         <IgSun className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />
@@ -264,7 +261,7 @@ function HeaderIconButton({
   icon: React.ReactNode;
 }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className={headerIconClass}>
+    <button type="button" aria-label={label} onClick={onClick} className={igHeaderIconClass}>
       {icon}
     </button>
   );
@@ -285,15 +282,10 @@ function HeaderIconLink({
     <Link
       href={href}
       aria-label={badge > 0 ? `${label} (${formatPersianNumber(badge)} مورد جدید)` : label}
-      className={`relative ${headerIconClass}`}
+      className={`relative ${igHeaderIconClass}`}
     >
       {icon}
-      {badge > 0 ? (
-        <span
-          aria-hidden
-          className="absolute end-1.5 top-1.5 size-2 rounded-full bg-[var(--ig-badge)] ring-2 ring-surface"
-        />
-      ) : null}
+      {badge > 0 ? <IgHeaderBadge /> : null}
     </Link>
   );
 }

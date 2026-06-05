@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   Input,
   toast,
@@ -144,6 +145,18 @@ function StoryCommentsContent() {
   );
 
   const hasFilters = !!(q || userId || storyId);
+
+  if (list.isError) {
+    return (
+      <Shell>
+        <PageHeader
+          title="مدیریت کامنت استوری"
+          description="جستجو و حذف کامنت‌های نامناسب روی استوری‌ها"
+        />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell>

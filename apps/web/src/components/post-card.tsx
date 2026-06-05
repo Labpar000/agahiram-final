@@ -9,7 +9,6 @@ import { Award, Sparkles } from 'lucide-react';
 import useEmblaCarousel from 'embla-carousel-react';
 import type { PostSummary } from '@agahiram/shared';
 import {
-  cn,
   formatPersianNumber,
   formatPersianPrice,
   formatRelativeTimeFa,
@@ -37,6 +36,7 @@ import {
   IgMore,
   IgPhone,
   PostActionRow,
+  PostHeader,
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
@@ -48,6 +48,7 @@ import { ReportDialog } from '@/components/report-dialog';
 import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
+import { CollectionPickerDrawer } from '@/components/collection-picker-drawer';
 import { CommentComposer, CommentList, CommentSectionProvider } from './comment-section';
 import { CommentsDrawerHeader } from './comments-drawer-header';
 import { FeedPostVideo } from './feed-post-video';
@@ -78,6 +79,7 @@ export function PostCard({
   const [likeCount, setLikeCount] = useState(post.likesCount);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
 
   useEffect(() => {
     setLiked(initialLiked ?? post.isLiked ?? false);
@@ -251,47 +253,64 @@ export function PostCard({
 
   return (
     <article className="border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
-      {/* Header — IG-minimal: avatar + username + more */}
-      <header className="flex items-center gap-3 px-4 py-2">
-        <Link
-          href={`/profile/${post.user.username}`}
-          aria-label={`پروفایل ${post.user.username}`}
-          className="shrink-0 tap-none"
-        >
-          <Avatar size="sm" verified={post.user.isVerified}>
-            {post.user.avatar ? <AvatarImage src={post.user.avatar} alt="" /> : null}
-            <AvatarFallback>{(post.user.username ?? '?').slice(0, 2)}</AvatarFallback>
-          </Avatar>
-        </Link>
-        <Link
-          href={`/profile/${post.user.username}`}
-          className="min-w-0 flex-1 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-        >
-          <span className="text-ig-username block truncate">{post.user.username}</span>
-        </Link>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton
-              aria-label="گزینه‌های بیشتر"
-              size="sm"
-              variant="ghost"
-              icon={<IgMore className="size-5" />}
-            />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-[11rem]">
-            <DropdownMenuItem onClick={() => void onShare()}>اشتراک‌گذاری</DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                void navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
-                toast.success('لینک کپی شد');
-              }}
-            >
-              کپی لینک
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setReportOpen(true)}>گزارش آگهی</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </header>
+      <PostHeader
+        avatar={
+          <Link
+            href={`/profile/${post.user.username}`}
+            aria-label={`پروفایل ${post.user.username}`}
+            className="tap-none"
+          >
+            <Avatar size="sm" verified={post.user.isVerified}>
+              {post.user.avatar ? <AvatarImage src={post.user.avatar} alt="" /> : null}
+              <AvatarFallback>{(post.user.username ?? '?').slice(0, 2)}</AvatarFallback>
+            </Avatar>
+          </Link>
+        }
+        username={
+          <Link
+            href={`/profile/${post.user.username}`}
+            className="min-w-0 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+          >
+            <span className="text-ig-username block truncate">{post.user.username}</span>
+          </Link>
+        }
+        meta={
+          <>
+            {post.city ? <span className="truncate">{post.city.name}</span> : null}
+            {post.city ? <span aria-hidden>•</span> : null}
+            <span>{formatRelativeTimeFa(post.createdAt)}</span>
+          </>
+        }
+        trailing={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton
+                aria-label="گزینه‌های بیشتر"
+                size="sm"
+                variant="ghost"
+                icon={<IgMore className="size-5" />}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[11rem]">
+              <DropdownMenuItem onClick={() => void onShare()}>اشتراک‌گذاری</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  void navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+                  toast.success('لینک کپی شد');
+                }}
+              >
+                کپی لینک
+              </DropdownMenuItem>
+              {isAuthenticated ? (
+                <DropdownMenuItem onClick={() => setCollectionPickerOpen(true)}>
+                  ذخیره در مجموعه…
+                </DropdownMenuItem>
+              ) : null}
+              <DropdownMenuItem onClick={() => setReportOpen(true)}>گزارش آگهی</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
       {/* Media carousel */}
       <div className="relative">
@@ -310,6 +329,7 @@ export function PostCard({
           style={aspectRatioStyle(aspectRatio)}
           onClick={onDoubleTap}
         >
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
           <div className="flex h-full min-h-0">
             {post.media.length === 0 ? (
               <div className="grid size-full place-items-center bg-surface-muted p-6 text-center text-sm text-muted-foreground">
@@ -411,7 +431,7 @@ export function PostCard({
       </div>
 
       {/* Actions */}
-      <div className="px-4 pb-3 pt-1">
+      <div className="px-4 pb-3.5 pt-1.5">
         <PostActionRow
           liked={liked}
           saved={saved}
@@ -481,17 +501,15 @@ export function PostCard({
           </PostLink>
         ) : null}
 
-        <p className="text-ig-meta mt-1 uppercase">{formatRelativeTimeFa(post.createdAt)}</p>
-
         {/* Agahiram marketplace block */}
-        <div className="mt-2 space-y-2 border-t border-border-subtle pt-2">
+        <div className="mt-2 space-y-2 border-t border-border-subtle pt-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">
+            <span className="rounded-full bg-muted px-2.5 py-1 text-sm font-semibold text-foreground shadow-[inset_0_0_0_1px_color-mix(in_oklch,var(--border)_70%,transparent)]">
               {formatPersianPrice(post.price)}
             </span>
-            {post.city ? (
-              <span className="text-ig-secondary text-muted-foreground">{post.city.name}</span>
-            ) : null}
+            <span className="text-ig-secondary text-muted-foreground">
+              دسته‌بندی: {post.category.name}
+            </span>
           </div>
 
           <PostMetaChips
@@ -561,6 +579,12 @@ export function PostCard({
         targetId={post.id}
         title="گزارش آگهی"
       />
+      <CollectionPickerDrawer
+        open={collectionPickerOpen}
+        onOpenChange={setCollectionPickerOpen}
+        postId={post.id}
+        onSaved={() => setSaved(true)}
+      />
     </article>
   );
 }
@@ -583,7 +607,7 @@ function PostMetaChips({
   if (!hasAny) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1 pt-0.5">
+    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
       <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">
         {post.category.name}
       </span>

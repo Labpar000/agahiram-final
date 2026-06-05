@@ -8,7 +8,6 @@
 | -------------- | ------------------------------------------- |
 | **IP**         | `45.144.18.86`                              |
 | **کاربر**      | `root`                                      |
-| **رمز عبور**   | `amirhosein`                                |
 | **پورت SSH**   | `22`                                        |
 | **مسیر پروژه** | `/opt/agahiram`                             |
 | **دامنه**      | `alooche.com`                               |
@@ -19,15 +18,15 @@
 ### MobaXterm / Terminal
 
 ```
-ssh root@45.144.18.86
+ssh -i /path/to/your/key root@45.144.18.86
 ```
 
-رمز: `amirhosein`
+> **امنیت:** از SSH key استفاده کن. رمز عبور را در repo، docs یا اسکریپت‌ها قرار نده.
 
 ### از Windows (PowerShell)
 
 ```powershell
-ssh root@45.144.18.86
+ssh -i .cache/ssh/agahiram_id_ed25519 root@45.144.18.86
 ```
 
 ## Deploy از PC (fallback)
@@ -35,7 +34,9 @@ ssh root@45.144.18.86
 اگر GitHub Actions در دسترس نبود:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
+# SSH key (preferred) or explicit password — never commit credentials
+powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1 -KeyPath .cache/ssh/agahiram_id_ed25519
+# Or: -Password (secure prompt / env var, not stored in repo)
 ```
 
 ## Deploy استاندارد (GitHub Actions)
@@ -45,7 +46,8 @@ powershell -ExecutionPolicy Bypass -File scripts/deploy-bridge.ps1
 راه‌اندازی یک‌بار secrets:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/bootstrap-github-deploy.ps1
+# One-time: install deploy key on VPS (requires your existing root SSH key)
+powershell -ExecutionPolicy Bypass -File scripts/bootstrap-github-deploy.ps1 -InitialKeyPath .cache/ssh/agahiram_id_ed25519
 ```
 
 جزئیات: [`docs/CI_CD.md`](CI_CD.md)
@@ -84,7 +86,7 @@ SSH_PORT=22
 SSH_KEY=<private key if configured>
 ```
 
-> **امنیت:** رمز root را فقط در محیط‌های امن نگه دار. برای deploy خودکار بهتر است SSH key تنظیم شود و رمز در repo عمومی commit نشود.
+> **امنیت:** هیچ secret (رمز، کلید خصوصی، توکن) در repo یا docs commit نشود. Deploy خودکار فقط با GitHub Secrets (`SSH_HOST`, `SSH_USER`, `SSH_KEY`) انجام شود. اگر رمز قبلاً در git history بوده، حتماً rotate کن.
 
 ## دستورات مفید
 

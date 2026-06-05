@@ -9,3 +9,8 @@ export * from './report';
 export * from './push';
 export * from './story';
 export * from './call';
+export * from './collection';
+export * from './payout';
+export * from './media';
+export * from './ai';
+export * from './live';

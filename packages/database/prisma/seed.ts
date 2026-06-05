@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import {
-  ADMIN_PHONES,
   DIVAR_CATEGORIES,
   IRAN_PROVINCES,
   BOOST_PLANS,
@@ -120,6 +119,48 @@ async function seedLocations() {
   console.log(`Locations seeded: ${IRAN_PROVINCES.length} provinces, ${totalCities} cities.`);
 }
 
+/** Sample neighborhoods for major cities — enough for filters and admin QA. */
+const SAMPLE_NEIGHBORHOODS: Record<string, Array<{ name: string; slug: string }>> = {
+  tehran: [
+    { name: 'ونک', slug: 'vanak' },
+    { name: 'سعادت‌آباد', slug: 'saadat-abad' },
+    { name: 'پونک', slug: 'punak' },
+    { name: 'نیاوران', slug: 'niavaran' },
+    { name: 'تهرانپارس', slug: 'tehranpars' },
+  ],
+  isfahan: [
+    { name: 'چهارباغ', slug: 'chahar-bagh' },
+    { name: 'سی‌وسه‌پل', slug: 'si-o-se-pol' },
+    { name: 'خیابان شیخ بهایی', slug: 'sheikh-bahaei' },
+  ],
+  shiraz: [
+    { name: 'معالی‌آباد', slug: 'maali-abad' },
+    { name: 'ستارخان', slug: 'sattarkhan' },
+    { name: 'قدوسی', slug: 'ghodusi' },
+  ],
+};
+
+async function seedNeighborhoods() {
+  console.log('Seeding sample neighborhoods...');
+  let count = 0;
+
+  for (const [citySlug, neighborhoods] of Object.entries(SAMPLE_NEIGHBORHOODS)) {
+    const city = await prisma.city.findUnique({ where: { slug: citySlug } });
+    if (!city) continue;
+
+    for (const n of neighborhoods) {
+      await prisma.neighborhood.upsert({
+        where: { cityId_slug: { cityId: city.id, slug: n.slug } },
+        update: { name: n.name },
+        create: { cityId: city.id, name: n.name, slug: n.slug },
+      });
+      count++;
+    }
+  }
+
+  console.log(`Neighborhoods seeded: ${count} rows.`);
+}
+
 async function seedBoostPlans() {
   console.log('Seeding boost plans...');
 
@@ -141,11 +182,34 @@ async function seedBoostPlans() {
   console.log('Boost plans seeded.');
 }
 
+/** Dev-only fallback when ADMIN_PHONES is unset. Must match apps/api/src/config/admin-phones.ts */
+const DEV_FALLBACK_ADMIN_PHONES = ['09100000001', '09100000002'] as const;
+
+function getSeedAdminPhones(): string[] {
+  const raw = process.env.ADMIN_PHONES?.trim();
+  if (raw) {
+    return raw
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('ADMIN_PHONES not set — skipping admin user seed in production');
+    return [];
+  }
+  return [...DEV_FALLBACK_ADMIN_PHONES];
+}
+
 async function seedAdmin() {
   console.log('Seeding admin users...');
+  const adminPhones = getSeedAdminPhones();
+  if (adminPhones.length === 0) {
+    console.log('No admin phones configured — admin seed skipped.');
+    return;
+  }
 
-  for (let i = 0; i < ADMIN_PHONES.length; i++) {
-    const phone = ADMIN_PHONES[i]!;
+  for (let i = 0; i < adminPhones.length; i++) {
+    const phone = adminPhones[i]!;
     await prisma.user.upsert({
       where: { phone },
       update: { role: 'admin', isVerified: true },
@@ -159,12 +223,13 @@ async function seedAdmin() {
     });
   }
 
-  console.log(`Admin users seeded (phones: ${ADMIN_PHONES.join(', ')}).`);
+  console.log(`Admin users seeded (phones: ${adminPhones.join(', ')}).`);
 }
 
 async function main() {
   await seedCategories();
   await seedLocations();
+  await seedNeighborhoods();
   await seedBoostPlans();
   await seedAdmin();
 }

@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { IgCheck, IgClose, IgRotate, toast } from '@agahiram/ui';
+import { IgCheck, IgClose, IgRotate } from '@agahiram/ui';
 import { Button, Dialog, DialogContent, DialogDescription, DialogTitle } from '@agahiram/ui';
 
 type AspectKey = 'free' | '1:1' | '4:5' | '16:9';

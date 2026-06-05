@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Avatar,
@@ -65,6 +66,9 @@ export default function SettingsPage() {
   const [storyArchiveEnabled, setStoryArchiveEnabled] = useState(user?.storyArchiveEnabled ?? true);
   const [showHistory, setShowHistory] = useState(false);
   const [topupAmount, setTopupAmount] = useState('100000');
+  const [payoutAmount, setPayoutAmount] = useState('');
+  const [payoutIban, setPayoutIban] = useState('');
+  const [newCollectionName, setNewCollectionName] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
 
   const { data: wallet } = useQuery({
@@ -83,6 +87,32 @@ export default function SettingsPage() {
   const { data: blocked = [], refetch: refetchBlocked } = useQuery({
     queryKey: ['blocked-users'],
     queryFn: async () => (await apiClient.get<BlockedUser[]>('/users/me/blocked')).data ?? [],
+  });
+
+  const { data: collections = [], refetch: refetchCollections } = useQuery({
+    queryKey: ['collections'],
+    queryFn: async () =>
+      (
+        await apiClient.get<Array<{ id: string; name: string; _count?: { saves: number } }>>(
+          '/me/collections',
+        )
+      ).data ?? [],
+  });
+
+  const { data: payouts = [], refetch: refetchPayouts } = useQuery({
+    queryKey: ['payouts'],
+    queryFn: async () =>
+      (
+        await apiClient.get<
+          Array<{
+            id: string;
+            amount: string;
+            status: string;
+            iban: string;
+            createdAt: string;
+          }>
+        >('/payments/payouts')
+      ).data ?? [],
   });
 
   useEffect(() => {
@@ -184,6 +214,50 @@ export default function SettingsPage() {
       setAvatarUploading(false);
     }
   };
+
+  const requestPayout = useMutation({
+    mutationFn: async () => {
+      const amount = Number(payoutAmount.replace(/\D/g, ''));
+      const iban = payoutIban.trim().toUpperCase();
+      if (!amount || amount < 50_000) throw new Error('حداقل مبلغ برداشت ۵۰٬۰۰۰ تومان است');
+      if (!/^IR\d{24}$/.test(iban)) throw new Error('شماره شبا نامعتبر است (IR + ۲۴ رقم)');
+      const r = await apiClient.post('/payments/payouts', { amount, iban });
+      if (!r.success) throw new Error(r.error ?? 'خطا در ثبت درخواست برداشت');
+    },
+    onSuccess: () => {
+      toast.success('درخواست برداشت ثبت شد');
+      setPayoutAmount('');
+      setPayoutIban('');
+      void refetchPayouts();
+      void qc.invalidateQueries({ queryKey: ['wallet'] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const createCollection = useMutation({
+    mutationFn: async (name: string) => {
+      const r = await apiClient.post('/me/collections', { name });
+      if (!r.success) throw new Error(r.error ?? 'خطا در ساخت مجموعه');
+    },
+    onSuccess: () => {
+      toast.success('مجموعه ساخته شد');
+      setNewCollectionName('');
+      void refetchCollections();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const deleteCollection = useMutation({
+    mutationFn: async (id: string) => {
+      const r = await apiClient.delete(`/me/collections/${id}`);
+      if (!r.success) throw new Error(r.error ?? 'خطا در حذف مجموعه');
+    },
+    onSuccess: () => {
+      toast.success('مجموعه حذف شد');
+      void refetchCollections();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const topup = useMutation({
     mutationFn: async () => {
@@ -444,6 +518,67 @@ export default function SettingsPage() {
           <Row label="نسخه">
             <span className="text-sm text-muted-foreground tabular-nums">۰٫۱٫۰</span>
           </Row>
+          <Row label="سیاست حریم خصوصی" description="نحوه استفاده و حفاظت از داده‌های شما">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/privacy">مشاهده</Link>
+            </Button>
+          </Row>
+          <Row label="شرایط استفاده" description="قوانین و مسئولیت‌های استفاده از پلتفرم">
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/terms">مشاهده</Link>
+            </Button>
+          </Row>
+        </Section>
+
+        <Section
+          title="مجموعه‌های ذخیره"
+          icon={<IgGallery className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
+          {collections.length === 0 ? (
+            <p className="text-sm text-muted-foreground">هنوز مجموعه‌ای ندارید.</p>
+          ) : (
+            collections.map((c) => (
+              <Row
+                key={c.id}
+                label={c.name}
+                description={
+                  c._count?.saves != null ? `${c._count.saves} آگهی ذخیره‌شده` : undefined
+                }
+              >
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (window.confirm(`مجموعه «${c.name}» حذف شود؟`)) {
+                      deleteCollection.mutate(c.id);
+                    }
+                  }}
+                  disabled={deleteCollection.isPending}
+                >
+                  حذف
+                </Button>
+              </Row>
+            ))
+          )}
+          <div className="flex gap-2 pt-1">
+            <Input
+              value={newCollectionName}
+              onChange={(e) => setNewCollectionName(e.target.value)}
+              placeholder="نام مجموعه جدید"
+              maxLength={80}
+              aria-label="نام مجموعه جدید"
+              className="flex-1"
+            />
+            <Button
+              variant="brand"
+              size="sm"
+              disabled={!newCollectionName.trim() || createCollection.isPending}
+              isLoading={createCollection.isPending}
+              onClick={() => createCollection.mutate(newCollectionName.trim())}
+            >
+              افزودن
+            </Button>
+          </div>
         </Section>
 
         <Section
@@ -506,6 +641,45 @@ export default function SettingsPage() {
                   )}
                 </div>
               ) : null}
+              <div className="space-y-2 border-t border-border-subtle pt-4">
+                <p className="text-xs font-semibold text-muted-foreground">درخواست برداشت</p>
+                <Input
+                  inputMode="numeric"
+                  value={payoutAmount}
+                  onChange={(e) => setPayoutAmount(e.target.value)}
+                  placeholder="مبلغ (حداقل ۵۰٬۰۰۰ تومان)"
+                  aria-label="مبلغ برداشت"
+                />
+                <Input
+                  dir="ltr"
+                  value={payoutIban}
+                  onChange={(e) => setPayoutIban(e.target.value)}
+                  placeholder="IRxxxxxxxxxxxxxxxxxxxxxxxx"
+                  aria-label="شماره شبا"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => requestPayout.mutate()}
+                  isLoading={requestPayout.isPending}
+                  disabled={!payoutAmount.trim() || !payoutIban.trim()}
+                >
+                  ثبت درخواست برداشت
+                </Button>
+                {payouts.length > 0 ? (
+                  <div className="space-y-1.5 rounded-xl border border-border bg-surface p-3">
+                    {payouts.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="text-muted-foreground">
+                          {new Date(p.createdAt).toLocaleDateString('fa-IR')}
+                        </span>
+                        <span className="font-medium">{formatPersianPrice(Number(p.amount))}</span>
+                        <span className="text-muted-foreground">{p.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </Section>

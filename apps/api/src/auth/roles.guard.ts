@@ -1,6 +1,7 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { isAdminPhone, type JwtPayload, type UserRole } from '@agahiram/shared';
+import type { JwtPayload, UserRole } from '@agahiram/shared';
+import { isAdminPhone } from '../config/admin-phones';
 import { ROLES_KEY } from './roles.decorator';
 
 @Injectable()

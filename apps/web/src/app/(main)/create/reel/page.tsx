@@ -21,7 +21,7 @@ export default function CreateReelPage() {
   const router = useRouter();
   const { uploadFile } = useUploadManager();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [_file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [mediaKey, setMediaKey] = useState<string | null>(null);
   const [duration, setDuration] = useState(30);

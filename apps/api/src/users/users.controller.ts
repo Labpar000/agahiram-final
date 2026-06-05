@@ -10,7 +10,13 @@ import {
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
-import { blockUserSchema, updateProfileSchema, type UpdateProfileInput } from '@agahiram/shared';
+import {
+  blockUserSchema,
+  notificationPreferencesSchema,
+  updateProfileSchema,
+  type NotificationPreferencesInput,
+  type UpdateProfileInput,
+} from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -53,19 +59,10 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Patch('me/notification-preferences')
+  @UsePipes(new ZodValidationPipe(notificationPreferencesSchema))
   async updateNotificationPreferences(
     @CurrentUser('sub') userId: string,
-    @Body()
-    body: Partial<{
-      likesPush: boolean;
-      commentsPush: boolean;
-      followsPush: boolean;
-      messagesPush: boolean;
-      likesEmail: boolean;
-      commentsEmail: boolean;
-      followsEmail: boolean;
-      messagesEmail: boolean;
-    }>,
+    @Body() body: NotificationPreferencesInput,
   ) {
     return this.usersService.updateNotificationPreferences(userId, body);
   }
@@ -93,6 +90,12 @@ export class UsersController {
   @Delete('me/blocked/:username')
   async unblock(@CurrentUser('sub') userId: string, @Param('username') username: string) {
     return this.usersService.unblockUser(userId, username);
+  }
+
+  @Public()
+  @Get(':username/reputation')
+  async reputation(@Param('username') username: string) {
+    return this.usersService.getUserReputation(username);
   }
 
   @Public()

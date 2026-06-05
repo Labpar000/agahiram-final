@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { isAdminPhone, type UserProfile } from '@agahiram/shared';
+import { type UserProfile } from '@agahiram/shared';
 import { Spinner, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useAdminSocket } from '@/lib/use-admin-socket';
@@ -42,14 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     pathname === '/admin/login' ||
     pathname.startsWith('/admin/login/');
 
-  const refetch = async () => {
+  const refetch = useCallback(async () => {
     setLoading(true);
     const r = await apiClient.get<UserProfile>('/auth/me');
     setLoading(false);
     if (r.success && r.data) {
-      const role = r.data.role as string;
-      const isElevated = role === 'admin' || role === 'moderator';
-      if (!isElevated || !isAdminPhone(r.data.phone)) {
+      const canAccess =
+        r.data.canAccessAdminPanel ?? (r.data.role === 'admin' || r.data.role === 'moderator');
+      if (!canAccess) {
         toast.error('این حساب اجازه‌ی ورود به پنل ادمین را ندارد.');
         await apiClient.post('/auth/logout');
         router.replace('/login');
@@ -60,7 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setMe(null);
       if (!isPublic) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
-  };
+  }, [isPublic, pathname, router]);
 
   useEffect(() => {
     if (isPublic) {
@@ -68,8 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     void refetch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPublic]);
+  }, [isPublic, refetch]);
 
   useEffect(() => {
     if (isPublic || !me) return;

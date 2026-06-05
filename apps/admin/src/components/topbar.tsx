@@ -22,6 +22,7 @@ import {
   ThemeToggle,
 } from '@agahiram/ui';
 import { useAuth } from './auth-provider';
+import { useIsAdmin } from './admin-only';
 import { NAV_ITEMS, SidebarContent } from './sidebar';
 
 function buildBreadcrumb(pathname: string): Array<{ label: string; href?: string }> {
@@ -46,6 +47,7 @@ export function Topbar() {
   const [search, setSearch] = useState('');
   const crumbs = buildBreadcrumb(pathname);
   const { me, logout } = useAuth();
+  const isAdmin = useIsAdmin();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,14 +124,14 @@ export function Topbar() {
           </form>
           <Link href="/audit" aria-label="گزارش عملیات" className="md:hidden">
             <IconButton
-              aria-label="اعلان‌ها"
+              aria-label="گزارش عملیات"
               icon={<Bell className="size-5" aria-hidden />}
               size="md"
             />
           </Link>
           <Link href="/audit" aria-label="گزارش عملیات" className="hidden md:inline-flex">
             <IconButton
-              aria-label="اعلان‌ها"
+              aria-label="گزارش عملیات"
               icon={<Bell className="size-5" aria-hidden />}
               size="md"
             />
@@ -164,11 +166,13 @@ export function Topbar() {
                   <UserRound className="size-4" aria-hidden /> پروفایل
                 </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/settings" className="flex items-center gap-2">
-                  <Settings className="size-4" aria-hidden /> تنظیمات
-                </Link>
-              </DropdownMenuItem>
+              {isAdmin ? (
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center gap-2">
+                    <Settings className="size-4" aria-hidden /> تنظیمات
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 destructive

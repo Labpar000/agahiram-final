@@ -4,15 +4,17 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import { Award } from 'lucide-react';
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { formatPersianNumber } from '@agahiram/shared';
+import { cn, formatPersianNumber } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
   Button,
   EmptyState,
+  ErrorState,
   IgBookmark,
   IgComment,
   IgGrid,
@@ -27,7 +29,8 @@ import {
   TabsTrigger,
   toast,
 } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { apiClient, assertSuccess } from '@/lib/api';
+import { karmaTier } from '@/lib/reputation';
 import { PostLink } from '@/components/post-link';
 import { useAuth } from '@/hooks/useAuth';
 import { AdStatusBadge } from '@/components/ad-status-badge';
@@ -50,6 +53,11 @@ export interface Profile {
   isFollowing: boolean;
 }
 
+interface UserReputation {
+  karma: number;
+  tier: { key: string; label: string; color: string };
+}
+
 export function ProfileClient({ username }: { username: string }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -61,18 +69,32 @@ export function ProfileClient({ username }: { username: string }) {
   const {
     data: profile,
     isLoading: profileLoading,
+    isError: profileError,
     refetch,
   } = useQuery({
     queryKey: ['profile', username],
-    queryFn: async () => {
-      const r = await apiClient.get<Profile>(`/users/${username}`);
-      return r.data;
-    },
+    queryFn: async () => assertSuccess(await apiClient.get<Profile>(`/users/${username}`)),
   });
+
+  const { data: reputation } = useQuery({
+    queryKey: ['profile', username, 'reputation'],
+    queryFn: async () =>
+      assertSuccess(await apiClient.get<UserReputation>(`/users/${username}/reputation`)),
+    enabled: !!profile,
+    staleTime: 60_000,
+  });
+
+  const karmaBadge = reputation ? karmaTier(reputation.karma) : null;
+  const showKarmaBadge = (reputation?.karma ?? 0) >= 50;
 
   const isMe = me?.username === username;
 
-  const { data: posts, isLoading: postsLoading } = useQuery({
+  const {
+    data: posts,
+    isLoading: postsLoading,
+    isError: postsError,
+    refetch: refetchPosts,
+  } = useQuery({
     queryKey: ['profile', username, tab],
     queryFn: async () => {
       let endpoint: string;
@@ -86,8 +108,8 @@ export function ProfileClient({ username }: { username: string }) {
         default:
           endpoint = `/posts/user/${username}`;
       }
-      const r = await apiClient.get<PaginatedResponse<PostSummary>>(endpoint);
-      return r.data?.data ?? [];
+      const page = assertSuccess(await apiClient.get<PaginatedResponse<PostSummary>>(endpoint));
+      return page.data;
     },
     enabled: !!profile,
     placeholderData: keepPreviousData,
@@ -127,6 +149,9 @@ export function ProfileClient({ username }: { username: string }) {
   };
 
   if (profileLoading && !profile) return <ProfileSkeleton />;
+  if (profileError) {
+    return <ErrorState onRetry={() => void refetch()} />;
+  }
   if (!profile) {
     return (
       <EmptyState title="کاربر یافت نشد" description="این نام کاربری وجود ندارد یا حذف شده است." />
@@ -158,9 +183,23 @@ export function ProfileClient({ username }: { username: string }) {
     <div className="bg-background">
       <header className="space-y-3 bg-surface px-4 pb-4 pt-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="min-w-0 truncate text-sm font-semibold" dir="ltr">
-            @{profile.username}
-          </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="min-w-0 truncate text-sm font-semibold" dir="ltr">
+              @{profile.username}
+            </p>
+            {showKarmaBadge && karmaBadge ? (
+              <span
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                  karmaBadge.className,
+                )}
+                aria-label={`نشان کارما: ${karmaBadge.label}`}
+              >
+                <Award className="size-3" aria-hidden />
+                {karmaBadge.label}
+              </span>
+            ) : null}
+          </div>
           {isMe ? (
             <Link
               href="/settings"
@@ -320,7 +359,11 @@ export function ProfileClient({ username }: { username: string }) {
         </TabsList>
 
         <TabsContent value={tab} className="mt-0">
-          <PostsGrid posts={posts ?? []} isLoading={postsLoading} tab={tab} showStatus={isMe} />
+          {postsError ? (
+            <ErrorState onRetry={() => void refetchPosts()} />
+          ) : (
+            <PostsGrid posts={posts ?? []} isLoading={postsLoading} tab={tab} showStatus={isMe} />
+          )}
         </TabsContent>
       </Tabs>
 

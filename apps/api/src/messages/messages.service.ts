@@ -6,10 +6,14 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { SendMessageInput } from '@agahiram/shared';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class MessagesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private async assertNotBlocked(a: string, b: string) {
     const block = await this.prisma.block.findFirst({
@@ -38,7 +42,22 @@ export class MessagesService {
     return { count };
   }
 
-  async listConversations(userId: string) {
+  async isConversationParticipant(userId: string, conversationId: string) {
+    const p = await this.prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId } },
+    });
+    return !!p;
+  }
+
+  async getOtherParticipantId(userId: string, conversationId: string) {
+    const other = await this.prisma.conversationParticipant.findFirst({
+      where: { conversationId, userId: { not: userId } },
+      select: { userId: true },
+    });
+    return other?.userId ?? null;
+  }
+
+  async listConversations(userId: string, cursor?: string, limit = 30) {
     const convos = await this.prisma.conversation.findMany({
       where: { participants: { some: { userId } } },
       include: {
@@ -51,36 +70,49 @@ export class MessagesService {
         },
         messages: { take: 1, orderBy: { createdAt: 'desc' } },
       },
+      take: limit + 1,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
       orderBy: { updatedAt: 'desc' },
     });
 
-    return Promise.all(
-      convos.map(async (c) => {
-        const other = c.participants.find((p) => p.userId !== userId);
-        const lastMessage = c.messages[0];
-        const unread = await this.prisma.message.count({
-          where: {
-            conversationId: c.id,
-            senderId: { not: userId },
-            isRead: false,
-          },
-        });
-        return {
-          id: c.id,
-          otherUser: other?.user,
-          lastMessage: lastMessage
-            ? {
-                content: lastMessage.content,
-                type: lastMessage.type,
-                createdAt: lastMessage.createdAt.toISOString(),
-                isRead: lastMessage.isRead,
-              }
-            : null,
-          unreadCount: unread,
-          updatedAt: c.updatedAt.toISOString(),
-        };
-      }),
-    );
+    const hasMore = convos.length > limit;
+    const slice = convos.slice(0, limit);
+
+    const unreadRows = await this.prisma.message.groupBy({
+      by: ['conversationId'],
+      where: {
+        conversationId: { in: slice.map((c) => c.id) },
+        senderId: { not: userId },
+        isRead: false,
+      },
+      _count: { id: true },
+    });
+    const unreadMap = new Map(unreadRows.map((r) => [r.conversationId, r._count.id]));
+
+    const data = slice.map((c) => {
+      const other = c.participants.find((p) => p.userId !== userId);
+      const lastMessage = c.messages[0];
+      return {
+        id: c.id,
+        otherUser: other?.user,
+        lastMessage: lastMessage
+          ? {
+              content: lastMessage.content,
+              type: lastMessage.type,
+              createdAt: lastMessage.createdAt.toISOString(),
+              isRead: lastMessage.isRead,
+            }
+          : null,
+        unreadCount: unreadMap.get(c.id) ?? 0,
+        updatedAt: c.updatedAt.toISOString(),
+      };
+    });
+
+    return {
+      data,
+      nextCursor: hasMore ? (slice[slice.length - 1]?.id ?? null) : null,
+      hasMore,
+    };
   }
 
   async getMessages(userId: string, conversationId: string, cursor?: string, limit = 30) {
@@ -288,12 +320,10 @@ export class MessagesService {
             : input.type === 'call_event'
               ? input.content.slice(0, 100)
               : input.content.slice(0, 100);
-      await this.prisma.notification.create({
-        data: {
-          userId: recipient.userId,
-          type: 'message',
-          payload: { senderId, conversationId, preview },
-        },
+      await this.notifications.notify(recipient.userId, 'message', {
+        senderId,
+        conversationId,
+        preview,
       });
     }
 

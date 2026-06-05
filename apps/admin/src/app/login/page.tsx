@@ -4,14 +4,17 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, KeyRound, Loader2, Shield } from 'lucide-react';
 import { formatPhoneFa } from '@agahiram/shared';
-import { Button, Card, CardContent, Input, Label, toast } from '@agahiram/ui';
+import { Button, Card, CardContent, Input, Label, Spinner, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { ADMIN_BASE_PATH } from '@/lib/paths';
 
 function LoginInner() {
   const router = useRouter();
   const search = useSearchParams();
   const rawNext = search.get('next') ?? '/';
-  const next = rawNext.startsWith('/admin') ? rawNext.slice('/admin'.length) || '/' : rawNext;
+  const next = rawNext.startsWith(ADMIN_BASE_PATH)
+    ? rawNext.slice(ADMIN_BASE_PATH.length) || '/'
+    : rawNext;
 
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
@@ -188,7 +191,13 @@ function LoginInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <div className="grid min-h-svh place-items-center bg-chrome">
+          <Spinner className="size-8" />
+        </div>
+      }
+    >
       <LoginInner />
     </Suspense>
   );

@@ -2,8 +2,15 @@
 
 import { useMemo, useState } from 'react';
 import { NotificationType, type NotificationItem as Notif } from '@agahiram/shared';
-import { formatRelativeTimeFa } from '@agahiram/shared';
-import { EmptyState, IgActivity, IgCheckDouble, Skeleton, toast } from '@agahiram/ui';
+import {
+  EmptyState,
+  ErrorState,
+  IgActivity,
+  IgCheckDouble,
+  IgPageHeader,
+  Skeleton,
+  toast,
+} from '@agahiram/ui';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationItem } from '@/components/notification-item';
 
@@ -46,7 +53,8 @@ const GROUP_LABELS: Record<GroupKey, string> = {
 };
 
 export default function NotificationsPage() {
-  const { data, isLoading, markAllRead, markRead, unreadCount } = useNotifications();
+  const { data, isLoading, isError, refetch, markAllRead, markRead, unreadCount } =
+    useNotifications();
   const [tab, setTab] = useState<Tab>('all');
 
   const filtered = useMemo(() => (data ?? []).filter((n) => matchesTab(tab, n)), [data, tab]);
@@ -67,10 +75,10 @@ export default function NotificationsPage() {
 
   return (
     <div className="bg-background">
-      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <h1 className="text-base font-semibold">اعلان‌ها</h1>
-          {unreadCount > 0 ? (
+      <IgPageHeader
+        title="اعلان‌ها"
+        action={
+          unreadCount > 0 ? (
             <button
               type="button"
               onClick={() => {
@@ -82,8 +90,9 @@ export default function NotificationsPage() {
               <IgCheckDouble className="size-4" strokeWidth={1.75} aria-hidden />
               خوانده‌شده
             </button>
-          ) : null}
-        </div>
+          ) : undefined
+        }
+      >
         <div
           role="tablist"
           aria-label="دسته‌بندی اعلان‌ها"
@@ -92,9 +101,11 @@ export default function NotificationsPage() {
           {TABS.map((t) => (
             <button
               key={t.key}
+              id={`notif-tab-${t.key}`}
               type="button"
               role="tab"
               aria-selected={tab === t.key}
+              aria-controls={`notif-tabpanel-${t.key}`}
               onClick={() => setTab(t.key)}
               className={
                 'shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ' +
@@ -107,47 +118,51 @@ export default function NotificationsPage() {
             </button>
           ))}
         </div>
-      </div>
+      </IgPageHeader>
 
-      {isLoading ? (
-        <ul className="divide-y divide-border bg-surface">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <li key={i} className="flex items-center gap-3 px-4 py-3">
-              <Skeleton className="size-11 shrink-0 rounded-full" />
-              <div className="flex-1 space-y-2">
-                <Skeleton className="h-3 w-3/4 rounded-full" />
-                <Skeleton className="h-3 w-24 rounded-full" />
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : filtered.length === 0 ? (
-        <EmptyState
-          icon={<IgActivity className="size-7" strokeWidth={1.5} aria-hidden />}
-          title="فعلاً اعلانی نیست"
-          description="اعلان‌های جدید درباره پسندها، نظرات و آگهی‌ها اینجا نمایش داده می‌شوند."
-        />
-      ) : (
-        <div className="bg-surface">
-          {grouped.map((group) => (
-            <section key={group.key}>
-              <h2 className="px-4 py-2 text-xs font-semibold text-muted-foreground">
-                {group.label}
-              </h2>
-              <ul className="divide-y divide-border-subtle">
-                {group.items.map((n) => (
-                  <li key={n.id}>
-                    <NotificationItem
-                      notif={n}
-                      onClick={() => !n.isRead && markRead.mutate(n.id)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-        </div>
-      )}
+      <div id={`notif-tabpanel-${tab}`} role="tabpanel" aria-labelledby={`notif-tab-${tab}`}>
+        {isError ? (
+          <ErrorState onRetry={() => void refetch()} />
+        ) : isLoading ? (
+          <ul className="divide-y divide-border bg-surface">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <li key={i} className="flex items-center gap-3 px-4 py-3">
+                <Skeleton className="size-11 shrink-0 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3 w-3/4 rounded-full" />
+                  <Skeleton className="h-3 w-24 rounded-full" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<IgActivity className="size-7" strokeWidth={1.5} aria-hidden />}
+            title="فعلاً اعلانی نیست"
+            description="اعلان‌های جدید درباره پسندها، نظرات و آگهی‌ها اینجا نمایش داده می‌شوند."
+          />
+        ) : (
+          <div className="bg-surface">
+            {grouped.map((group) => (
+              <section key={group.key}>
+                <h2 className="px-4 py-2 text-xs font-semibold text-muted-foreground">
+                  {group.label}
+                </h2>
+                <ul className="divide-y divide-border-subtle">
+                  {group.items.map((n) => (
+                    <li key={n.id}>
+                      <NotificationItem
+                        notif={n}
+                        onClick={() => !n.isRead && markRead.mutate(n.id)}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

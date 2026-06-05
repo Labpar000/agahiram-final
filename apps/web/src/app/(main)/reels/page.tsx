@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { EmptyState, IgArrowBack, IgReels, IgSearch, Spinner } from '@agahiram/ui';
+import { EmptyState, ErrorState, IgArrowBack, IgReels, IgSearch, Spinner } from '@agahiram/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { fetchReelsPage } from '@/lib/query-definitions';
 import { ReelPlayer } from '@/components/reel-player';
@@ -20,23 +21,19 @@ export default function ReelsPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ['reels'],
-    queryFn: ({ pageParam }) => fetchReelsPage(pageParam as string | undefined),
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-    initialPageParam: undefined as string | undefined,
-  });
-
-  const loaderRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const obs = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        void fetchNextPage();
-      }
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['reels'],
+      queryFn: ({ pageParam }) => fetchReelsPage(pageParam as string | undefined),
+      getNextPageParam: (last) => last.nextCursor ?? undefined,
+      initialPageParam: undefined as string | undefined,
     });
-    if (loaderRef.current) obs.observe(loaderRef.current);
-    return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const loaderRef = useInfiniteScroll({
+    hasMore: !!hasNextPage,
+    isFetching: isFetchingNextPage,
+    fetchNextPage,
+  });
 
   const reels = data?.pages.flatMap((p) => p.data) ?? [];
   const activeReelId = reels[activeIndex]?.id;
@@ -129,7 +126,14 @@ export default function ReelsPage() {
       >
         {isLoading && !data ? (
           <div className="grid h-full place-items-center text-white">
-            <Spinner className="size-8" aria-hidden />
+            <Spinner className="size-8" aria-label="در حال بارگذاری ریلز" />
+          </div>
+        ) : isError ? (
+          <div className="grid h-full place-items-center px-6 text-white">
+            <ErrorState
+              onRetry={() => void refetch()}
+              className="[&_h3]:text-white [&_p]:text-white/70 [&_button]:border-white/20 [&_button]:text-white"
+            />
           </div>
         ) : reels.length === 0 ? (
           <div className="grid h-full place-items-center text-white">
@@ -168,7 +172,9 @@ export default function ReelsPage() {
               );
             })}
             <div ref={loaderRef} className="grid h-16 snap-start place-items-center text-white/70">
-              {isFetchingNextPage ? <Spinner className="size-6" aria-hidden /> : null}
+              {isFetchingNextPage ? (
+                <Spinner className="size-6" aria-label="در حال بارگذاری ریل‌های بیشتر" />
+              ) : null}
             </div>
           </>
         )}

@@ -11,22 +11,20 @@ import {
 import type { Server, Socket } from 'socket.io';
 import { CALL_EVENTS, type JwtPayload } from '@agahiram/shared';
 import { CallsService } from './calls.service';
+import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
-  cors: { origin: true, credentials: true },
+  cors: { origin: getCorsOrigins(), credentials: true },
   namespace: '/calls',
   transports: ['websocket', 'polling'],
 })
 export class CallsGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
 
-  private readonly jwt = new JwtService({
-    secret: process.env.JWT_SECRET ?? 'agahiram-dev-jwt-secret-change-in-production',
-  });
-
   constructor(
     @Inject(forwardRef(() => CallsService))
     private readonly service: CallsService,
+    private readonly jwt: JwtService,
   ) {}
 
   handleConnection(@ConnectedSocket() socket: Socket) {

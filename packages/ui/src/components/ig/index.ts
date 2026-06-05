@@ -2,3 +2,8 @@ export * from './post-action-row';
 export * from './carousel-dots';
 export * from './story-progress-bar';
 export * from './story-tray-item';
+export * from './story-tray';
+export * from './post-header';
+export * from './tab-bar';
+export * from './top-nav';
+export * from './page-header';

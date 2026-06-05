@@ -25,4 +25,16 @@ export const followUserSchema = z.object({
   userId: z.string().uuid(),
 });
 
+export const notificationPreferencesSchema = z.object({
+  likesPush: z.boolean().optional(),
+  commentsPush: z.boolean().optional(),
+  followsPush: z.boolean().optional(),
+  messagesPush: z.boolean().optional(),
+  likesEmail: z.boolean().optional(),
+  commentsEmail: z.boolean().optional(),
+  followsEmail: z.boolean().optional(),
+  messagesEmail: z.boolean().optional(),
+});
+
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+export type NotificationPreferencesInput = z.infer<typeof notificationPreferencesSchema>;

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { io, Socket } from 'socket.io-client';
 import { toast } from '@agahiram/ui';
+import { adminPath } from './paths';
 
 // Resolve the websocket origin. In production the admin app is served from the
 // same origin as the API behind Caddy, so we let socket.io fall back to the
@@ -56,7 +57,7 @@ export function useAdminSocket(enabled: boolean) {
       toast(`آگهی جدید در صف: ${payload.title}`, {
         action: {
           label: 'مشاهده',
-          onClick: () => (window.location.href = `/posts/${payload.postId}`),
+          onClick: () => (window.location.href = adminPath(`/posts/${payload.postId}`)),
         },
       });
     };
@@ -64,7 +65,7 @@ export function useAdminSocket(enabled: boolean) {
       qc.invalidateQueries({ queryKey: ['admin', 'sidebar-badges'] });
       qc.invalidateQueries({ queryKey: ['admin', 'reports'] });
       toast(`گزارش جدید: ${payload.reason}`, {
-        action: { label: 'مشاهده', onClick: () => (window.location.href = '/reports') },
+        action: { label: 'مشاهده', onClick: () => (window.location.href = adminPath('/reports')) },
       });
     };
     const onTick = () => {

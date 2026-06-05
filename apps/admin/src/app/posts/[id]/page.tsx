@@ -10,6 +10,7 @@ import {
   Clock,
   Eye,
   Flag,
+  Heart,
   Hourglass,
   Pencil,
   Sparkles,
@@ -32,6 +33,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  IconButton,
   Input,
   Label,
   Spinner,
@@ -102,6 +104,17 @@ interface PostDetail {
   _count: { likes: number; comments: number; saves: number };
 }
 
+interface PostLike {
+  id: string;
+  createdAt: string;
+  user: {
+    id: string;
+    username: string | null;
+    name: string | null;
+    avatar: string | null;
+  };
+}
+
 const POST_STATUS_OPTIONS = [
   { value: 'draft', label: 'پیش‌نویس' },
   { value: 'pendingReview', label: 'در انتظار تأیید' },
@@ -131,13 +144,40 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
     status: '',
   });
   const [promoteHours, setPromoteHours] = useState('24');
+  const [likesPage, setLikesPage] = useState(1);
+  const LIKES_PAGE_SIZE = 20;
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin', 'post', id],
     queryFn: async () => (await apiClient.get<PostDetail>(`/admin/posts/${id}`)).data!,
   });
 
+  const likes = useQuery({
+    queryKey: ['admin', 'post', id, 'likes', likesPage],
+    queryFn: async () =>
+      (
+        await apiClient.get<{ data: PostLike[]; total: number }>(`/admin/posts/${id}/likes`, {
+          page: likesPage,
+          pageSize: LIKES_PAGE_SIZE,
+        })
+      ).data,
+    enabled: !!id,
+  });
+
   const refresh = () => qc.invalidateQueries({ queryKey: ['admin', 'post', id] });
+
+  const removeLike = useMutation({
+    mutationFn: async (likeId: string) => {
+      const r = await apiClient.delete(`/admin/likes/${likeId}`);
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('لایک حذف شد');
+      qc.invalidateQueries({ queryKey: ['admin', 'post', id, 'likes'] });
+      refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
 
   const action = useMutation({
     mutationFn: async ({
@@ -481,6 +521,87 @@ export default function PostDetailPage({ params }: { params: Promise<{ id: strin
               </CardContent>
             </Card>
           ) : null}
+
+          {/* Likes */}
+          <Card>
+            <CardContent className="!p-5 space-y-3">
+              <div className="flex items-center gap-2">
+                <Heart className="size-4 text-destructive" />
+                <h2 className="text-sm font-bold">
+                  لایک‌ها ({formatPersianNumber(likes.data?.total ?? data._count.likes)})
+                </h2>
+              </div>
+              {likes.isLoading ? (
+                <div className="py-4 text-center">
+                  <Spinner className="size-6 mx-auto" />
+                </div>
+              ) : (likes.data?.data.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">لایکی ثبت نشده.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {likes.data!.data.map((like) => (
+                    <li
+                      key={like.id}
+                      className="flex items-center justify-between gap-2 rounded-md border border-border bg-background p-3 text-sm"
+                    >
+                      <Link
+                        href={`/users/${like.user.id}`}
+                        className="inline-flex items-center gap-2 hover:underline min-w-0"
+                      >
+                        <Avatar size="xs">
+                          {like.user.avatar ? <AvatarImage src={like.user.avatar} alt="" /> : null}
+                          <AvatarFallback>
+                            {(like.user.username ?? like.user.name ?? '?').slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate">
+                          {like.user.name ?? like.user.username ?? '—'}
+                        </span>
+                      </Link>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[11px] text-muted-foreground tabular-nums">
+                          {formatJalaliDate(like.createdAt, 'dateTime')}
+                        </span>
+                        <IconButton
+                          aria-label="حذف لایک"
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive hover:bg-destructive/10"
+                          icon={<Trash2 className="size-4" />}
+                          isLoading={removeLike.isPending}
+                          onClick={() => removeLike.mutate(like.id)}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(likes.data?.total ?? 0) > LIKES_PAGE_SIZE ? (
+                <div className="flex items-center justify-between pt-2 text-xs">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={likesPage <= 1}
+                    onClick={() => setLikesPage((p) => Math.max(1, p - 1))}
+                  >
+                    قبلی
+                  </Button>
+                  <span className="text-muted-foreground tabular-nums">
+                    صفحه {formatPersianNumber(likesPage)} از{' '}
+                    {formatPersianNumber(Math.ceil((likes.data?.total ?? 0) / LIKES_PAGE_SIZE))}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={likesPage >= Math.ceil((likes.data?.total ?? 0) / LIKES_PAGE_SIZE)}
+                    onClick={() => setLikesPage((p) => p + 1)}
+                  >
+                    بعدی
+                  </Button>
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
 
           {/* Payments */}
           {data.payments.length > 0 ? (

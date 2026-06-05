@@ -1,7 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BadgeCheck, Ban, Check, Search, Shield, Store, UserRound, XCircle } from 'lucide-react';
 import { formatJalaliDate, formatPhoneFa } from '@agahiram/shared';
@@ -13,8 +14,10 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   Input,
+  Spinner,
   toast,
   Tooltip,
   TooltipContent,
@@ -59,9 +62,11 @@ function roleLabel(role: string) {
   return 'کاربر';
 }
 
-export default function UsersPage() {
+function UsersInner() {
   const qc = useQueryClient();
-  const [q, setQ] = useState('');
+  const searchParams = useSearchParams();
+  const initialQ = searchParams.get('q') ?? '';
+  const [q, setQ] = useState(initialQ);
   const [page, setPage] = useState(1);
   const [role, setRole] = useState('');
   const [isBanned, setIsBanned] = useState('');
@@ -69,7 +74,7 @@ export default function UsersPage() {
   const [isBusiness, setIsBusiness] = useState('');
   const [banConfirm, setBanConfirm] = useState<User | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'users', q, page, role, isBanned, isVerified, isBusiness],
     queryFn: async () =>
       (
@@ -278,6 +283,18 @@ export default function UsersPage() {
     [action],
   );
 
+  if (isError) {
+    return (
+      <Shell>
+        <div className="mb-6">
+          <h1 className="text-h2 font-extrabold tracking-tight">کاربران</h1>
+          <p className="mt-1 text-sm text-muted-foreground">مدیریت حساب‌های کاربری پلتفرم</p>
+        </div>
+        <ErrorState onRetry={() => void refetch()} />
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -418,5 +435,21 @@ export default function UsersPage() {
         }}
       />
     </Shell>
+  );
+}
+
+export default function UsersPage() {
+  return (
+    <Suspense
+      fallback={
+        <Shell>
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-8" />
+          </div>
+        </Shell>
+      }
+    >
+      <UsersInner />
+    </Suspense>
   );
 }

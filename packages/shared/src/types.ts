@@ -100,6 +100,7 @@ export interface JwtPayload {
   sub: string;
   phone: string;
   role: UserRole;
+  jti?: string;
   iat?: number;
   exp?: number;
 }
@@ -122,6 +123,8 @@ export interface UserProfile {
   role: UserRole;
   defaultCityId: string | null;
   storyArchiveEnabled?: boolean;
+  /** Server-computed: elevated role + admin phone allowlist */
+  canAccessAdminPanel?: boolean;
   createdAt: string;
   followersCount?: number;
   followingCount?: number;

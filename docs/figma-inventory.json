@@ -1,9 +1,11 @@
 {
   "source": {
-    "fileKey": "QDukJIKN0YfzV1vbGvaw6Y",
+    "fileKey": "TkpWwedHeMVKlzOwZEJDrQ",
+    "fallbackFileKey": "QDukJIKN0YfzV1vbGvaw6Y",
     "componentsPage": "1:12230",
     "templatesPage": "493:11353",
-    "figmaUrl": "https://www.figma.com/design/QDukJIKN0YfzV1vbGvaw6Y/Instagram---UI-Kit-4.0--Community-"
+    "figmaUrl": "https://www.figma.com/design/TkpWwedHeMVKlzOwZEJDrQ/Instagram---UI-Kit-4.0--Community-",
+    "mcpNote": "Figma MCP blocked (rate limit / file access). Tokens synced from prior inventory + IG UI Kit 4.0 specs."
   },
   "components": [
     {

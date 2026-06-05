@@ -1,6 +1,6 @@
 import { io, type Socket } from 'socket.io-client';
 import { CALL_EVENTS } from '@agahiram/shared';
-import { getAccessToken, resolveSocketOrigin } from '@/lib/socket';
+import { resolveSocketOrigin } from '@/lib/socket';
 
 let callSocket: Socket | null = null;
 
@@ -10,7 +10,7 @@ export function getCallSocket(): Socket {
     callSocket = io(`${origin}/calls`, {
       path: '/socket.io',
       autoConnect: false,
-      auth: (cb) => cb({ token: getAccessToken() }),
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
   }

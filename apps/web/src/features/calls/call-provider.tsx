@@ -85,7 +85,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [phase, setPhase] = useState<CallPhase>('idle');
   const [callId, setCallId] = useState<string | null>(null);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [_conversationId, setConversationId] = useState<string | null>(null);
   const [peer, setPeer] = useState<CallPeer | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [livekitUrl, setLivekitUrl] = useState<string | null>(null);

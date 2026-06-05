@@ -7,6 +7,8 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { JwtPayload, UserRole } from '@agahiram/shared';
+import { isAdminPhone } from '../config/admin-phones';
+import { getCorsOrigins } from '../config/cors';
 
 export const ADMIN_EVENTS = {
   POST_PENDING: 'admin:post:pending',
@@ -22,9 +24,7 @@ export const ADMIN_EVENTS = {
  */
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',') ?? [
-      process.env.ADMIN_URL ?? 'http://localhost:3001',
-    ],
+    origin: getCorsOrigins(),
     credentials: true,
   },
   namespace: '/admin',
@@ -46,10 +46,9 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.disconnect();
         return;
       }
-      const payload = this.jwt.verify<JwtPayload>(token, {
-        secret: process.env.JWT_SECRET ?? 'agahiram-dev-jwt-secret',
-      });
-      if (payload.role !== UserRole.ADMIN && payload.role !== UserRole.MODERATOR) {
+      const payload = this.jwt.verify<JwtPayload>(token);
+      const isElevated = payload.role === UserRole.ADMIN || payload.role === UserRole.MODERATOR;
+      if (!isElevated || !isAdminPhone(payload.phone)) {
         client.disconnect();
         return;
       }

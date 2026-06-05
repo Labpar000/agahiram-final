@@ -1412,16 +1412,9 @@ export class AdminService {
     if (payout.status !== 'pending')
       throw new BadRequestException('فقط درخواست‌های pending قابل تأیید‌اند');
 
-    await this.prisma.$transaction(async (tx) => {
-      const debit = await tx.user.updateMany({
-        where: { id: payout.userId, walletBalance: { gte: payout.amount } },
-        data: { walletBalance: { decrement: payout.amount } },
-      });
-      if (debit.count === 0) throw new BadRequestException('موجودی کیف پول کافی نیست');
-      await tx.payout.update({
-        where: { id },
-        data: { status: 'approved' },
-      });
+    await this.prisma.payout.update({
+      where: { id },
+      data: { status: 'approved' },
     });
     await this.audit.record(ctx, 'payout.approve', `payout:${id}`);
     return { ok: true };

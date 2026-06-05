@@ -14,6 +14,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  ErrorState,
   IconButton,
   Input,
   Label,
@@ -126,7 +127,9 @@ function ProvincesTab() {
             استان جدید
           </Button>
         </div>
-        {list.isLoading ? (
+        {list.isError ? (
+          <ErrorState onRetry={() => void list.refetch()} />
+        ) : list.isLoading ? (
           <div className="text-sm text-muted-foreground py-4 text-center">در حال بارگذاری…</div>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
@@ -339,7 +342,9 @@ function CitiesTab() {
           </Button>
         </div>
 
-        {list.isLoading ? (
+        {list.isError ? (
+          <ErrorState onRetry={() => void list.refetch()} />
+        ) : list.isLoading ? (
           <div className="text-sm text-muted-foreground py-4 text-center">در حال بارگذاری…</div>
         ) : (
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -565,6 +570,8 @@ function NeighborhoodsTab() {
           <div className="text-sm text-muted-foreground py-8 text-center">
             ابتدا یک شهر را انتخاب کنید.
           </div>
+        ) : list.isError ? (
+          <ErrorState onRetry={() => void list.refetch()} />
         ) : list.isLoading ? (
           <div className="text-sm text-muted-foreground py-4 text-center">در حال بارگذاری…</div>
         ) : (

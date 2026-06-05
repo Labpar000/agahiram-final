@@ -1,12 +1,13 @@
-# Bootstrap GitHub Actions deploy secrets and server SSH key
+# Bootstrap GitHub Actions deploy secrets and server SSH key (key-only; no passwords in repo).
 # Usage: powershell -ExecutionPolicy Bypass -File scripts/bootstrap-github-deploy.ps1
+# Requires an existing root SSH key at -InitialKeyPath for the one-time authorized_keys install.
 
 param(
   [string]$RepoSlug = "Labpar000/agahiram",
   [string]$SshHost = "45.144.18.86",
   [string]$SshUser = "root",
   [string]$SshPort = "22",
-  [string]$SshPassword = "amirhosein",
+  [string]$InitialKeyPath = ".cache/ssh/agahiram_id_ed25519",
   [string]$DeployKeyPath = ".cache/ssh/github_deploy_ed25519"
 )
 
@@ -27,7 +28,13 @@ if (-not (Test-Path $DeployKeyPath)) {
 $PubKey = (Get-Content "$DeployKeyPath.pub" -Raw).Trim()
 
 Step "Install public key on server ($SshUser@$SshHost)"
-echo y | plink -batch -pw $SshPassword "${SshUser}@${SshHost}" "mkdir -p ~/.ssh; chmod 700 ~/.ssh; touch ~/.ssh/authorized_keys; grep -qxF '$PubKey' ~/.ssh/authorized_keys || echo '$PubKey' >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys; echo server-ok"
+if (-not (Test-Path $InitialKeyPath)) {
+  throw "Initial SSH key not found at $InitialKeyPath. Use key-based auth only — never store passwords in this repo."
+}
+$SshBase = @("-i", $InitialKeyPath, "-p", $SshPort, "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=15")
+$RemoteCmd = "mkdir -p ~/.ssh; chmod 700 ~/.ssh; touch ~/.ssh/authorized_keys; grep -qxF '$PubKey' ~/.ssh/authorized_keys || echo '$PubKey' >> ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys; echo server-ok"
+ssh @($SshBase + @("${SshUser}@${SshHost}", $RemoteCmd))
+if ($LASTEXITCODE -ne 0) { throw "Failed to install deploy key on server" }
 
 Step "Test key-based SSH"
 ssh -i $DeployKeyPath -o StrictHostKeyChecking=no -o ConnectTimeout=15 "${SshUser}@${SshHost}" "echo key-ok"

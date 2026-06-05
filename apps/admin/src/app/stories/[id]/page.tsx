@@ -21,6 +21,7 @@ import Shell from '../../layout-shell';
 import { PageHeader } from '@/components/page-header';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { apiClient } from '@/lib/api';
+import { adminPath } from '@/lib/paths';
 
 interface StoryDetail {
   id: string;
@@ -72,7 +73,7 @@ export default function StoryDetailPage({ params }: { params: Promise<{ id: stri
     onSuccess: () => {
       toast.success('استوری حذف شد');
       qc.invalidateQueries({ queryKey: ['admin', 'stories'] });
-      window.location.href = '/stories';
+      window.location.href = adminPath('/stories');
     },
     onError: (e) => toast.error((e as Error).message),
   });

@@ -1,0 +1,56 @@
+﻿# Preview app via Docker (no image build — uses local node:20 + repo mount).
+# Requires infra: docker compose -f docker-compose.yml up -d
+# Network must match docker-compose.yml default network.
+
+services:
+  api:
+    image: node:20
+    container_name: agahiram-api-dev-docker
+    working_dir: /app
+    volumes:
+      - ..:/app
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://agahiram:agahiram_dev@postgres:5432/agahiram?schema=public
+      REDIS_URL: redis://redis:6379
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MEILI_HOST: http://meilisearch:7700
+      CORS_ORIGIN: http://localhost:5173
+      FRONTEND_URL: http://localhost:5173
+    command: >
+      sh -c "corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @agahiram/database generate &&
+      pnpm --filter @agahiram/api dev"
+    ports:
+      - "4000:4000"
+    networks:
+      - agahiram_dev
+
+  web:
+    image: node:20
+    container_name: agahiram-web-dev-docker
+    working_dir: /app
+    volumes:
+      - ..:/app
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_SOCKET_URL: http://localhost:4000
+      NEXT_PUBLIC_APP_URL: http://localhost:5173
+    command: >
+      sh -c "corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @agahiram/shared build &&
+      pnpm --filter @agahiram/web dev"
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+    networks:
+      - agahiram_dev
+
+networks:
+  agahiram_dev:
+    name: docker_default
+    external: true

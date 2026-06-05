@@ -19,6 +19,8 @@ import {
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../media/minio.service';
+import { MediaService } from '../media/media.service';
+import { RedisService } from '../redis/redis.service';
 import { SettingsService } from '../admin/settings.service';
 import { ModuleRef } from '@nestjs/core';
 import { AdminGateway } from '../admin/admin.gateway';
@@ -36,6 +38,8 @@ export class PostsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minio: MinioService,
+    private readonly media: MediaService,
+    private readonly redis: RedisService,
     private readonly settings: SettingsService,
     private readonly moduleRef: ModuleRef,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
@@ -88,6 +92,10 @@ export class PostsService {
     const expiresAt = new Date(
       Date.now() + (s.defaultPostExpiryDays ?? POST_EXPIRY_DAYS) * 86400000,
     );
+
+    for (const m of input.mediaKeys) {
+      await this.media.assertUploadConfirmed(userId, m.key);
+    }
 
     const post = await this.prisma.post.create({
       data: {
@@ -175,6 +183,9 @@ export class PostsService {
     if (existing.userId !== userId) throw new ForbiddenException();
 
     if (input.mediaKeys && input.mediaKeys.length > 0) {
+      for (const m of input.mediaKeys) {
+        await this.media.assertUploadConfirmed(userId, m.key);
+      }
       await this.prisma.postMedia.deleteMany({ where: { postId: id } });
     }
 
@@ -334,26 +345,43 @@ export class PostsService {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException();
     if (post.userId !== userId) throw new ForbiddenException();
-    return this.prisma.post.update({ where: { id }, data: { status: 'sold' } });
+    const updated = await this.prisma.post.update({ where: { id }, data: { status: 'sold' } });
+    await this.searchQueue.add('index', { postId: id, remove: true });
+    return updated;
   }
 
   async delete(userId: string, id: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException();
     if (post.userId !== userId) throw new ForbiddenException();
-    return this.prisma.post.update({ where: { id }, data: { status: 'deleted' } });
+    const updated = await this.prisma.post.update({ where: { id }, data: { status: 'deleted' } });
+    await this.searchQueue.add('index', { postId: id, remove: true });
+    return updated;
   }
 
   async logContactImpression(postId: string, viewerId?: string) {
+    if (!viewerId) return { contactRevealed: false, requiresAuth: true };
+
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { user: { select: { phone: true } } },
+      select: { userId: true, user: { select: { phone: true } } },
     });
     if (!post) throw new NotFoundException();
 
-    if (!viewerId) {
-      return { contactRevealed: false, requiresAuth: true };
-    }
+    const blocked = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: viewerId, blockedId: post.userId },
+          { blockerId: post.userId, blockedId: viewerId },
+        ],
+      },
+    });
+    if (blocked) throw new ForbiddenException('امکان دسترسی به اطلاعات تماس وجود ندارد');
+
+    const key = `contact:${viewerId}`;
+    const count = await this.redis.incr(key);
+    if (count === 1) await this.redis.expire(key, 3600);
+    if (count > 20) throw new ForbiddenException('تعداد درخواست‌های نمایش تماس بیش از حد مجاز است');
 
     return {
       contactRevealed: true,

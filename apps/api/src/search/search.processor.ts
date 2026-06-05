@@ -9,9 +9,29 @@ export class SearchIndexProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ postId: string }>) {
-    if (job.name === 'index') {
-      await this.searchService.indexPost(job.data.postId);
+  async process(job: Job<{ postId?: string; storyId?: string; remove?: boolean }>) {
+    if (job.name === 'index-story') {
+      if (job.data.remove && job.data.storyId) {
+        await this.searchService.deleteStory(job.data.storyId);
+      } else if (job.data.storyId) {
+        await this.searchService.indexStory(job.data.storyId);
+      }
+      return;
+    }
+    if (job.name === 'remove') {
+      if (job.data.storyId) {
+        await this.searchService.deleteStory(job.data.storyId);
+      } else if (job.data.postId) {
+        await this.searchService.deletePost(job.data.postId);
+      }
+      return;
+    }
+    if (job.name === 'index' && job.data.postId) {
+      if (job.data.remove) {
+        await this.searchService.deletePost(job.data.postId);
+      } else {
+        await this.searchService.indexPost(job.data.postId);
+      }
     }
   }
 }

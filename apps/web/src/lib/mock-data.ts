@@ -13,6 +13,16 @@ import {
   type UserProfile,
 } from '@agahiram/shared';
 
+export function isMocksEnabled(): boolean {
+  return process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ENABLE_MOCKS === 'true';
+}
+
+/** Return mock data only in development or when NEXT_PUBLIC_ENABLE_MOCKS is set. */
+export function getDevMock<T>(factory: () => T): T | null {
+  if (!isMocksEnabled()) return null;
+  return factory();
+}
+
 const placeholder = (seed: number, w = 400, h = 400) =>
   `https://picsum.photos/seed/agahiram${seed}/${w}/${h}`;
 

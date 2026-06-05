@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  ErrorState,
   IconButton,
   Input,
   Label,
@@ -115,7 +116,9 @@ export default function BoostPlansPage() {
         }
       />
 
-      {list.isLoading ? (
+      {list.isError ? (
+        <ErrorState onRetry={() => void list.refetch()} />
+      ) : list.isLoading ? (
         <Card>
           <CardContent className="!p-6 text-center text-sm text-muted-foreground">
             در حال بارگذاری…

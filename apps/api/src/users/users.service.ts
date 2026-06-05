@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -9,14 +10,54 @@ import type { Queue } from 'bullmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { BULL_QUEUES, type UpdateProfileInput } from '@agahiram/shared';
 import { MinioService } from '../media/minio.service';
+import { MediaService } from '../media/media.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { tierForKarma } from '../reputation/reputation.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly minio: MinioService,
+    private readonly media: MediaService,
+    private readonly notifications: NotificationsService,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
   ) {}
+
+  async getUserReputation(username: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        karma: true,
+        _count: {
+          select: {
+            followers: true,
+            posts: { where: { status: 'approved' } },
+          },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    const agg = await this.prisma.post.aggregate({
+      where: { userId: user.id, status: 'approved' },
+      _avg: { qualityScore: true },
+      _max: { qualityScore: true },
+    });
+
+    const karma = user.karma ?? 0;
+    const tier = tierForKarma(karma);
+
+    return {
+      karma,
+      tier: { key: tier.key, label: tier.label, color: tier.color },
+      followersCount: user._count.followers,
+      postsCount: user._count.posts,
+      avgQualityScore: Math.round(agg._avg.qualityScore ?? 0),
+      maxQualityScore: agg._max.qualityScore ?? 0,
+    };
+  }
 
   async getProfileByUsername(username: string, viewerId?: string) {
     const user = await this.prisma.user.findUnique({
@@ -41,6 +82,25 @@ export class UsersService {
       isFollowing = !!f;
     }
 
+    const isOwner = viewerId === user.id;
+    if (user.isPrivate && !isOwner && !isFollowing) {
+      return {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        avatar: user.avatar,
+        isVerified: user.isVerified,
+        isBusiness: user.isBusiness,
+        isPrivate: true,
+        isFollowing: false,
+        followersCount: null,
+        followingCount: null,
+        postsCount: null,
+        restricted: true,
+        createdAt: user.createdAt.toISOString(),
+      };
+    }
+
     return {
       id: user.id,
       username: user.username,
@@ -62,6 +122,7 @@ export class UsersService {
   async updateProfile(userId: string, input: UpdateProfileInput) {
     let avatarUrl: string | undefined;
     if (input.avatarKey) {
+      await this.media.assertUploadConfirmed(userId, input.avatarKey);
       avatarUrl = this.minio.getPublicUrl(input.avatarKey);
     }
 
@@ -205,8 +266,31 @@ export class UsersService {
     if (followerId === followingId) {
       throw new BadRequestException('نمی‌توانید خودتان را فالو کنید');
     }
+
+    const blocked = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: followerId, blockedId: followingId },
+          { blockerId: followingId, blockedId: followerId },
+        ],
+      },
+    });
+    if (blocked) throw new ForbiddenException('امکان فالو کردن این کاربر وجود ندارد');
+
     const target = await this.prisma.user.findUnique({ where: { id: followingId } });
     if (!target) throw new NotFoundException('کاربر یافت نشد');
+
+    if (target.isPrivate) {
+      const existing = await this.prisma.followRequest.findUnique({
+        where: { requesterId_targetId: { requesterId: followerId, targetId: followingId } },
+      });
+      if (existing) return { following: false, requested: true };
+      await this.prisma.followRequest.create({
+        data: { requesterId: followerId, targetId: followingId },
+      });
+      await this.notifications.notify(followingId, 'follow', { followerId, isPending: true });
+      return { following: false, requested: true };
+    }
 
     const existingFollow = await this.prisma.follow.findUnique({
       where: { followerId_followingId: { followerId, followingId } },
@@ -218,16 +302,10 @@ export class UsersService {
     });
 
     if (!existingFollow) {
-      await this.prisma.notification.create({
-        data: {
-          userId: followingId,
-          type: 'follow',
-          payload: { followerId },
-        },
-      });
+      await this.notifications.notify(followingId, 'follow', { followerId });
     }
 
-    return { following: true };
+    return { following: true, requested: false };
   }
 
   async unfollow(followerId: string, followingId: string) {

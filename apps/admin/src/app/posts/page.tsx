@@ -17,8 +17,10 @@ import {
   Card,
   CardContent,
   Checkbox,
+  ErrorState,
   IconButton,
   Input,
+  Spinner,
   toast,
 } from '@agahiram/ui';
 import Shell from '../layout-shell';
@@ -27,6 +29,18 @@ import { PostStatusBadge } from '@/components/status-badge';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable, type Column } from '@/components/data-table';
 import { apiClient } from '@/lib/api';
+
+interface CategoryOption {
+  id: string;
+  name: string;
+  parentId: string | null;
+}
+
+interface CityOption {
+  id: string;
+  name: string;
+  province: { name: string };
+}
 
 interface Post {
   id: string;
@@ -60,10 +74,13 @@ function PostsInner() {
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const initialUserId = searchParams.get('userId') ?? '';
+  const initialQ = searchParams.get('q') ?? '';
   const [page, setPage] = useState(1);
-  const [q, setQ] = useState('');
+  const [q, setQ] = useState(initialQ);
   const [status, setStatus] = useState('');
   const [type, setType] = useState<'' | 'post' | 'reel'>('');
+  const [categoryId, setCategoryId] = useState('');
+  const [cityId, setCityId] = useState('');
   const [userId, setUserId] = useState(initialUserId);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -73,8 +90,24 @@ function PostsInner() {
     { type: 'bulk-approve'; ids: string[] } | { type: 'delete'; post: Post } | null
   >(null);
 
+  const categories = useQuery({
+    queryKey: ['admin', 'categories'],
+    queryFn: async () => (await apiClient.get<CategoryOption[]>('/admin/categories')).data ?? [],
+    staleTime: 120_000,
+  });
+
+  const cities = useQuery({
+    queryKey: ['admin', 'cities'],
+    queryFn: async () => (await apiClient.get<CityOption[]>('/admin/cities')).data ?? [],
+    staleTime: 120_000,
+  });
+
   const list = useQuery({
-    queryKey: ['admin', 'posts', { page, q, status, type, promoted, userId, dateFrom, dateTo }],
+    queryKey: [
+      'admin',
+      'posts',
+      { page, q, status, type, categoryId, cityId, promoted, userId, dateFrom, dateTo },
+    ],
     queryFn: async () =>
       (
         await apiClient.get<{
@@ -88,6 +121,8 @@ function PostsInner() {
           q,
           status,
           type: type || undefined,
+          categoryId: categoryId || undefined,
+          cityId: cityId || undefined,
           promoted: promoted || undefined,
           userId: userId || undefined,
           dateFrom: dateFrom || undefined,
@@ -304,6 +339,15 @@ function PostsInner() {
     [allSelected, selection, rows],
   );
 
+  if (list.isError) {
+    return (
+      <Shell>
+        <PageHeader title="آگهی‌ها" description="مدیریت همه‌ی آگهی‌ها در همه‌ی وضعیت‌ها" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <PageHeader title="آگهی‌ها" description="مدیریت همه‌ی آگهی‌ها در همه‌ی وضعیت‌ها" />
@@ -349,6 +393,39 @@ function PostsInner() {
                 </option>
               ))}
             </select>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm max-w-[180px]"
+              value={categoryId}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setPage(1);
+              }}
+              aria-label="دسته‌بندی"
+            >
+              <option value="">همه دسته‌ها</option>
+              {(categories.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <select
+              className="rounded-md border border-border bg-background px-3 py-2 text-sm max-w-[180px]"
+              value={cityId}
+              onChange={(e) => {
+                setCityId(e.target.value);
+                setPage(1);
+              }}
+              aria-label="شهر"
+            >
+              <option value="">همه شهرها</option>
+              {(cities.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                  {c.province?.name ? ` (${c.province.name})` : ''}
+                </option>
+              ))}
+            </select>
             <Input
               size="sm"
               className="w-40"
@@ -389,7 +466,15 @@ function PostsInner() {
               <option value="true">فقط نردبان‌شده</option>
               <option value="false">بدون نردبان</option>
             </select>
-            {(q || status || type || promoted || userId || dateFrom || dateTo) && (
+            {(q ||
+              status ||
+              type ||
+              categoryId ||
+              cityId ||
+              promoted ||
+              userId ||
+              dateFrom ||
+              dateTo) && (
               <Button
                 size="sm"
                 variant="ghost"
@@ -398,6 +483,8 @@ function PostsInner() {
                   setQ('');
                   setStatus('');
                   setType('');
+                  setCategoryId('');
+                  setCityId('');
                   setPromoted('');
                   setUserId('');
                   setDateFrom('');
@@ -488,7 +575,15 @@ function PostsInner() {
 
 export default function PostsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <Shell>
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-8" />
+          </div>
+        </Shell>
+      }
+    >
       <PostsInner />
     </Suspense>
   );

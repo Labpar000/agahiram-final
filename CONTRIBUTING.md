@@ -65,7 +65,7 @@ pnpm dev
 - `main` همیشه باید قابل deploy باشه. مستقیماً push نکن.
 - برای هر کار یک **feature branch** بساز که از `main` به‌روز شده.
 - وقتی کار تموم شد، Pull Request باز کن. بعد از تأیید CI و review، merge می‌شه.
-- هر merge به `main` باید CI سبز داشته باشه. deploy production فعلاً با bridge محلی انجام می‌شه چون مسیر شبکه GitHub Actions به VPS ایران بسته است.
+- هر merge به `main` باید CI سبز داشته باشه.
 
 ### الگوی تیپیک
 
@@ -165,8 +165,10 @@ BREAKING CHANGE: همه کلاینت‌ها باید endpoint جدید رو اس
 
 - [ ] برنچ از `main` به‌روز شده (`git pull --rebase origin main`)
 - [ ] `pnpm lint` بدون خطا
+- [ ] `pnpm lint:eslint` بدون خطا
 - [ ] `pnpm format:check` پاس می‌شه
 - [ ] `pnpm build` موفق
+- [ ] `pnpm test` پاس می‌شه
 - [ ] تست‌های مرتبط اضافه/به‌روز شدن
 - [ ] هیچ secret یا کلیدی commit نشده
 
@@ -215,16 +217,24 @@ BREAKING CHANGE: همه کلاینت‌ها باید endpoint جدید رو اس
 
 ## تست‌نویسی
 
-- **Unit:** Vitest برای کد frontend و backend.
-- **E2E API:** Supertest روی NestJS.
-- **E2E UI:** Playwright (بعداً اضافه می‌شه).
+- **Unit:** Vitest برای `@agahiram/shared` و `apps/web` (formatters/helpers).
+- **API:** Vitest + Supertest روی NestJS (`apps/api/test/`).
+- **E2E UI:** Playwright smoke tests در `apps/web/e2e/`.
 - هر باگ که رفع می‌شه باید یه regression test هم داشته باشه.
 
 ```bash
-pnpm test           # همه تست‌ها
-pnpm test:watch     # watch mode
-pnpm test:coverage  # با coverage
+pnpm test              # همه تست‌های Vitest (shared + web + api)
+pnpm test:api          # فقط API
+pnpm test:e2e          # Playwright smoke (web + admin)
+pnpm test:watch        # watch mode
+pnpm test:coverage     # با coverage
 ```
+
+پورت‌های dev:
+
+- وب (Next.js): http://localhost:5173
+- ادمین: http://localhost:3001
+- API: http://localhost:4000/api/v1
 
 ---
 
@@ -237,15 +247,17 @@ pnpm test:coverage  # با coverage
 
 اگر مشکل امنیتی پیدا کردی، لطفاً اون رو **public نکن** — به `SECURITY.md` نگاه کن.
 
+> **هیچ secret در docs/scripts:** رمز عبور، کلید SSH خصوصی، توکن API و مقادیر `.env` را هرگز در repo، مستندات یا اسکریپت‌ها commit نکن. Deploy فقط با SSH key یا GitHub Secrets.
+
 ---
 
 ## English Quick Reference
 
 - **Branch naming:** `feat/`, `fix/`, `refactor/`, `perf/`, `docs/`, `chore/`, `test/`, `ci/`, `hotfix/`
 - **Commit format:** `type(scope): subject` (Conventional Commits)
-- **Before PR:** `pnpm lint && pnpm format:check && pnpm build` must pass
+- **Before PR:** `pnpm lint && pnpm lint:eslint && pnpm format:check && pnpm build && pnpm test` must pass
 - **PR title:** must follow Conventional Commits
 - **Merge strategy:** Squash and merge into `main`
-- **Deploy:** `scripts/deploy-bridge.ps1` → server `root@45.144.18.86` (see [`docs/SERVER.md`](docs/SERVER.md))
+- **Deploy:** see [`docs/CI_CD.md`](docs/CI_CD.md) and [`docs/SERVER.md`](docs/SERVER.md)
 
 ممنون از مشارکتت! 💚

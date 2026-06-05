@@ -5,10 +5,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async list(postId: string, cursor?: string, limit = 20, viewerId?: string) {
     const comments = await this.prisma.comment.findMany({
@@ -76,9 +80,31 @@ export class CommentsService {
 
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
     if (!post) throw new NotFoundException();
+    if (post.status !== 'approved') throw new NotFoundException();
     if (!post.commentsEnabled) {
       throw new ForbiddenException('نظرات برای این آگهی غیرفعال است');
     }
+
+    const owner = await this.prisma.user.findUnique({
+      where: { id: post.userId },
+      select: { isPrivate: true },
+    });
+    if (owner?.isPrivate && post.userId !== userId) {
+      const follow = await this.prisma.follow.findUnique({
+        where: { followerId_followingId: { followerId: userId, followingId: post.userId } },
+      });
+      if (!follow) throw new ForbiddenException('دسترسی مجاز نیست');
+    }
+
+    const blocked = await this.prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: userId, blockedId: post.userId },
+          { blockerId: post.userId, blockedId: userId },
+        ],
+      },
+    });
+    if (blocked) throw new ForbiddenException('دسترسی مجاز نیست');
 
     let parentAuthorId: string | null = null;
     if (parentId) {
@@ -107,18 +133,12 @@ export class CommentsService {
     const notifyComment = async (targetUserId: string, extra: Record<string, unknown> = {}) => {
       if (notified.has(targetUserId)) return;
       notified.add(targetUserId);
-      await this.prisma.notification.create({
-        data: {
-          userId: targetUserId,
-          type: 'comment',
-          payload: {
-            commenterId: userId,
-            postId,
-            commentId: comment.id,
-            message: snippet,
-            ...extra,
-          },
-        },
+      await this.notifications.notify(targetUserId, 'comment', {
+        commenterId: userId,
+        postId,
+        commentId: comment.id,
+        message: snippet,
+        ...extra,
       });
     };
 

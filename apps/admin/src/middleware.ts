@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = ['/login'];
-const ADMIN_BASE_PATH = '/admin';
+const ADMIN_BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '/admin';
 
 /**
  * Edge middleware that gates every admin page behind the presence of an
@@ -32,7 +32,8 @@ export function middleware(req: NextRequest) {
     !!req.cookies.get('accessToken')?.value || !!req.cookies.get('refreshToken')?.value;
   if (!hasSession) {
     const loginUrl = req.nextUrl.clone();
-    loginUrl.pathname = `${ADMIN_BASE_PATH}/login`;
+    /* Pathname is app-relative (Next.js strips basePath in middleware). */
+    loginUrl.pathname = '/login';
     loginUrl.search = `?next=${encodeURIComponent(pathname + req.nextUrl.search)}`;
     return NextResponse.redirect(loginUrl);
   }

@@ -48,10 +48,63 @@ export class AiService {
     };
   }
 
-  async suggestPrice(_categoryId: string, _attributes: Record<string, string>) {
+  async suggestPrice(categoryId: string, attributes: Record<string, string>) {
+    const posts = await this.prisma.post.findMany({
+      where: {
+        categoryId,
+        status: 'approved',
+        price: { not: null },
+      },
+      select: {
+        price: true,
+        attributes: { include: { attribute: { select: { key: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+    });
+
+    const attrEntries = Object.entries(attributes).filter(([, v]) => v?.trim());
+    let candidates = posts.filter((p) => p.price != null && p.price > 0n);
+
+    if (attrEntries.length > 0) {
+      const matched = candidates.filter((p) => {
+        const map = Object.fromEntries(p.attributes.map((a) => [a.attribute.key, a.value]));
+        return attrEntries.every(([k, v]) => !map[k] || map[k] === v);
+      });
+      if (matched.length >= 3) candidates = matched;
+    }
+
+    if (candidates.length === 0) {
+      return {
+        suggestedPrice: null,
+        sampleSize: 0,
+        note: 'داده کافی برای پیشنهاد قیمت وجود ندارد',
+      };
+    }
+
+    const prices = candidates
+      .map((p) => Number(p.price))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .sort((a, b) => a - b);
+
+    if (prices.length === 0) {
+      return {
+        suggestedPrice: null,
+        sampleSize: 0,
+        note: 'داده کافی برای پیشنهاد قیمت وجود ندارد',
+      };
+    }
+
+    const mid = Math.floor(prices.length / 2);
+    const suggestedPrice =
+      prices.length % 2 === 1 ? prices[mid]! : Math.round((prices[mid - 1]! + prices[mid]!) / 2);
+
     return {
-      suggestedPrice: null,
-      note: 'Price suggestion will be available in Phase 3 with ML model',
+      suggestedPrice,
+      minPrice: prices[0]!,
+      maxPrice: prices[prices.length - 1]!,
+      sampleSize: prices.length,
+      note: `بر اساس ${prices.length} آگهی مشابه در این دسته`,
     };
   }
 }

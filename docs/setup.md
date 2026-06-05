@@ -48,13 +48,14 @@
 | ----- | -------------- |
 | IP    | `45.144.18.86` |
 | کاربر | `root`         |
-| رمز   | `amirhosein`   |
 
-از کامپیوترت با **MobaXterm** (Windows) یا **Terminal** (Mac) به سرور SSH بزن:
+از کامپیوترت با **MobaXterm** (Windows) یا **Terminal** (Mac) به سرور SSH بزن (با کلید SSH):
 
 ```
-ssh root@45.144.18.86
+ssh -i /path/to/your/key root@45.144.18.86
 ```
+
+> رمز عبور و secrets را فقط در محیط امن (مثلاً GitHub Secrets یا password manager) نگه دار — نه در repo.
 
 ## ۳. اجرای دیپلوی خودکار
 
@@ -108,7 +109,7 @@ docker compose -f docker-compose.prod.yml restart api worker
 
 - وب: https://agahiram.ir
 - پنل ادمین: https://agahiram.ir/admin
-- کاربر ادمین: شماره `09120000000` (با OTP در dev mode یا واقعی)
+- کاربر ادمین: شماره‌هایی که در `ADMIN_PHONES` (فایل `.env`) تعریف کرده‌ای (با OTP در dev mode یا واقعی)
 
 ## ۶. به‌روزرسانی
 

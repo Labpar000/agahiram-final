@@ -21,17 +21,25 @@ export default function MainLayout({
 }) {
   return (
     <div
-      className="min-h-svh bg-background text-foreground"
+      className="min-h-svh bg-[linear-gradient(180deg,color-mix(in_oklch,var(--surface)_94%,var(--brand-50))_0%,var(--background)_14%,var(--background)_100%)] text-foreground"
       style={{ paddingBottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
     >
-      <TopBar />
-      <MainViewport>
-        <TabShell feed={feed} explore={explore} reels={reels} messages={messages} profile={profile}>
-          {children}
-        </TabShell>
-      </MainViewport>
-      <FeedSpeculationRules />
-      <BottomNav />
+      <div className="mx-auto min-h-svh max-w-2xl bg-surface shadow-[0_0_0_1px_color-mix(in_oklch,var(--border-subtle)_80%,transparent),0_24px_80px_-40px_rgb(0_0_0_/_0.35)]">
+        <TopBar />
+        <MainViewport>
+          <TabShell
+            feed={feed}
+            explore={explore}
+            reels={reels}
+            messages={messages}
+            profile={profile}
+          >
+            {children}
+          </TabShell>
+        </MainViewport>
+        <FeedSpeculationRules />
+        <BottomNav />
+      </div>
     </div>
   );
 }

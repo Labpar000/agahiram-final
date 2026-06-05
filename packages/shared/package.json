@@ -30,7 +30,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rimraf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -42,6 +44,7 @@
   "devDependencies": {
     "@agahiram/config": "workspace:*",
     "rimraf": "^6.0.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

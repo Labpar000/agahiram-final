@@ -1,5 +1,10 @@
 import { Body, Controller, Get, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
-import { initiatePaymentSchema, type InitiatePaymentInput } from '@agahiram/shared';
+import {
+  createPayoutSchema,
+  initiatePaymentSchema,
+  type CreatePayoutInput,
+  type InitiatePaymentInput,
+} from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -39,5 +44,18 @@ export class PaymentsController {
   @Get('history')
   history(@CurrentUser('sub') userId: string) {
     return this.service.listMyPayments(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('payouts')
+  @UsePipes(new ZodValidationPipe(createPayoutSchema))
+  createPayout(@CurrentUser('sub') userId: string, @Body() body: CreatePayoutInput) {
+    return this.service.createPayout(userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('payouts')
+  payouts(@CurrentUser('sub') userId: string) {
+    return this.service.listMyPayouts(userId);
   }
 }

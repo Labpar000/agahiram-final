@@ -19,6 +19,27 @@ body {
   overflow-x: clip;
   overscroll-behavior-x: none;
   max-width: 100%;
+  background:
+    radial-gradient(
+      circle at top,
+      color-mix(in oklch, var(--brand-100) 70%, transparent),
+      transparent 34%
+    ),
+    var(--background);
+}
+
+body {
+  min-height: 100svh;
+  color: var(--foreground);
+}
+
+#root,
+#__next {
+  isolation: isolate;
+}
+
+main {
+  background: var(--surface);
 }
 
 /* iOS Safari auto-zooms focused inputs when font-size < 16px (ignores viewport on some versions). */
@@ -28,6 +49,17 @@ body {
   select {
     font-size: max(16px, 1em);
   }
+}
+
+/* Instagram-like wordmark styling adapted from synced Figma inventory. */
+.ig-wordmark {
+  display: inline-block;
+  font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive;
+  font-size: 1.7rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--foreground);
+  transform: translateY(1px);
 }
 
 /* Lightweight route transition (replaces framer-motion in the global shell).

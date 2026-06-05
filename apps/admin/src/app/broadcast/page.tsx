@@ -9,6 +9,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   Input,
   Label,
   Tabs,
@@ -249,7 +250,9 @@ export default function BroadcastPage() {
         <TabsContent value="history">
           <Card>
             <CardContent className="!p-4 space-y-3">
-              {history.isLoading ? (
+              {history.isError ? (
+                <ErrorState onRetry={() => void history.refetch()} />
+              ) : history.isLoading ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">در حال بارگذاری…</p>
               ) : (history.data ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">

@@ -110,6 +110,58 @@ export default function CreatePage() {
   const [editorFile, setEditorFile] = useState<File | null>(null);
   const [editorQueue, setEditorQueue] = useState<File[]>([]);
 
+  // Restore draft on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('agahiram_post_draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw);
+      if (draft.title) setTitle(draft.title);
+      if (draft.description) setDescription(draft.description);
+      if (draft.priceType) setPriceType(draft.priceType);
+      if (draft.price) setPrice(draft.price);
+      if (draft.cityId) setCityId(draft.cityId);
+      if (draft.provinceId) setProvinceId(draft.provinceId);
+      if (draft.attributes && typeof draft.attributes === 'object') setAttributes(draft.attributes);
+      // Don't restore categoryId here as it requires the full category tree to be loaded
+    } catch {
+      /* ignore */
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Save draft whenever form fields change
+  useEffect(() => {
+    if (step === 0 && media.length === 0 && !title && !categoryId) return; // don't save empty draft
+    const draft = {
+      title,
+      description,
+      categoryId,
+      attributes,
+      priceType,
+      price,
+      cityId,
+      provinceId,
+    };
+    try {
+      localStorage.setItem('agahiram_post_draft', JSON.stringify(draft));
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [title, description, categoryId, attributes, priceType, price, cityId, provinceId, step]);
+
+  // Cleanup blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      media.forEach((m) => {
+        try {
+          URL.revokeObjectURL(m.preview);
+        } catch {
+          /* ignore */
+        }
+      });
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     void (async () => {
       try {
@@ -133,7 +185,7 @@ export default function CreatePage() {
     queryFn: async () => (await apiClient.get<Category[]>('/categories/tree')).data ?? [],
   });
 
-  const { data: provinces } = useQuery({
+  const { data: _provinces } = useQuery({
     queryKey: ['provinces'],
     queryFn: async () =>
       (await apiClient.get<Array<{ id: string; name: string }>>('/locations/provinces')).data ?? [],
@@ -155,6 +207,31 @@ export default function CreatePage() {
     selectedCity?.lat != null && selectedCity?.lng != null
       ? { lat: selectedCity.lat, lng: selectedCity.lng }
       : undefined;
+
+  const priceSuggestionReady =
+    !!categoryId && !!cityId && priceType === 'fixed' && !!price && Number(price) > 0;
+
+  const { data: priceSuggestion, isFetching: priceSuggestionLoading } = useQuery({
+    queryKey: ['suggest-price', categoryId, cityId, attributes, price],
+    queryFn: async () => {
+      const r = await apiClient.post<{
+        suggestedPrice: number | null;
+        minPrice?: number;
+        maxPrice?: number;
+        sampleSize: number;
+        note: string;
+      }>('/ai/suggest-price', {
+        categoryId,
+        attributes: Object.fromEntries(
+          Object.entries(attributes).filter(([k, v]) => k !== 'price' && v?.trim()),
+        ),
+      });
+      if (!r.success) throw new Error(r.error ?? 'خطا در پیشنهاد قیمت');
+      return r.data;
+    },
+    enabled: priceSuggestionReady,
+    staleTime: 30_000,
+  });
 
   const uploadSingle = async (file: File): Promise<boolean> => {
     try {
@@ -289,6 +366,11 @@ export default function CreatePage() {
       return r.data;
     },
     onSuccess: (post) => {
+      try {
+        localStorage.removeItem('agahiram_post_draft');
+      } catch {
+        /* ignore */
+      }
       void qc.invalidateQueries({ queryKey: ['feed'] });
       void qc.invalidateQueries({ queryKey: ['explore'] });
       void qc.invalidateQueries({ queryKey: ['reels'] });
@@ -372,7 +454,11 @@ export default function CreatePage() {
                   <button
                     type="button"
                     aria-label="حذف"
-                    onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))}
+                    onClick={() => {
+                      const item = media[i];
+                      if (item?.preview) URL.revokeObjectURL(item.preview);
+                      setMedia((arr) => arr.filter((_, j) => j !== i));
+                    }}
                     className="absolute end-1 top-1 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                   >
                     <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
@@ -644,6 +730,27 @@ export default function CreatePage() {
                     <p className="text-xs font-semibold gradient-text-brand">
                       {formatPersianPrice(Number(price))}
                     </p>
+                  ) : null}
+                  {priceSuggestionReady ? (
+                    <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs">
+                      {priceSuggestionLoading && !priceSuggestion ? (
+                        <span className="text-muted-foreground">در حال بررسی بازار…</span>
+                      ) : priceSuggestion?.suggestedPrice ? (
+                        <div className="space-y-0.5">
+                          <p className="font-semibold text-foreground">
+                            بازه پیشنهادی:{' '}
+                            {priceSuggestion.minPrice != null && priceSuggestion.maxPrice != null
+                              ? `${formatPersianPrice(priceSuggestion.minPrice)} تا ${formatPersianPrice(priceSuggestion.maxPrice)}`
+                              : formatPersianPrice(priceSuggestion.suggestedPrice)}
+                          </p>
+                          <p className="text-muted-foreground">{priceSuggestion.note}</p>
+                        </div>
+                      ) : (
+                        <p className="text-muted-foreground">
+                          {priceSuggestion?.note ?? 'داده کافی برای پیشنهاد قیمت وجود ندارد'}
+                        </p>
+                      )}
+                    </div>
                   ) : null}
                 </div>
               ) : null}

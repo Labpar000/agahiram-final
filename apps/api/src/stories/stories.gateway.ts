@@ -7,17 +7,17 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { SOCKET_EVENTS, type JwtPayload } from '@agahiram/shared';
+import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
-  cors: { origin: true, credentials: true },
+  cors: { origin: getCorsOrigins(), credentials: true },
   namespace: '/stories',
   transports: ['websocket', 'polling'],
 })
 export class StoriesGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
-  private readonly jwt = new JwtService({
-    secret: process.env.JWT_SECRET ?? 'agahiram-dev-jwt-secret-change-in-production',
-  });
+
+  constructor(private readonly jwt: JwtService) {}
 
   handleConnection(@ConnectedSocket() socket: Socket) {
     try {

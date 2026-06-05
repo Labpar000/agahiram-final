@@ -16,7 +16,8 @@ import {
   IgPencil,
   IgTrash,
 } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import type { PostSummary } from '@agahiram/shared';
+import { apiClient, assertSuccess } from '@/lib/api';
 import { markPostViewedLocally } from '@/lib/viewer-hash';
 import { PostCard } from '@/components/post-card';
 import { PostDetailNav } from '@/components/post-detail-nav';
@@ -64,10 +65,7 @@ export function PostDetailClient({ id }: { id: string }) {
   const cachedSummary = findPostInClientCache(qc, id);
   const { data, isLoading } = useQuery({
     queryKey: ['post', id],
-    queryFn: async () => {
-      const r = await apiClient.get<PostDetail>(`/posts/${id}`);
-      return r.data;
-    },
+    queryFn: async () => assertSuccess(await apiClient.get<PostDetail>(`/posts/${id}`)),
     staleTime: 5 * 60 * 1000,
     placeholderData: cachedSummary
       ? () => summaryToDetailPlaceholder(cachedSummary) as PostDetail
@@ -96,7 +94,7 @@ export function PostDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     if (data?.title && typeof document !== 'undefined') {
-      document.title = `${data.title} | آگهی‌گرام`;
+      document.title = `${data.title} | آگهیرام`;
     }
   }, [data?.title]);
 
@@ -178,7 +176,11 @@ export function PostDetailClient({ id }: { id: string }) {
         ) : (
           <>
             <PostCard
-              post={data as never}
+              post={
+                data as unknown as PostSummary & {
+                  user: PostSummary['user'] & { phone?: string | null };
+                }
+              }
               initialLiked={data.isLiked}
               initialSaved={data.isSaved}
               priority

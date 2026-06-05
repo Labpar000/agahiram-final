@@ -4,7 +4,12 @@ import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { MessageType } from '@agahiram/shared';
 import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+  Button,
   EmptyState,
+  ErrorState,
   IconButton,
   IgArrowBack,
   IgDirect,
@@ -13,9 +18,14 @@ import {
   IgMic,
   IgSend,
   IgVideoCall,
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
   Skeleton,
   toast,
 } from '@agahiram/ui';
+import { ReportDialog } from '@/components/report-dialog';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ChatMessage } from '@/components/chat-message';
@@ -30,12 +40,16 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const { uploadFile } = useUploadManager();
   const { startOutgoingCall, phase: callPhase } = useCall();
   const [text, setText] = useState('');
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
     head,
     messages,
     meId,
     isLoading,
+    isError,
+    refetch,
     sendMessage,
     addOptimisticMessage,
     removeOptimisticMessage,
@@ -186,12 +200,63 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           aria-label="اطلاعات گفتگو"
           icon={<IgInfo className="size-5" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
-          disabled
+          disabled={!head?.otherUser}
+          onClick={() => setInfoOpen(true)}
         />
       </div>
 
+      <Sheet open={infoOpen} onOpenChange={setInfoOpen}>
+        <SheetContent side="bottom" className="pb-[calc(var(--safe-bottom)+1rem)]">
+          <SheetHeader>
+            <SheetTitle>اطلاعات گفتگو</SheetTitle>
+          </SheetHeader>
+          {head?.otherUser ? (
+            <div className="space-y-4 pt-2">
+              <Link
+                href={`/profile/${head.otherUser.username}`}
+                onClick={() => setInfoOpen(false)}
+                className="flex items-center gap-3 rounded-xl border border-border bg-surface p-4 transition-colors hover:bg-muted/60 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Avatar size="lg">
+                  {head.otherUser.avatar ? (
+                    <AvatarImage src={head.otherUser.avatar} alt="" />
+                  ) : null}
+                  <AvatarFallback>
+                    {(head.otherUser.username ?? '?').slice(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{head.otherUser.username}</p>
+                  <p className="text-xs text-muted-foreground">مشاهده پروفایل</p>
+                </div>
+              </Link>
+              <Button
+                variant="outline"
+                fullWidth
+                onClick={() => {
+                  setInfoOpen(false);
+                  setReportOpen(true);
+                }}
+              >
+                گزارش کاربر
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+
+      <ReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        targetType="user"
+        targetId={head?.otherUser?.id ?? ''}
+        title="گزارش کاربر"
+      />
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
-        {isLoading ? (
+        {isError ? (
+          <ErrorState onRetry={refetch} />
+        ) : isLoading ? (
           <div className="space-y-3">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton

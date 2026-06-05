@@ -12,6 +12,7 @@ import {
 } from '@agahiram/shared';
 import type { AuthTokens, UserProfile } from '@agahiram/shared';
 import { apiClient, setAuthCookies } from '@/lib/api';
+import { isMocksEnabled } from '@/lib/mock-data';
 import { useAuthStore } from '@/lib/auth-store';
 
 export function useAuth() {
@@ -26,7 +27,7 @@ export function useAuth() {
         setUser(res.data);
         return res.data;
       }
-      if (process.env.NODE_ENV === 'development') {
+      if (isMocksEnabled()) {
         const { mockUser } = await import('@/lib/mock-data');
         setUser(mockUser);
         return mockUser;
@@ -34,7 +35,7 @@ export function useAuth() {
       setUser(null);
       return null;
     },
-    enabled: false,
+    enabled: isAuthenticated,
     staleTime: 5 * 60 * 1000,
   });
 

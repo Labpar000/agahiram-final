@@ -13,43 +13,19 @@ import {
   IgHome,
   IgReels,
   IgSearch,
+  IgTabBar,
   IgUser,
+  tabLinkClass,
 } from '@agahiram/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
 
 const items = [
-  {
-    href: '/feed',
-    label: 'خانه',
-    Icon: IgHome,
-    filledWhenActive: true,
-  },
-  {
-    href: '/explore',
-    label: 'جستجو',
-    Icon: IgSearch,
-    filledWhenActive: true,
-  },
-  {
-    href: '/create',
-    label: 'آگهی',
-    Icon: IgCreate,
-    filledWhenActive: false,
-  },
-  {
-    href: '/reels',
-    label: 'ریلز',
-    Icon: IgReels,
-    filledWhenActive: true,
-  },
-  {
-    href: '/profile',
-    label: 'پروفایل',
-    Icon: IgUser,
-    filledWhenActive: true,
-    useAvatar: true,
-  },
+  { href: '/feed', label: 'خانه', Icon: IgHome, filledWhenActive: true },
+  { href: '/explore', label: 'جستجو', Icon: IgSearch, filledWhenActive: true },
+  { href: '/create', label: 'آگهی', Icon: IgCreate, filledWhenActive: false },
+  { href: '/reels', label: 'ریلز', Icon: IgReels, filledWhenActive: true },
+  { href: '/profile', label: 'پروفایل', Icon: IgUser, filledWhenActive: true, useAvatar: true },
 ] as const;
 
 const TAB_PREFETCH: Record<string, 'feed' | 'explore' | 'reels' | 'profile' | undefined> = {
@@ -72,7 +48,9 @@ export function BottomNav() {
     (href: string) => {
       const tab = TAB_PREFETCH[href];
       if (!tab) return;
-      void router.prefetch(href === '/profile' && myUsername ? `/profile/${myUsername}` : href);
+      const target =
+        href === '/profile' ? (myUsername ? `/profile/${myUsername}` : '/onboarding') : href;
+      void router.prefetch(target);
       import('@/lib/tab-prefetch').then((m) => m.prefetchMainTab(qc, tab, myUsername ?? null));
     },
     [qc, router, myUsername],
@@ -96,67 +74,59 @@ export function BottomNav() {
   if (hideOnStoryViewer) return null;
 
   return (
-    <nav
-      aria-label="ناوبری اصلی"
-      className="glass fixed inset-x-0 bottom-0 z-40 border-t-[0.5px] border-[var(--ig-tab-border)] pb-safe"
-    >
-      <ul className="mx-auto grid h-[var(--bottom-nav)] max-w-2xl grid-cols-5 items-start pt-2">
-        {items.map((item) => {
-          const { href, label, Icon, filledWhenActive } = item;
-          const useAvatar = 'useAvatar' in item && item.useAvatar;
-          const resolvedHref = href === '/profile' && myUsername ? `/profile/${myUsername}` : href;
-          const active =
-            href === '/feed'
-              ? pathname === '/' || pathname === '/feed'
-              : href === '/profile'
-                ? pathname === '/profile' || pathname.startsWith('/profile/')
-                : pathname === href || pathname.startsWith(`${href}/`);
-          const filled = filledWhenActive && active;
-          const showAvatar = useAvatar && myUsername;
+    <IgTabBar>
+      {items.map((item) => {
+        const { href, label, Icon, filledWhenActive } = item;
+        const useAvatar = 'useAvatar' in item && item.useAvatar;
+        const resolvedHref =
+          href === '/profile' ? (myUsername ? `/profile/${myUsername}` : '/onboarding') : href;
+        const active =
+          href === '/feed'
+            ? pathname === '/' || pathname === '/feed'
+            : href === '/profile'
+              ? pathname === '/profile' || pathname.startsWith('/profile/')
+              : pathname === href || pathname.startsWith(`${href}/`);
+        const filled = filledWhenActive && active;
+        const showAvatar = useAvatar && myUsername;
 
-          return (
-            <li key={href} className="contents">
-              <Link
-                href={resolvedHref}
-                aria-current={active ? 'page' : undefined}
-                aria-label={label}
-                prefetch
-                onPointerEnter={() => warmTab(href)}
-                onFocus={() => warmTab(href)}
-                className={cn(
-                  'relative flex h-full items-center justify-center tap-none transition-colors duration-100',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
-                  active ? 'text-foreground' : 'text-muted-foreground',
+        return (
+          <li key={href} className="contents">
+            <Link
+              href={resolvedHref}
+              aria-current={active ? 'page' : undefined}
+              aria-label={label}
+              prefetch
+              onPointerEnter={() => warmTab(href)}
+              onFocus={() => warmTab(href)}
+              className={tabLinkClass(active)}
+            >
+              <span className="relative inline-flex items-center justify-center">
+                {showAvatar ? (
+                  <Avatar
+                    className={cn(
+                      'size-[1.375rem] ring-2 ring-offset-1 ring-offset-surface',
+                      active ? 'ring-foreground' : 'ring-transparent',
+                    )}
+                  >
+                    {myAvatar ? <AvatarImage src={myAvatar} alt="" /> : null}
+                    <AvatarFallback className="text-[8px] font-semibold">
+                      {(myUsername ?? '?').slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <Icon
+                    className="size-[var(--ig-icon)]"
+                    filled={filled}
+                    strokeWidth={active ? 2.1 : 1.75}
+                    aria-hidden
+                  />
                 )}
-              >
-                <span className="relative inline-flex items-center justify-center">
-                  {showAvatar ? (
-                    <Avatar
-                      className={cn(
-                        'size-[1.375rem] ring-2 ring-offset-1 ring-offset-surface',
-                        active ? 'ring-foreground' : 'ring-transparent',
-                      )}
-                    >
-                      {myAvatar ? <AvatarImage src={myAvatar} alt="" /> : null}
-                      <AvatarFallback className="text-[8px] font-semibold">
-                        {(myUsername ?? '?').slice(0, 2).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  ) : (
-                    <Icon
-                      className="size-[var(--ig-icon)]"
-                      filled={filled}
-                      strokeWidth={active ? 2.1 : 1.75}
-                      aria-hidden
-                    />
-                  )}
-                </span>
-                <span className="sr-only">{label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
+              </span>
+              <span className="sr-only">{label}</span>
+            </Link>
+          </li>
+        );
+      })}
+    </IgTabBar>
   );
 }

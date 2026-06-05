@@ -1,4 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import withPWAInit from 'next-pwa';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '../..');
 
 /**
  * Web app Next.js config.
@@ -103,7 +108,22 @@ const nextConfig = {
     ],
   },
   experimental: {
+    // lucide-react + framer-motion only — @agahiram/ui stays on direct subpath imports
+    // so Radix 'use client' boundaries are not broken by barrel rewrites.
     optimizePackageImports: ['lucide-react', 'framer-motion'],
+  },
+  webpack: (config, { isServer }) => {
+    // Single React instance across the pnpm workspace (prevents jsx-runtime .call errors).
+    if (!isServer) {
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        react: path.join(repoRoot, 'node_modules/react'),
+        'react-dom': path.join(repoRoot, 'node_modules/react-dom'),
+        'react/jsx-runtime': path.join(repoRoot, 'node_modules/react/jsx-runtime'),
+        'react/jsx-dev-runtime': path.join(repoRoot, 'node_modules/react/jsx-dev-runtime'),
+      };
+    }
+    return config;
   },
   // Proxy /api requests to the NestJS backend so the browser sees a same-origin API.
   // This removes the cross-origin cookie/CORS headaches in dev and keeps the same

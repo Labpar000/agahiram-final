@@ -1,7 +1,7 @@
 param(
   [string]$HostName = "45.144.18.86",
   [string]$User = "root",
-  [string]$Password = "amirhosein",
+  [string]$Password = "",
   [string]$Port = "22",
   [string]$KeyPath = ".cache/ssh/agahiram_id_ed25519",
   [string]$AppDir = "/opt/agahiram",
@@ -67,8 +67,13 @@ $SshOpts = @(
 )
 if (Test-Path $KeyPath) {
   $SshOpts = @("-i", $KeyPath) + $SshOpts
+} elseif (-not $Password) {
+  throw "SSH auth required: provide -KeyPath (preferred) or -Password at runtime. Never store passwords in this script."
 } else {
-  Write-Host "SSH key not found at $KeyPath - using password auth" -ForegroundColor Yellow
+  Write-Host "SSH key not found at $KeyPath - password auth needs plink/pscp (install PuTTY) or use -KeyPath" -ForegroundColor Yellow
+  if (-not (Get-Command plink -ErrorAction SilentlyContinue)) {
+    throw "plink not found. Install PuTTY/plink or provide -KeyPath for key-based auth."
+  }
 }
 
 $ConfigArchive = Join-Path $env:TEMP "agahiram-config.tar.gz"

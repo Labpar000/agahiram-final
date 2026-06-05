@@ -1,5 +1,11 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
-const ADMIN_BASE_PATH = process.env.NEXT_PUBLIC_ADMIN_BASE_PATH ?? '/admin';
+import { ADMIN_BASE_PATH, adminPath } from './paths';
+
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return '/api/v1';
+  const upstream = process.env.INTERNAL_API_URL ?? 'http://127.0.0.1:4000';
+  return `${upstream.replace(/\/$/, '')}/api/v1`;
+}
 
 /**
  * Cookie-based auth is preferred because the backend sets `accessToken` as
@@ -33,7 +39,7 @@ async function tryRefresh(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const res = await fetch(`${API_URL}/auth/refresh`, {
+        const res = await fetch(`${getApiBase()}/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
         });
@@ -53,7 +59,7 @@ async function tryRefresh(): Promise<boolean> {
 function buildUrl(path: string, params?: FetchOptions['params']) {
   let url = path.startsWith('http')
     ? path
-    : `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
+    : `${getApiBase()}${path.startsWith('/') ? path : `/${path}`}`;
   if (params) {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(params)) {
@@ -88,7 +94,7 @@ export async function api<T>(path: string, options: FetchOptions = {}): Promise<
         !window.location.pathname.startsWith(`${ADMIN_BASE_PATH}/login`)
       ) {
         const here = window.location.pathname + window.location.search;
-        window.location.href = `${ADMIN_BASE_PATH}/login?next=${encodeURIComponent(here)}`;
+        window.location.href = `${adminPath('/login')}?next=${encodeURIComponent(here)}`;
       }
       return { success: false, error: 'لطفاً دوباره وارد شوید', status: 401 };
     }

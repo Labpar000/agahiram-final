@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { IgChevron } from '@agahiram/ui';
-import { Button, Card, CardContent, Input, Label, toast } from '@agahiram/ui';
+import { Button, Card, CardContent, Input, Label, LoadingState, toast } from '@agahiram/ui';
 import {
   formatPersianNumber,
   formatPhoneFa,
@@ -14,9 +14,22 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { OtpInput } from '@/components/otp-input';
 
+function safeRedirect(url: string | null | undefined): string {
+  if (!url) return '/feed';
+  try {
+    if (url.startsWith('/') && !url.startsWith('//')) {
+      const decoded = decodeURIComponent(url);
+      if (/^\/[^/]/.test(decoded) || decoded === '/') return decoded;
+    }
+    return '/feed';
+  } catch {
+    return '/feed';
+  }
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<LoadingState label="در حال بارگذاری…" />}>
       <Inner />
     </Suspense>
   );
@@ -93,8 +106,8 @@ function Inner() {
     try {
       const res = await verifyOtp.mutateAsync({ phone, code: finalCode });
       const data = res?.data as { isNewUser?: boolean } | undefined;
-      const redirect = params.get('redirect') ?? '/feed';
-      const target = data?.isNewUser ? '/onboarding' : redirect;
+      const redirect = params.get('redirect');
+      const target = data?.isNewUser ? '/onboarding' : safeRedirect(redirect);
       // Full reload guarantees: fresh JS bundle (in case of stale SW),
       // clean React state, and that the new accessToken cookie is read by
       // the middleware on the next request. router.push has occasionally
@@ -120,7 +133,7 @@ function Inner() {
     <Card className="overflow-hidden rounded-sm border border-border shadow-none">
       <CardContent className="!p-4">
         <div className="flex flex-col items-center gap-2 pb-4 pt-2 text-center">
-          <h1 className="text-xl font-semibold tracking-tight">آگهی‌گرام</h1>
+          <h1 className="text-xl font-semibold tracking-tight">آگهیرام</h1>
           <p className="text-xs text-muted-foreground">ورود با شماره موبایل</p>
         </div>
 
@@ -165,7 +178,7 @@ function Inner() {
               <Link href="/privacy" className="text-ig-link hover:underline">
                 سیاست حریم خصوصی
               </Link>{' '}
-              آگهی‌گرام را می‌پذیرید.
+              آگهیرام را می‌پذیرید.
             </p>
           </form>
         ) : (

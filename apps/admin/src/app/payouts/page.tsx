@@ -12,6 +12,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   toast,
 } from '@agahiram/ui';
@@ -233,6 +234,15 @@ export default function PayoutsPage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader title="تسویه‌ها" description="مدیریت درخواست‌های برداشت از کیف پول" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell adminOnly>

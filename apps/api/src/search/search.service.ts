@@ -347,7 +347,7 @@ export class SearchService {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       include: {
-        user: { select: { username: true } },
+        user: { select: { username: true, isPrivate: true } },
         category: { select: { name: true } },
         city: { include: { province: true } },
         neighborhood: { select: { name: true } },
@@ -388,6 +388,7 @@ export class SearchService {
       neighborhoodId: post.neighborhoodId,
       neighborhoodName: post.neighborhood?.name,
       username: post.user.username,
+      userIsPrivate: post.user.isPrivate,
       isPromoted: post.isPromoted,
       boostExpiresAt: post.boostExpiresAt ? Math.floor(post.boostExpiresAt.getTime() / 1000) : null,
       viewCount: post.viewCount,
@@ -406,6 +407,51 @@ export class SearchService {
       normalizedNeighborhood,
       normalizedUsername,
     });
+  }
+
+  async indexStory(storyId: string) {
+    const story = await this.prisma.story.findUnique({
+      where: { id: storyId },
+      include: { user: { select: { username: true, isPrivate: true } } },
+    });
+    if (!story || story.expiresAt <= new Date()) return;
+
+    const searchableText = story.searchableText ?? '';
+    await this.meili.indexStory({
+      id: story.id,
+      userId: story.userId,
+      username: story.user.username,
+      searchableText,
+      normalizedSearchableText: normalizePersianText(searchableText),
+      hashtag: story.hashtag,
+      altText: story.altText,
+      cityId: story.cityId,
+      audience: story.audience,
+      expiresAt: Math.floor(story.expiresAt.getTime() / 1000),
+      createdAt: Math.floor(story.createdAt.getTime() / 1000),
+    });
+  }
+
+  async deletePost(postId: string) {
+    await this.meili.deletePost(postId);
+  }
+
+  async deleteStory(storyId: string) {
+    await this.meili.deleteStory(storyId);
+  }
+
+  async searchStoriesMeili(q: string, limit = 50) {
+    const normalizedQ = normalizePersianText(q);
+    const nowTs = Math.floor(Date.now() / 1000);
+    try {
+      const result = await this.meili.storiesIndex.search(normalizedQ || q, {
+        filter: [`expiresAt > ${nowTs}`],
+        limit,
+      });
+      return result.hits.map((h) => h.id as string);
+    } catch {
+      return null;
+    }
   }
 
   private async notifyMatchingAlerts(
@@ -430,13 +476,6 @@ export class SearchService {
   ) {
     const cityFilters: Array<{ cityId: string | null }> = [{ cityId: null }];
     if (post.cityId) cityFilters.push({ cityId: post.cityId });
-    const alerts = await this.prisma.searchAlert.findMany({
-      where: {
-        isActive: true,
-        OR: cityFilters,
-      },
-    });
-    if (alerts.length === 0) return;
 
     const haystack = [
       normalized.normalizedTitle,
@@ -450,25 +489,40 @@ export class SearchService {
       .join(' ')
       .trim();
 
-    for (const alert of alerts) {
-      const queryOk = alert.query ? haystack.includes(normalizePersianText(alert.query)) : true;
-      if (!queryOk) continue;
-      const filters = (alert.filters ?? {}) as Record<string, unknown>;
-      if (typeof filters.categoryId === 'string' && filters.categoryId !== post.categoryId)
-        continue;
-      if (typeof filters.minPrice === 'number' && Number(post.price ?? 0n) < filters.minPrice)
-        continue;
-      if (typeof filters.maxPrice === 'number' && Number(post.price ?? 0n) > filters.maxPrice)
-        continue;
-      if (filters.onlyPromoted === true && !post.isPromoted) continue;
-      if (filters.onlyImage === true && !post.media.some((m) => m.type === 'image')) continue;
-      if (filters.onlyVideo === true && !post.media.some((m) => m.type === 'video')) continue;
-
-      await this.notifications.create(alert.userId, NotificationType.SYSTEM_ANNOUNCEMENT, {
-        title: 'آگهی جدید مطابق جستجوی شما',
-        body: post.title,
-        postId: post.id,
+    const BATCH = 100;
+    let cursor: string | undefined;
+    while (true) {
+      const batch = await this.prisma.searchAlert.findMany({
+        where: { isActive: true, OR: cityFilters },
+        take: BATCH,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+        orderBy: { id: 'asc' },
       });
+      if (!batch.length) break;
+
+      for (const alert of batch) {
+        const queryOk = alert.query ? haystack.includes(normalizePersianText(alert.query)) : true;
+        if (!queryOk) continue;
+        const filters = (alert.filters ?? {}) as Record<string, unknown>;
+        if (typeof filters.categoryId === 'string' && filters.categoryId !== post.categoryId)
+          continue;
+        if (typeof filters.minPrice === 'number' && Number(post.price ?? 0n) < filters.minPrice)
+          continue;
+        if (typeof filters.maxPrice === 'number' && Number(post.price ?? 0n) > filters.maxPrice)
+          continue;
+        if (filters.onlyPromoted === true && !post.isPromoted) continue;
+        if (filters.onlyImage === true && !post.media.some((m) => m.type === 'image')) continue;
+        if (filters.onlyVideo === true && !post.media.some((m) => m.type === 'video')) continue;
+
+        await this.notifications.create(alert.userId, NotificationType.SYSTEM_ANNOUNCEMENT, {
+          title: 'آگهی جدید مطابق جستجوی شما',
+          body: post.title,
+          postId: post.id,
+        });
+      }
+
+      if (batch.length < BATCH) break;
+      cursor = batch[batch.length - 1]!.id;
     }
   }
 }

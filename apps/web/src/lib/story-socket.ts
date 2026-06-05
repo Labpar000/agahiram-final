@@ -2,7 +2,7 @@
 
 import { io, type Socket } from 'socket.io-client';
 import { SOCKET_EVENTS } from '@agahiram/shared';
-import { getAccessToken, resolveSocketOrigin } from '@/lib/socket';
+import { resolveSocketOrigin } from '@/lib/socket';
 
 let storySocket: Socket | null = null;
 
@@ -12,7 +12,7 @@ export function getStorySocket(): Socket {
     storySocket = io(`${origin}/stories`, {
       path: '/socket.io',
       autoConnect: false,
-      auth: (cb) => cb({ token: getAccessToken() }),
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     });
   }

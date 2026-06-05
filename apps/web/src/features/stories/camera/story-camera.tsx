@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Infinity, Timer, Video, Zap, ZoomIn } from 'lucide-react';
-import { IgCamera, IgDownload, IgGrid2x2, IgLayoutGrid, IgRotate } from '@agahiram/ui';
+import { IgCamera, IgDownload, IgGrid2x2, IgRotate } from '@agahiram/ui';
 import { IconButton } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { captureSuperzoomFrame, downloadBlob, makeBoomerangBlob } from '../story-media-utils';

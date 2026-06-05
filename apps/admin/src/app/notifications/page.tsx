@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   Input,
   Label,
@@ -164,6 +165,15 @@ export default function NotificationsPage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader title="مدیریت اعلان‌ها" description="مشاهده، حذف و ارسال اعلان سیستمی" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell adminOnly>

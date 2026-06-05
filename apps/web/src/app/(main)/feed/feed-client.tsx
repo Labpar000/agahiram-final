@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import Link from 'next/link';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
+import type { PostSummary } from '@agahiram/shared';
 import { Button, EmptyState, ErrorState, IgHome, Skeleton, Spinner } from '@agahiram/ui';
 import { fetchFeedPage } from '@/lib/query-definitions';
 import { PostCard } from '@/components/post-card';
@@ -18,16 +18,11 @@ export function FeedClient() {
       initialPageParam: undefined as string | undefined,
     });
 
-  const loaderRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const obs = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        void fetchNextPage();
-      }
-    });
-    if (loaderRef.current) obs.observe(loaderRef.current);
-    return () => obs.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  const loaderRef = useInfiniteScroll({
+    hasMore: !!hasNextPage,
+    isFetching: isFetchingNextPage,
+    fetchNextPage,
+  });
 
   const posts = data?.pages.flatMap((p) => p.data) ?? [];
 
@@ -56,7 +51,7 @@ export function FeedClient() {
           {posts.map((p, i) => (
             <div key={p.id} className={i === 0 ? undefined : 'cv-card'}>
               <PostCard
-                post={p as never}
+                post={p as PostSummary & { user: PostSummary['user'] & { phone?: string | null } }}
                 priority={i === 0}
                 initialLiked={p.isLiked}
                 initialSaved={p.isSaved}

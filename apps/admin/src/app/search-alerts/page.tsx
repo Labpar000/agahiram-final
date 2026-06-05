@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Search, Trash2 } from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber } from '@agahiram/shared';
-import { Badge, Card, CardContent, IconButton, Input, toast } from '@agahiram/ui';
+import { Badge, Card, CardContent, ErrorState, IconButton, Input, toast } from '@agahiram/ui';
 import Shell from '../layout-shell';
 import { PageHeader } from '@/components/page-header';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -128,6 +128,18 @@ export default function SearchAlertsPage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader
+          title="هشدارهای جستجو"
+          description="هشدارهای ذخیره‌شده کاربران برای آگهی‌های جدید"
+        />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell adminOnly>

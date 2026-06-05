@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ShieldX } from 'lucide-react';
-import { Button, EmptyState } from '@agahiram/ui';
+import { Button, EmptyState, Spinner } from '@agahiram/ui';
 import { useAuth } from '@/components/auth-provider';
 
 export function useIsAdmin(): boolean {
@@ -22,7 +22,13 @@ export function AdminOnlyGate({
 }) {
   const { me, isLoading } = useAuth();
 
-  if (isLoading) return null;
+  if (isLoading) {
+    return (
+      <div className="grid min-h-[40vh] place-items-center">
+        <Spinner className="size-8" />
+      </div>
+    );
+  }
 
   if (me?.role !== 'admin') {
     return (

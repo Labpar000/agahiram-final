@@ -2,7 +2,8 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { NotificationItem, PaginatedResponse } from '@agahiram/shared';
-import { apiClient } from '@/lib/api';
+import { apiClient, assertSuccess } from '@/lib/api';
+import { isMocksEnabled } from '@/lib/mock-data';
 
 type NotificationsResponse = PaginatedResponse<NotificationItem> | NotificationItem[];
 
@@ -20,11 +21,11 @@ export function useNotifications() {
     queryFn: async () => {
       const res = await apiClient.get<NotificationsResponse>('/notifications');
       if (res.success) return normalizeNotifications(res.data);
-      if (process.env.NODE_ENV === 'development') {
+      if (isMocksEnabled()) {
         const { mockNotifications } = await import('@/lib/mock-data');
         return mockNotifications;
       }
-      return [] as NotificationItem[];
+      return normalizeNotifications(assertSuccess(res));
     },
   });
 

@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -196,6 +197,15 @@ export default function HighlightsPage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader title="هایلایت‌ها" description="مدیریت هایلایت‌های پروفایل کاربران" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell adminOnly>

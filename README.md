@@ -64,7 +64,7 @@ pnpm install
 cd docker && docker compose up -d && cd ..
 
 # تنظیم env
-cp docker/.env.example apps/api/.env
+cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
 
 # generate Prisma client و migration
@@ -78,7 +78,7 @@ pnpm dev
 
 سپس باز کن:
 
-- وب: http://localhost:3000
+- وب (Vite dev): http://localhost:5173
 - ادمین: http://localhost:3001
 - API: http://localhost:4000/api/v1
 

@@ -2,15 +2,18 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { NotificationType } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsGateway } from './notifications.gateway';
+import { PushService } from '../push/push.service';
 
 @Injectable()
 export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateway: NotificationsGateway,
+    private readonly push: PushService,
   ) {}
 
-  async create(userId: string, type: NotificationType | string, payload: Record<string, unknown>) {
+  /** Persist + real-time WebSocket + optional web push (respects user prefs). */
+  async notify(userId: string, type: NotificationType | string, payload: Record<string, unknown>) {
     const notification = await this.prisma.notification.create({
       data: {
         userId,
@@ -19,15 +22,26 @@ export class NotificationsService {
       },
     });
 
-    this.gateway.emitToUser(userId, {
+    const envelope = {
       id: notification.id,
       type: notification.type,
       payload: notification.payload,
       isRead: notification.isRead,
       createdAt: notification.createdAt.toISOString(),
-    });
+    };
+
+    this.gateway.emitToUser(userId, envelope);
+
+    if (await this.push.shouldPush(userId, type)) {
+      const built = this.push.buildPayload(type, payload);
+      void this.push.sendToUser(userId, { ...built, extra: payload });
+    }
 
     return notification;
+  }
+
+  async create(userId: string, type: NotificationType | string, payload: Record<string, unknown>) {
+    return this.notify(userId, type, payload);
   }
 
   async list(userId: string, cursor?: string, limit = 30) {
@@ -40,9 +54,6 @@ export class NotificationsService {
     const hasMore = items.length > limit;
     const data = items.slice(0, limit);
 
-    // Collect actor IDs from various payload shapes so we can fetch all the
-    // related users in a single query and enrich each notification's payload
-    // with a `fromUser` object — the frontend expects this shape.
     const actorIds = new Set<string>();
     for (const n of data) {
       const p = (n.payload as Record<string, unknown> | null) ?? {};

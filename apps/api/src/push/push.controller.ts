@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Headers, Post, UseGuards, UsePipes } from '@nestjs/common';
-import { pushSubscribeSchema } from '@agahiram/shared';
+import { pushSubscribeSchema, pushUnsubscribeSchema } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
@@ -29,6 +29,7 @@ export class PushController {
 
   @UseGuards(JwtAuthGuard)
   @Delete('subscribe')
+  @UsePipes(new ZodValidationPipe(pushUnsubscribeSchema))
   unsubscribe(@CurrentUser('sub') userId: string, @Body() body: { endpoint: string }) {
     return this.push.unsubscribe(userId, body.endpoint);
   }

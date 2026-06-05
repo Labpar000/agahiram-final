@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MessageType, type SendMessageInput } from '@agahiram/shared';
 import { toast } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { apiClient, assertSuccess } from '@/lib/api';
 import { connectSocket, SOCKET_EVENTS } from '@/lib/socket';
 import type { VoiceMessageMetadata } from '@/components/chat-message';
 
@@ -45,7 +45,7 @@ export function useConversation(conversationId: string) {
           isVerified?: boolean;
         };
       }>(`/messages/conversations/${conversationId}/head`);
-      return r.data;
+      return assertSuccess(r);
     },
     enabled: !!conversationId,
   });
@@ -56,7 +56,8 @@ export function useConversation(conversationId: string) {
       const r = await apiClient.get<{ data: ChatMessageRow[]; meId?: string }>(
         `/messages/conversations/${conversationId}`,
       );
-      return { messages: r.data?.data ?? [], meId: r.data?.meId ?? null };
+      const data = assertSuccess(r);
+      return { messages: data.data ?? [], meId: data.meId ?? null };
     },
     enabled: !!conversationId,
     staleTime: 30_000,
@@ -173,12 +174,19 @@ export function useConversation(conversationId: string) {
     },
   });
 
+  const refetch = () => {
+    void headQuery.refetch();
+    void messagesQuery.refetch();
+  };
+
   return {
     head: headQuery.data,
     headLoading: headQuery.isLoading && !headQuery.data,
     messages,
     meId: messagesQuery.data?.meId ?? null,
     isLoading: messagesQuery.isLoading && !messagesQuery.data,
+    isError: headQuery.isError || messagesQuery.isError,
+    refetch,
     sendMessage,
     addOptimisticMessage: (msg: ChatMessageRow) => {
       setLiveMessages((prev) => {

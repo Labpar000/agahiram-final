@@ -495,6 +495,17 @@
     gap: 1px;
     background-color: var(--border);
   }
+
+  /* Instagram wordmark — Figma Logos / Type=Logo */
+  .ig-wordmark {
+    display: inline-block;
+    font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive;
+    font-size: 1.7rem;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    color: var(--foreground);
+    transform: translateY(1px);
+  }
 }
 
 /* ---------- Keyframes ---------- */

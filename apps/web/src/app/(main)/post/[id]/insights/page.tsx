@@ -4,8 +4,8 @@ import { use } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { formatPersianNumber } from '@agahiram/shared';
-import { IgArrowBack, IgEye, Skeleton, EmptyState } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { IgArrowBack, ErrorState, Skeleton } from '@agahiram/ui';
+import { apiClient, assertSuccess } from '@/lib/api';
 
 interface InsightsResponse {
   totalViews: number;
@@ -26,13 +26,10 @@ function toFaDayLabel(dateKey: string): string {
 
 export default function InsightsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['post-insights', id],
-    queryFn: async () => {
-      const r = await apiClient.get<InsightsResponse>(`/posts/${id}/insights`);
-      if (!r.success) throw new Error(r.error ?? 'دسترسی به آمار وجود ندارد');
-      return r.data!;
-    },
+    queryFn: async () =>
+      assertSuccess(await apiClient.get<InsightsResponse>(`/posts/${id}/insights`)),
   });
 
   const maxDay = data?.last7Days.reduce((m, d) => Math.max(m, d.count), 0) ?? 0;
@@ -59,11 +56,11 @@ export default function InsightsPage({ params }: { params: Promise<{ id: string 
             <Skeleton className="h-40 w-full rounded-2xl" />
             <Skeleton className="h-40 w-full rounded-2xl" />
           </div>
-        ) : error ? (
-          <EmptyState
-            icon={<IgEye className="size-7" strokeWidth={1.5} aria-hidden />}
+        ) : isError ? (
+          <ErrorState
             title="آمار قابل نمایش نیست"
-            description={(error as Error).message}
+            description="دسترسی به آمار این آگهی وجود ندارد یا خطایی رخ داد."
+            onRetry={() => void refetch()}
           />
         ) : data ? (
           <>

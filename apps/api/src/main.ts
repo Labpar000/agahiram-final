@@ -1,28 +1,44 @@
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import fastifyCookie from '@fastify/cookie';
+import helmet from '@fastify/helmet';
+import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { getCookieSecret } from './config/secrets';
+import { getCorsOrigins } from './config/cors';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    new FastifyAdapter({ trustProxy: true, bodyLimit: 1_048_576 }),
   );
 
-  await app.register(fastifyCookie, {
-    secret: process.env.COOKIE_SECRET ?? 'agahiram-dev-cookie-secret',
+  const minioPublicUrl = process.env.MINIO_PUBLIC_URL ?? '';
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', ...(minioPublicUrl ? [minioPublicUrl] : ['*'])],
+        mediaSrc: ["'self'", ...(minioPublicUrl ? [minioPublicUrl] : ['*'])],
+        connectSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        fontSrc: ["'self'"],
+        frameSrc: ["'none'"],
+      },
+    },
+    crossOriginResourcePolicy: { policy: 'same-site' },
   });
 
-  const allowedOrigins = process.env.CORS_ORIGIN?.split(',') ?? [
-    process.env.FRONTEND_URL ?? 'http://localhost:3000',
-    process.env.ADMIN_URL ?? 'http://localhost:3001',
-    /* legacy port some dev configs still use; keep until next major. */
-    'http://localhost:5174',
-  ];
+  await app.register(fastifyCookie, {
+    secret: getCookieSecret(),
+  });
+
+  const allowedOrigins = getCorsOrigins();
   app.enableCors({
     origin: allowedOrigins,
     credentials: true,
@@ -38,10 +54,8 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 4000);
   await app.listen(port, '0.0.0.0');
-  console.log(`Agahiram API running on http://localhost:${port}/api/v1`);
-  console.log(
-    `[boot] JWT_SECRET fingerprint: ${(process.env.JWT_SECRET ?? 'default').slice(0, 8)}... DATABASE=${(process.env.DATABASE_URL ?? '').split('@')[1] ?? 'default'}`,
-  );
+  const logger = new Logger('Bootstrap');
+  logger.log(`Agahiram API running on http://localhost:${port}/api/v1`);
 }
 
 bootstrap();

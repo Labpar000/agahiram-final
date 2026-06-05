@@ -7,29 +7,67 @@ import {
   Req,
   Res,
   UseGuards,
+  UsePipes,
   BadRequestException,
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import { JwtPayload } from '@agahiram/shared';
+import {
+  JwtPayload,
+  presignMediaSchema,
+  confirmMediaSchema,
+  type PresignMediaInput,
+  type ConfirmMediaInput,
+} from '@agahiram/shared';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { JwtService } from '@nestjs/jwt';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { MediaService } from './media.service';
 import { MinioService } from './minio.service';
+import { MediaAccessService } from './media-access.service';
 
 @Controller('media')
-@UseGuards(JwtAuthGuard)
 export class MediaController {
   constructor(
     private mediaService: MediaService,
     private minio: MinioService,
+    private mediaAccess: MediaAccessService,
+    private jwt: JwtService,
   ) {}
 
   @Public()
   @Get('object')
-  async object(@Query('key') keyRaw: string, @Req() req: FastifyRequest, @Res() res: FastifyReply) {
+  async object(
+    @Query('key') keyRaw: string,
+    @Query('exp') exp: string | undefined,
+    @Query('sig') sig: string | undefined,
+    @Req() req: FastifyRequest,
+    @Res() res: FastifyReply,
+  ) {
     const key = this.minio.getKeyFromUrl(keyRaw);
     if (!key) throw new BadRequestException('کلید فایل نامعتبر است');
+
+    const cookies = req.cookies as Record<string, string> | undefined;
+    const bearer = req.headers.authorization?.replace(/^Bearer\s+/i, '');
+    let userId: string | undefined;
+    if (cookies?.accessToken || bearer) {
+      try {
+        const token = bearer ?? cookies?.accessToken ?? '';
+        const payload = this.jwt.verify<{ sub: string }>(token);
+        userId = payload.sub;
+      } catch {
+        /* unauthenticated — may still access public folders or signed URLs */
+      }
+    }
+
+    const allowed = await this.mediaAccess.canAccess(userId, key, sig, exp);
+    if (!allowed) {
+      throw new BadRequestException('دسترسی به فایل مجاز نیست');
+    }
+
+    const folder = normalizedFolderFromKey(key);
+    const isPrivate = folder === 'messages';
 
     // Forward Range so video can stream progressively + seek (otherwise the
     // browser has to download the whole file before playback starts).
@@ -46,7 +84,10 @@ export class MediaController {
     const contentType = pickContentType(object.ContentType, key, normalizedFolderFromKey(key));
 
     res.header('Content-Type', contentType);
-    res.header('Cache-Control', 'public, max-age=31536000, immutable');
+    res.header(
+      'Cache-Control',
+      isPrivate ? 'private, no-store' : 'public, max-age=31536000, immutable',
+    );
     res.header('Accept-Ranges', 'bytes');
     if (object.ContentLength != null) res.header('Content-Length', String(object.ContentLength));
     if (object.ContentRange) {
@@ -60,11 +101,9 @@ export class MediaController {
   }
 
   @Post('presign')
-  presign(
-    @CurrentUser() user: JwtPayload,
-    @Body()
-    body: { folder: string; contentType: string; extension?: string },
-  ) {
+  @UseGuards(JwtAuthGuard)
+  @UsePipes(new ZodValidationPipe(presignMediaSchema))
+  presign(@CurrentUser() user: JwtPayload, @Body() body: PresignMediaInput) {
     return this.mediaService.getPresignedUploadUrl(
       user.sub,
       body.folder,
@@ -74,7 +113,9 @@ export class MediaController {
   }
 
   @Post('confirm')
-  confirm(@CurrentUser() user: JwtPayload, @Body() body: { key: string }) {
+  @UseGuards(JwtAuthGuard)
+  @UsePipes(new ZodValidationPipe(confirmMediaSchema))
+  confirm(@CurrentUser() user: JwtPayload, @Body() body: ConfirmMediaInput) {
     return this.mediaService.confirmUpload(user.sub, body.key);
   }
 }

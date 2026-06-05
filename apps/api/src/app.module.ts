@@ -30,6 +30,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { ReputationModule } from './reputation/reputation.module';
 import { ReportsModule } from './reports/reports.module';
 import { PushModule } from './push/push.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
@@ -56,6 +57,8 @@ import { PushModule } from './push/push.module';
       { name: BULL_QUEUES.NOTIFICATIONS },
       { name: BULL_QUEUES.STORY_CLEANUP },
       { name: BULL_QUEUES.MEDIA_PROCESSING },
+      { name: BULL_QUEUES.STORY_SCHEDULED },
+      { name: BULL_QUEUES.CALL_TIMEOUT },
     ),
     PrismaModule,
     RedisModule,
@@ -80,6 +83,7 @@ import { PushModule } from './push/push.module';
     ReputationModule,
     ReportsModule,
     PushModule,
+    HealthModule,
   ],
   providers: [
     {

@@ -6,27 +6,33 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import type { Queue } from 'bullmq';
 import { v4 as uuidv4 } from 'uuid';
-import { CALL_RING_TIMEOUT_MS, CALL_EVENTS, type CreateCallInput } from '@agahiram/shared';
+import {
+  BULL_QUEUES,
+  CALL_RING_TIMEOUT_MS,
+  CALL_EVENTS,
+  type CreateCallInput,
+} from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { LivekitService } from './livekit.service';
 import { CallsGateway } from './calls.gateway';
-import { PushService } from '../push/push.service';
 import { MessagesGateway } from '../messages/messages.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const ACTIVE_STATUSES = ['ringing', 'accepted', 'active'] as const;
 
 @Injectable()
 export class CallsService {
-  private readonly ringTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly livekit: LivekitService,
     @Inject(forwardRef(() => CallsGateway))
     private readonly gateway: CallsGateway,
-    private readonly push: PushService,
     private readonly messagesGateway: MessagesGateway,
+    private readonly notifications: NotificationsService,
+    @InjectQueue(BULL_QUEUES.CALL_TIMEOUT) private readonly callTimeoutQueue: Queue,
   ) {}
 
   private async assertNotBlocked(a: string, b: string) {
@@ -78,18 +84,26 @@ export class CallsService {
     if (busy) throw new BadRequestException('شما در حال حاضر در تماس هستید');
   }
 
-  private clearRingTimer(callId: string) {
-    const t = this.ringTimers.get(callId);
-    if (t) clearTimeout(t);
-    this.ringTimers.delete(callId);
+  private async clearRingTimer(callId: string) {
+    try {
+      const job = await this.callTimeoutQueue.getJob(`ring-timeout-${callId}`);
+      await job?.remove();
+    } catch {
+      /* job may already be gone */
+    }
   }
 
-  private scheduleRingTimeout(callId: string) {
-    this.clearRingTimer(callId);
-    const timer = setTimeout(() => {
-      void this.markMissed(callId);
-    }, CALL_RING_TIMEOUT_MS);
-    this.ringTimers.set(callId, timer);
+  private async scheduleRingTimeout(callId: string) {
+    await this.callTimeoutQueue.add(
+      'timeout',
+      { callId },
+      {
+        delay: CALL_RING_TIMEOUT_MS,
+        jobId: `ring-timeout-${callId}`,
+        removeOnComplete: true,
+        removeOnFail: true,
+      },
+    );
   }
 
   private userBrief(user: {
@@ -158,29 +172,16 @@ export class CallsService {
       initiator: this.userBrief(call.initiator),
     });
 
-    await this.prisma.notification.create({
-      data: {
-        userId: other.userId,
-        type: 'incomingCall',
-        payload: {
-          callId: call.id,
-          conversationId: call.conversationId,
-          initiatorId: userId,
-          initiatorName: call.initiator.username ?? call.initiator.name,
-        },
-      },
-    });
-
-    void this.push.sendIncomingCall(other.userId, {
+    await this.notifications.notify(other.userId, 'incomingCall', {
       callId: call.id,
       conversationId: call.conversationId,
+      initiatorId: userId,
       initiatorName: call.initiator.username ?? call.initiator.name ?? 'کاربر',
     });
 
-    this.scheduleRingTimeout(call.id);
+    await this.scheduleRingTimeout(call.id);
 
     return {
-      call: this.serializeCall(call),
       token: initiatorToken,
       livekitUrl,
       roomName,
@@ -210,7 +211,7 @@ export class CallsService {
       },
     });
 
-    this.clearRingTimer(callId);
+    await this.clearRingTimer(callId);
 
     const livekitUrl = this.livekit.getPublicUrl();
     const initiatorToken = await this.livekit.mintToken(
@@ -255,7 +256,7 @@ export class CallsService {
     if (call.status !== 'ringing') throw new BadRequestException();
 
     const updated = await this.endCallRecord(call, 'rejected', userId);
-    this.clearRingTimer(callId);
+    await this.clearRingTimer(callId);
     await this.livekit.deleteRoom(call.roomName);
 
     this.gateway.emitToUser(call.initiatorId, CALL_EVENTS.REJECT, { callId });
@@ -269,7 +270,7 @@ export class CallsService {
     if (call.status !== 'ringing') throw new BadRequestException();
 
     const updated = await this.endCallRecord(call, 'cancelled', userId);
-    this.clearRingTimer(callId);
+    await this.clearRingTimer(callId);
     await this.livekit.deleteRoom(call.roomName);
 
     this.gateway.emitToUser(call.calleeId, CALL_EVENTS.CANCEL, { callId });
@@ -285,7 +286,7 @@ export class CallsService {
     }
 
     const updated = await this.endCallRecord(call, 'ended', userId);
-    this.clearRingTimer(callId);
+    await this.clearRingTimer(callId);
     await this.livekit.deleteRoom(call.roomName);
 
     const otherId = call.initiatorId === userId ? call.calleeId : call.initiatorId;
@@ -313,7 +314,7 @@ export class CallsService {
     return { call: call ? this.serializeCall(call) : null };
   }
 
-  private async markMissed(callId: string) {
+  public async markMissed(callId: string) {
     const call = await this.prisma.call.findUnique({ where: { id: callId } });
     if (!call || call.status !== 'ringing') return;
 
@@ -328,12 +329,10 @@ export class CallsService {
 
     await this.livekit.deleteRoom(call.roomName);
 
-    await this.prisma.notification.create({
-      data: {
-        userId: call.initiatorId,
-        type: 'missedCall',
-        payload: { callId, conversationId: call.conversationId, calleeId: call.calleeId },
-      },
+    await this.notifications.notify(call.initiatorId, 'missedCall', {
+      callId,
+      conversationId: call.conversationId,
+      calleeId: call.calleeId,
     });
 
     const callEventMessage = await this.prisma.message.create({
@@ -360,7 +359,7 @@ export class CallsService {
     this.gateway.emitToUser(call.initiatorId, CALL_EVENTS.MISSED, { callId });
     this.gateway.emitToUser(call.calleeId, CALL_EVENTS.MISSED, { callId, silent: true });
 
-    this.clearRingTimer(callId);
+    await this.clearRingTimer(callId);
     return updated;
   }
 

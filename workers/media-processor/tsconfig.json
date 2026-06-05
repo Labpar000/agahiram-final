@@ -1,5 +1,5 @@
 {
-  "extends": "@agahiram/config/typescript/base.json",
+  "extends": "../../packages/config/typescript/base.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",

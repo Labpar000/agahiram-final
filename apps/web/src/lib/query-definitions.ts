@@ -1,26 +1,22 @@
 import type { PaginatedResponse, PostSummary, ReelItem } from '@agahiram/shared';
-import { apiClient } from '@/lib/api';
+import { apiClient, assertSuccess } from '@/lib/api';
+import { isMocksEnabled } from '@/lib/mock-data';
 
 export type FeedPage = PaginatedResponse<PostSummary>;
 
 export async function fetchFeedPage(pageParam?: string): Promise<FeedPage> {
   const r = await apiClient.get<FeedPage>('/posts/feed', { cursor: pageParam });
-  if (!r.success || !r.data) {
-    return { data: [], nextCursor: null, hasMore: false };
-  }
-  return r.data;
+  return assertSuccess(r);
 }
 
 export async function fetchReelsPage(pageParam?: string): Promise<PaginatedResponse<ReelItem>> {
   const r = await apiClient.get<PaginatedResponse<ReelItem>>('/posts/reels', { cursor: pageParam });
-  if (!r.success || !r.data) {
-    if (process.env.NODE_ENV === 'development') {
-      const { mockReels } = await import('@/lib/mock-data');
-      return { data: mockReels, nextCursor: null, hasMore: false };
-    }
-    return { data: [], nextCursor: null, hasMore: false };
+  if (r.success && r.data) return r.data;
+  if (isMocksEnabled()) {
+    const { mockReels } = await import('@/lib/mock-data');
+    return { data: mockReels, nextCursor: null, hasMore: false };
   }
-  return r.data;
+  return assertSuccess(r);
 }
 
 export async function fetchExplorePage(
@@ -39,18 +35,16 @@ export async function fetchExplorePage(
       cursor: pageParam,
       limit: 24,
     });
-    if (!r.success || !r.data?.posts) {
-      return { data: [], nextCursor: null, hasMore: false };
+    const data = assertSuccess(r);
+    if (!data.posts) {
+      throw new Error('پاسخ جستجو نامعتبر است');
     }
-    return { ...r.data.posts, users: r.data.users, categories: r.data.categories };
+    return { ...data.posts, users: data.users, categories: data.categories };
   }
   const r = await apiClient.get<FeedPage>('/posts/explore', {
     ...filters,
     cursor: pageParam,
     limit: 24,
   });
-  if (!r.success || !r.data) {
-    return { data: [], nextCursor: null, hasMore: false };
-  }
-  return r.data;
+  return assertSuccess(r);
 }

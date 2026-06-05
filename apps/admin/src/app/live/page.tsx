@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   toast,
 } from '@agahiram/ui';
@@ -179,6 +180,15 @@ export default function LivePage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader title="پخش زنده" description="مدیریت لایوهای کاربران" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell adminOnly>

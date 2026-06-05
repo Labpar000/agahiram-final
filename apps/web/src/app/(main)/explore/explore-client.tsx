@@ -3,7 +3,8 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
@@ -17,7 +18,6 @@ import {
   IgGrid,
   IgLayers,
   IgPlay,
-  IgReels,
   IgSearch,
   IgSliders,
   Input,
@@ -69,7 +69,6 @@ export function ExploreClient({
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [debouncedQ, setDebouncedQ] = useState(initialQ);
   const [openFilters, setOpenFilters] = useState(false);
-  const loaderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
@@ -171,15 +170,11 @@ export function ExploreClient({
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     query;
 
-  useEffect(() => {
-    const obs = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) {
-        void fetchNextPage();
-      }
-    });
-    if (loaderRef.current) obs.observe(loaderRef.current);
-    return () => obs.disconnect();
-  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+  const infiniteLoaderRef = useInfiniteScroll({
+    hasMore: !!hasNextPage,
+    isFetching: isFetchingNextPage,
+    fetchNextPage,
+  });
 
   const posts = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
   const searchUsers = (data?.pages[0] as ExplorePage | undefined)?.users ?? [];
@@ -341,7 +336,7 @@ export function ExploreClient({
             </>
           ) : null}
           <div
-            ref={loaderRef}
+            ref={infiniteLoaderRef}
             className="flex h-20 items-center justify-center px-4 text-sm text-muted-foreground"
           >
             {isFetchingNextPage ? (

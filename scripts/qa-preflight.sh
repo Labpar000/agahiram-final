@@ -7,6 +7,7 @@ cd "$ROOT"
 echo "==> QA preflight 2026"
 pnpm format:check
 pnpm lint
+pnpm test
 pnpm build
 
 if [[ -n "${MEDIA_RANGE_TEST_URL:-}" ]]; then

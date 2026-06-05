@@ -28,6 +28,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 300_000 } })
   @Post('otp/verify')
   @UsePipes(new ZodValidationPipe(verifyOtpSchema))
   async verifyOtp(@Body() body: VerifyOtpInput, @Res({ passthrough: true }) res: FastifyReply) {
@@ -37,6 +38,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('refresh')
   async refresh(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
     const refreshToken = (req.cookies as Record<string, string>)?.refreshToken;
@@ -49,7 +51,9 @@ export class AuthController {
   // its cookies on the server so the user can recover from a broken session.
   @Public()
   @Post('logout')
-  async logout(@Res({ passthrough: true }) res: FastifyReply) {
+  async logout(@Req() req: FastifyRequest, @Res({ passthrough: true }) res: FastifyReply) {
+    const refreshToken = (req.cookies as Record<string, string>)?.refreshToken;
+    await this.authService.revokeRefreshToken(refreshToken);
     this.clearAuthCookies(res);
     return { message: 'با موفقیت خارج شدید' };
   }

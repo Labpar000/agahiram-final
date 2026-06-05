@@ -1,5 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PaymentPurpose, type InitiatePaymentInput } from '@agahiram/shared';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import {
+  PaymentPurpose,
+  type CreatePayoutInput,
+  type InitiatePaymentInput,
+} from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ZarinpalService } from './zarinpal.service';
 
@@ -133,9 +138,10 @@ export class PaymentsService {
         data: { isPromoted: true, boostExpiresAt: boostExpires },
       });
     } else if (payment.purpose === 'businessAccount') {
+      const expiresAt = new Date(Date.now() + 30 * 86_400_000);
       await this.prisma.user.update({
         where: { id: payment.userId },
-        data: { isBusiness: true },
+        data: { isBusiness: true, businessExpiresAt: expiresAt },
       });
     } else if (payment.purpose === 'walletTopup') {
       await this.prisma.user.update({
@@ -155,6 +161,66 @@ export class PaymentsService {
     return { balance: (user?.walletBalance ?? 0n).toString(), currency: 'IRT' };
   }
 
+  async createPayout(userId: string, input: CreatePayoutInput) {
+    const amount = BigInt(input.amount);
+    if (amount <= 0n) throw new BadRequestException('مبلغ نامعتبر');
+
+    const pending = await this.prisma.payout.count({
+      where: { userId, status: { in: ['pending', 'approved'] } },
+    });
+    if (pending > 0) throw new BadRequestException('درخواست برداشت در حال بررسی دارید');
+
+    try {
+      const [, payout] = await this.prisma.$transaction([
+        this.prisma.user.update({
+          where: { id: userId },
+          data: { walletBalance: { decrement: amount } },
+        }),
+        this.prisma.payout.create({
+          data: { userId, amount, iban: input.iban, cardNumber: input.cardNumber },
+        }),
+      ]);
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { walletBalance: true },
+      });
+      if (user && user.walletBalance < 0n) {
+        await this.prisma.$transaction([
+          this.prisma.user.update({
+            where: { id: userId },
+            data: { walletBalance: { increment: amount } },
+          }),
+          this.prisma.payout.delete({ where: { id: payout.id } }),
+        ]);
+        throw new BadRequestException('موجودی کیف پول کافی نیست');
+      }
+
+      return {
+        ...payout,
+        amount: payout.amount.toString(),
+        createdAt: payout.createdAt.toISOString(),
+        updatedAt: payout.updatedAt.toISOString(),
+      };
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException('موجودی کیف پول کافی نیست');
+    }
+  }
+
+  async listMyPayouts(userId: string) {
+    const payouts = await this.prisma.payout.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return payouts.map((p) => ({
+      ...p,
+      amount: p.amount.toString(),
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    }));
+  }
+
   async listMyPayments(userId: string) {
     const payments = await this.prisma.payment.findMany({
       where: { userId },
@@ -168,5 +234,13 @@ export class PaymentsService {
       createdAt: p.createdAt.toISOString(),
       updatedAt: p.updatedAt.toISOString(),
     }));
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_2AM)
+  async expireBusinessAccounts() {
+    await this.prisma.user.updateMany({
+      where: { isBusiness: true, businessExpiresAt: { lt: new Date() } },
+      data: { isBusiness: false },
+    });
   }
 }

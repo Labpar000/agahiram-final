@@ -5,10 +5,11 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { ListChecks, Search, X } from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber } from '@agahiram/shared';
-import { Badge, Button, Card, CardContent, EmptyState, Input } from '@agahiram/ui';
+import { Badge, Button, Card, CardContent, EmptyState, ErrorState, Input } from '@agahiram/ui';
 import Shell from '../layout-shell';
 import { PageHeader } from '@/components/page-header';
 import { apiClient } from '@/lib/api';
+import { auditActionLabel } from '@/lib/audit-actions';
 
 interface AuditEntry {
   id: string;
@@ -113,7 +114,9 @@ export default function AuditPage() {
         </CardContent>
       </Card>
 
-      {list.isLoading ? (
+      {list.isError ? (
+        <ErrorState onRetry={() => void list.refetch()} />
+      ) : list.isLoading ? (
         <div className="text-center text-sm text-muted-foreground py-8">در حال بارگذاری…</div>
       ) : rows.length === 0 ? (
         <EmptyState icon={<ListChecks className="size-7" />} title="گزارشی پیدا نشد" />
@@ -149,8 +152,8 @@ export default function AuditPage() {
                         <div className="text-[10px] text-muted-foreground">{r.actorRole}</div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <Badge tone="neutral" size="sm" className="font-mono text-[11px]">
-                          {r.action}
+                        <Badge tone="neutral" size="sm" title={r.action} className="text-[11px]">
+                          {auditActionLabel(r.action)}
                         </Badge>
                       </td>
                       <td className="px-3 py-2.5">

@@ -13,6 +13,7 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   Input,
 } from '@agahiram/ui';
 import Shell from '../layout-shell';
@@ -106,6 +107,15 @@ export default function MessagesPage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell>
+        <PageHeader title="مدیریت پیام‌ها" description="مشاهده گفتگوها و حذف پیام‌های نامناسب" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell>

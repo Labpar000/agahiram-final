@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start --port 5173",
     "lint": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "clean": "rimraf .next"
   },
   "dependencies": {
@@ -39,12 +43,16 @@
   },
   "devDependencies": {
     "@agahiram/config": "workspace:*",
+    "@next/eslint-plugin-next": "^16.2.7",
+    "@playwright/test": "^1.53.2",
     "@tailwindcss/postcss": "^4.1.8",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.6",
     "@types/react-dom": "^19.1.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "rimraf": "^6.0.1",
     "tailwindcss": "^4.1.8",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

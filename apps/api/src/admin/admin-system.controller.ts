@@ -2,7 +2,7 @@ import { Controller, Get, Logger, Post, Req, UseGuards } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import type { FastifyRequest } from 'fastify';
-import { BULL_QUEUES, UserRole, MEILI_INDEX_STORIES } from '@agahiram/shared';
+import { BULL_QUEUES, UserRole } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -99,32 +99,52 @@ export class AdminSystemController {
 
   @Post('reindex')
   async reindexAll(@Req() req: FastifyRequest) {
-    const approved = await this.prisma.post.findMany({
-      where: { status: 'approved' },
-      select: { id: true },
-    });
-    for (const p of approved) {
-      await this.searchQueue.add('index', { postId: p.id });
+    let skip = 0;
+    let queued = 0;
+    const CHUNK = 500;
+    while (true) {
+      const batch = await this.prisma.post.findMany({
+        where: { status: 'approved' },
+        select: { id: true },
+        skip,
+        take: CHUNK,
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!batch.length) break;
+      for (const p of batch) await this.searchQueue.add('index', { postId: p.id });
+      queued += batch.length;
+      if (batch.length < CHUNK) break;
+      skip += CHUNK;
     }
     await this.audit.record(AuditLogService.fromRequest(req), 'system.reindex', null, {
-      queued: approved.length,
+      queued,
     });
-    return { queued: approved.length };
+    return { queued };
   }
 
   @Post('reindex-stories')
   async reindexStories(@Req() req: FastifyRequest) {
-    const active = await this.prisma.story.findMany({
-      where: { expiresAt: { gt: new Date() } },
-      select: { id: true },
-    });
-    for (const s of active) {
-      await this.searchQueue.add('index-story', { storyId: s.id, index: MEILI_INDEX_STORIES });
+    let skip = 0;
+    let queued = 0;
+    const CHUNK = 500;
+    while (true) {
+      const batch = await this.prisma.story.findMany({
+        where: { expiresAt: { gt: new Date() } },
+        select: { id: true },
+        skip,
+        take: CHUNK,
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!batch.length) break;
+      for (const s of batch) await this.searchQueue.add('index-story', { storyId: s.id });
+      queued += batch.length;
+      if (batch.length < CHUNK) break;
+      skip += CHUNK;
     }
     await this.audit.record(AuditLogService.fromRequest(req), 'system.reindex-stories', null, {
-      queued: active.length,
+      queued,
     });
-    return { queued: active.length };
+    return { queued };
   }
 
   @Post('queues/clean')

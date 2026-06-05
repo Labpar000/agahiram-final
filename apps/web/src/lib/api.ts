@@ -1,7 +1,13 @@
 import type { ApiResponse } from '@agahiram/shared';
 import { getViewerHash } from './viewer-hash';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+/** Browser uses same-origin /api/v1 (Next rewrite); SSR uses internal upstream. */
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return '/api/v1';
+  const upstream = process.env.INTERNAL_API_URL ?? 'http://127.0.0.1:4000';
+  return `${upstream.replace(/\/$/, '')}/api/v1`;
+}
 
 type RequestOptions = RequestInit & {
   params?: Record<string, string | number | boolean | undefined>;
@@ -53,7 +59,7 @@ function isFreshDataPath(path: string): boolean {
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const url = path.startsWith('http')
     ? path
-    : `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
+    : `${getApiBase()}${path.startsWith('/') ? path : `/${path}`}`;
   if (!params) return url;
   const search = new URLSearchParams();
   Object.entries(params).forEach(([k, v]) => {
@@ -127,6 +133,40 @@ export async function api<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   return { ...json, statusCode: status };
+}
+
+export class ApiError extends Error {
+  readonly statusCode?: number;
+  readonly response?: ApiResponse<unknown>;
+
+  constructor(message: string, statusCode?: number, response?: ApiResponse<unknown>) {
+    super(message);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+    this.response = response;
+  }
+}
+
+/** Narrow a failed ApiResponse and throw ApiError when success is false. */
+export function throwOnError<T>(
+  res: ApiResponse<T>,
+): asserts res is ApiResponse<T> & { success: true } {
+  if (!res.success) {
+    throw new ApiError(
+      res.error ?? res.message ?? 'خطا در دریافت اطلاعات',
+      res.statusCode,
+      res as ApiResponse<unknown>,
+    );
+  }
+}
+
+/** Return response data or throw ApiError when the request failed or data is missing. */
+export function assertSuccess<T>(res: ApiResponse<T>): T {
+  throwOnError(res);
+  if (res.data === undefined) {
+    throw new ApiError('پاسخ سرور بدون داده است', res.statusCode, res as ApiResponse<unknown>);
+  }
+  return res.data;
 }
 
 export const apiClient = {

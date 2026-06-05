@@ -7,12 +7,12 @@ import {
 import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
-import { SOCKET_EVENTS } from '@agahiram/shared';
-import { JwtPayload } from '@agahiram/shared';
+import { SOCKET_EVENTS, type JwtPayload } from '@agahiram/shared';
+import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3000'],
+    origin: getCorsOrigins(),
     credentials: true,
   },
   namespace: '/notifications',
@@ -40,9 +40,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
         return;
       }
 
-      const payload = this.jwt.verify<JwtPayload>(token, {
-        secret: process.env.JWT_SECRET ?? 'agahiram-dev-jwt-secret',
-      });
+      const payload = this.jwt.verify<JwtPayload>(token);
 
       client.data.userId = payload.sub;
       if (!this.userSockets.has(payload.sub)) {

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BellOff, Search, Trash2, X } from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber } from '@agahiram/shared';
-import { Button, Card, CardContent, IconButton, Input, toast } from '@agahiram/ui';
+import { Button, Card, CardContent, ErrorState, IconButton, Input, toast } from '@agahiram/ui';
 import Shell from '../layout-shell';
 import { PageHeader } from '@/components/page-header';
 import { DataTable, type Column } from '@/components/data-table';
@@ -116,6 +116,15 @@ export default function PushSubscriptionsPage() {
     ],
     [],
   );
+
+  if (list.isError) {
+    return (
+      <Shell adminOnly>
+        <PageHeader title="اشتراک‌های Push" description="مشاهده و لغو اشتراک Web Push کاربران" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
 
   return (
     <Shell adminOnly>

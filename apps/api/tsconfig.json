@@ -1,5 +1,5 @@
 {
-  "extends": "@agahiram/config/typescript/nestjs.json",
+  "extends": "../../packages/config/typescript/nestjs.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",

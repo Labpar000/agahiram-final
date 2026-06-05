@@ -14,8 +14,10 @@ import {
   Button,
   Card,
   CardContent,
+  ErrorState,
   IconButton,
   Input,
+  Spinner,
   toast,
 } from '@agahiram/ui';
 import Shell from '../layout-shell';
@@ -201,6 +203,15 @@ function PaymentsInner() {
     [isAdmin],
   );
 
+  if (list.isError) {
+    return (
+      <Shell>
+        <PageHeader title="پرداخت‌ها" description="گزارش تراکنش‌ها، بازگشت، و آمار درآمد" />
+        <ErrorState onRetry={() => void list.refetch()} />
+      </Shell>
+    );
+  }
+
   return (
     <Shell>
       <PageHeader
@@ -347,7 +358,15 @@ function PaymentsInner() {
 
 export default function PaymentsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <Shell>
+          <div className="grid place-items-center py-16">
+            <Spinner className="size-8" />
+          </div>
+        </Shell>
+      }
+    >
       <PaymentsInner />
     </Suspense>
   );

@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
 import type { JwtPayload } from '@agahiram/shared';
 import { SettingsService } from '../../admin/settings.service';
+import { isAdminPhone } from '../../config/admin-phones';
 
 export const SKIP_MAINTENANCE_KEY = 'skipMaintenance';
 
@@ -37,8 +38,9 @@ export class MaintenanceGuard implements CanActivate {
     const s = this.settings.getCached();
     if (!s.maintenanceMode) return true;
 
-    const user = (req as unknown as { user?: JwtPayload }).user;
-    if (user && (user.role === 'admin' || user.role === 'moderator')) return true;
+    const user = (req as unknown as { user?: JwtPayload & { phone?: string } }).user;
+    if (user && (user.role === 'admin' || user.role === 'moderator') && isAdminPhone(user.phone))
+      return true;
 
     throw new ServiceUnavailableException(
       s.maintenanceMessage ?? 'سایت در حالت تعمیر است؛ لطفاً بعداً مراجعه کنید.',
