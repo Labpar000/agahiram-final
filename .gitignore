@@ -127,9 +127,11 @@ uploads/
 public/uploads/
 storage/
 
-# Generated PWA service worker output
+# Generated PWA service worker output (Serwist)
 apps/web/public/sw.js
+apps/web/public/sw.js.map
 apps/web/public/workbox-*.js
+apps/web/public/fallback-*.js
 
 # =====================================================
 # Misc

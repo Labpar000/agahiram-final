@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '@agahiram/shared';
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -37,6 +38,16 @@ export default function ReelsPage() {
 
   const reels = data?.pages.flatMap((p) => p.data) ?? [];
   const activeReelId = reels[activeIndex]?.id;
+
+  // Landscape detection for reels layout adaptation
+  const [isLandscape, setIsLandscape] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(orientation: landscape)');
+    setIsLandscape(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsLandscape(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   const updateActiveFromScroll = useCallback(() => {
     const root = scrollRef.current;
@@ -121,7 +132,10 @@ export default function ReelsPage() {
 
       <div
         ref={scrollRef}
-        className="reels-scroll bg-black snap-y snap-mandatory scrollbar-hide overflow-y-scroll overscroll-y-contain"
+        className={cn(
+          'reels-scroll bg-black scrollbar-hide overflow-y-scroll overscroll-y-contain',
+          !isLandscape && 'snap-y snap-mandatory',
+        )}
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {isLoading && !data ? (

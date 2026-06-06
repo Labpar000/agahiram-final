@@ -4,14 +4,39 @@
   "description": "پلتفرم آگهی‌های اجتماعی — ترکیب اینستاگرام و دیوار",
   "start_url": "/feed",
   "scope": "/",
+  "id": "/feed",
   "display": "standalone",
   "display_override": ["standalone", "minimal-ui"],
   "background_color": "#ffffff",
-  "theme_color": "#e11d8a",
+  "theme_color": "#db2777",
   "orientation": "portrait",
   "dir": "rtl",
   "lang": "fa",
   "categories": ["social", "shopping", "lifestyle"],
+  "prefer_related_applications": false,
+  "screenshots": [
+    {
+      "src": "/screenshots/feed-1280x720.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "صفحه اصلی آگهی‌ها"
+    },
+    {
+      "src": "/screenshots/reels-750x1334.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ریلز"
+    },
+    {
+      "src": "/screenshots/create-750x1334.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ایجاد آگهی"
+    }
+  ],
   "icons": [
     { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png", "purpose": "any" },
     { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png", "purpose": "any" },
@@ -26,8 +51,12 @@
       "purpose": "maskable"
     },
     { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ],
   "shortcuts": [
     {

@@ -43,3 +43,23 @@ export async function registerWebPush(): Promise<boolean> {
   });
   return !!r.success;
 }
+
+export async function clearAppBadge(): Promise<void> {
+  if (typeof navigator !== 'undefined' && 'clearAppBadge' in navigator) {
+    try {
+      await navigator.clearAppBadge();
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+export async function setAppBadge(count: number): Promise<void> {
+  if (typeof navigator !== 'undefined' && 'setAppBadge' in navigator) {
+    try {
+      await navigator.setAppBadge(count);
+    } catch {
+      /* noop */
+    }
+  }
+}

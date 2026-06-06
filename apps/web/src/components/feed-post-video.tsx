@@ -97,7 +97,7 @@ export function FeedPostVideo({
         type="button"
         aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
         onClick={toggleMuted}
-        className="absolute end-2 top-2 z-10 grid size-8 place-items-center rounded-full bg-black/50 text-white tap-none"
+        className="absolute end-2 top-2 z-10 grid size-11 place-items-center rounded-full bg-black/50 text-white tap-none"
       >
         <IgVolume muted={muted} className="size-4" strokeWidth={1.75} aria-hidden />
       </button>

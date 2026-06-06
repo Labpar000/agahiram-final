@@ -62,5 +62,36 @@ export function WebVitals() {
       /* metrics are best-effort */
     }
   });
+
+  // ── PWA startup performance measurement (standalone mode only) ────
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.matchMedia('(display-mode: standalone)').matches) return;
+
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        if (entry.entryType === 'navigation') {
+          const navEntry = entry as PerformanceNavigationTiming;
+          const startupTime = navEntry.loadEventEnd || navEntry.domContentLoadedEventEnd;
+          if (startupTime) {
+            try {
+              navigator.sendBeacon?.(
+                '/api/v1/metrics/pwa-startup',
+                JSON.stringify({
+                  timeMs: Math.round(startupTime),
+                  type: navEntry.type,
+                }),
+              );
+            } catch {
+              /* best-effort */
+            }
+          }
+        }
+      }
+    });
+    observer.observe({ type: 'navigation', buffered: true });
+    return () => observer.disconnect();
+  }, []);
+
   return null;
 }

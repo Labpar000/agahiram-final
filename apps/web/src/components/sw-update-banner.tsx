@@ -10,22 +10,17 @@ export function SwUpdateBanner() {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
     const onControllerChange = () => window.location.reload();
+    const onUpdateAvailable = (e: Event) => {
+      const { worker } = (e as CustomEvent<{ worker: ServiceWorker }>).detail;
+      setWaiting(worker);
+    };
 
-    navigator.serviceWorker.ready.then((reg) => {
-      reg.addEventListener('updatefound', () => {
-        const worker = reg.installing;
-        if (!worker) return;
-        worker.addEventListener('statechange', () => {
-          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-            setWaiting(worker);
-          }
-        });
-      });
-    });
-
+    window.addEventListener('sw-update-available', onUpdateAvailable);
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
-    return () =>
+    return () => {
+      window.removeEventListener('sw-update-available', onUpdateAvailable);
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+    };
   }, []);
 
   if (!waiting) return null;

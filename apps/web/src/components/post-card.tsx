@@ -231,9 +231,29 @@ export function PostCard({
 
   const onShare = useCallback(async () => {
     const url = `${window.location.origin}/post/${post.id}`;
+    const shareData: ShareData = { title: post.title, url };
+
+    // Web Share Level 2: attach first image as file when supported
+    const firstMedia = post.media[0];
+    if (
+      firstMedia?.type === 'image' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [] })
+    ) {
+      try {
+        const response = await fetch(firstMedia.url);
+        const blob = await response.blob();
+        const ext = blob.type === 'image/webp' ? 'webp' : blob.type === 'image/png' ? 'png' : 'jpg';
+        const file = new File([blob], `agahiram-${post.id}.${ext}`, { type: blob.type });
+        shareData.files = [file];
+      } catch {
+        /* fall back to URL-only share */
+      }
+    }
+
     try {
       if (navigator.share) {
-        await navigator.share({ title: post.title, url });
+        await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(url);
         toast.success('لینک کپی شد');
@@ -241,7 +261,7 @@ export function PostCard({
     } catch {
       /* user cancelled */
     }
-  }, [post.id, post.title]);
+  }, [post.id, post.title, post.media]);
 
   const [messaging, setMessaging] = useState(false);
   const onSendMessage = useCallback(async () => {

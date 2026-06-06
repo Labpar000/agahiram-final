@@ -148,20 +148,73 @@ nav[aria-label='ناوبری اصلی'] {
 
 /* Off-screen rendering skip (modern, JS-free "virtualization"). The browser
    skips layout/paint for items outside the viewport; `contain-intrinsic-size`
-   with `auto` keeps the scrollbar stable and remembers the measured size. */
-.cv-card {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 640px;
+   with `auto` keeps the scrollbar stable and remembers the measured size.
+   Safari < 17.4 has bugs with content-visibility — feature-query guarded. */
+@supports (content-visibility: auto) {
+  .cv-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 640px;
+  }
+
+  .cv-tile {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 160px;
+  }
+
+  .cv-row {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 76px;
+  }
 }
 
-.cv-tile {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 160px;
+@supports not (content-visibility: auto) {
+  .cv-card {
+    contain: layout style paint;
+    content-visibility: visible;
+  }
+
+  .cv-tile {
+    contain: layout style paint;
+    content-visibility: visible;
+  }
+
+  .cv-row {
+    contain: layout style paint;
+    content-visibility: visible;
+  }
 }
 
-.cv-row {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 76px;
+/* ── PWA display-mode adaptation ─────────────────────────────────── */
+@media (display-mode: standalone) {
+  .standalone-only {
+    display: revert;
+  }
+
+  .browser-only {
+    display: none;
+  }
+
+  body {
+    /* Extra breathing room for home indicator in standalone */
+    --standalone-pb: 0.5rem;
+  }
+}
+
+@media (display-mode: browser) {
+  .standalone-only {
+    display: none;
+  }
+}
+
+/* ── View Transitions (progressive enhancement) ──────────────────── */
+@supports (view-transition-name: none) {
+  ::view-transition-old(page-content) {
+    animation: 150ms ease-out both fade-out;
+  }
+
+  ::view-transition-new(page-content) {
+    animation: 220ms var(--ease-out-expo, cubic-bezier(0.16, 1, 0.3, 1)) both slide-in-from-bottom;
+  }
 }
 
 /* Reels: WebKit scroll-snap + momentum (Safari iOS 18+) */

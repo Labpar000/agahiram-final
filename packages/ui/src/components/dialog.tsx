@@ -50,14 +50,15 @@ export const DialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         'fixed z-50 grid gap-4',
-        /* Margin-auto centering avoids RTL + translate property conflicts on mobile. */
-        'inset-x-0 mx-auto w-[calc(100%-2rem)]',
+        /* Use translate-X/Y centering — avoids RTL + inset-x-0 mx-auto conflicts on iOS. */
+        'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+        'w-[calc(100%-2rem)]',
         'max-h-[min(92svh,100%)] overflow-y-auto overscroll-contain',
         'rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-popover',
-        'top-1/2 -translate-y-1/2',
-        /* Narrow viewports: bottom-anchored sheet, no translate (Safari / RTL safe). */
-        'max-sm:top-auto max-sm:bottom-[max(0.75rem,var(--safe-bottom))]',
-        'max-sm:inset-x-3 max-sm:mx-0 max-sm:w-auto max-sm:translate-none',
+        /* Narrow viewports: bottom-anchored sheet, zero-out transform. */
+        'max-sm:top-auto max-sm:bottom-0 max-sm:left-0 max-sm:right-0',
+        'max-sm:translate-x-0 max-sm:translate-y-0',
+        'max-sm:w-full max-sm:rounded-b-none',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
         'max-sm:data-[state=open]:slide-in-from-bottom-2',
