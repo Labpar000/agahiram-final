@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -41,6 +41,7 @@ export function BottomNav() {
   const router = useRouter();
   const qc = useQueryClient();
   const myUsername = useAuthStore((s) => s.user?.username);
+  const myName = useAuthStore((s) => s.user?.name);
   const myAvatar = useAuthStore((s) => s.user?.avatar);
   const prevPath = useRef(pathname);
 
@@ -90,6 +91,19 @@ export function BottomNav() {
         const filled = filledWhenActive && active;
         const showAvatar = useAvatar && myUsername;
 
+        const handleProfileClick =
+          href === '/profile'
+            ? (e: MouseEvent<HTMLAnchorElement>) => {
+                if (pathname === resolvedHref) {
+                  e.preventDefault();
+                  return;
+                }
+                // Explicit push keeps @profile slot in sync on client tab switches.
+                e.preventDefault();
+                router.push(resolvedHref, { scroll: false });
+              }
+            : undefined;
+
         return (
           <li key={href} className="flex min-h-[var(--ig-action)] items-stretch justify-center">
             <Link
@@ -98,23 +112,40 @@ export function BottomNav() {
               aria-label={label}
               prefetch
               scroll={href === '/profile' ? false : undefined}
+              onClick={handleProfileClick}
               onPointerEnter={() => warmTab(href)}
               onFocus={() => warmTab(href)}
               className={tabLinkClass(active)}
             >
               <span className="relative inline-flex items-center justify-center">
                 {showAvatar ? (
-                  <Avatar
-                    className={cn(
-                      'size-[1.375rem] ring-2 ring-offset-1 ring-offset-surface',
-                      active ? 'ring-foreground' : 'ring-transparent',
-                    )}
-                  >
-                    {myAvatar ? <AvatarImage src={myAvatar} alt="" /> : null}
-                    <AvatarFallback className="text-[8px] font-semibold">
-                      {(myUsername ?? '?').slice(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  myAvatar ? (
+                    <Avatar
+                      className={cn(
+                        'size-[var(--ig-icon)]',
+                        active && 'ring-[1.5px] ring-foreground',
+                      )}
+                    >
+                      <AvatarImage src={myAvatar} alt="" />
+                      <AvatarFallback className="text-[0.5625rem] font-semibold leading-none">
+                        {(myName ?? myUsername ?? '?').slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  ) : (
+                    <span
+                      className={cn(
+                        'grid size-[var(--ig-icon)] place-items-center rounded-full bg-muted text-muted-foreground',
+                        active && 'text-foreground ring-[1.5px] ring-foreground',
+                      )}
+                      aria-hidden
+                    >
+                      <IgUser
+                        className="size-[calc(var(--ig-icon)*0.58)]"
+                        filled={active}
+                        strokeWidth={active ? 2.1 : 1.75}
+                      />
+                    </span>
+                  )
                 ) : (
                   <Icon
                     className="size-[var(--ig-icon)]"
@@ -124,7 +155,6 @@ export function BottomNav() {
                   />
                 )}
               </span>
-              <span className="sr-only">{label}</span>
             </Link>
           </li>
         );

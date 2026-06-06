@@ -35,6 +35,24 @@ type TabShellProps = {
   profile: React.ReactNode;
 };
 
+/** Parallel slots can lag on first client nav — fall back to `children` for the active tab. */
+function TabSlot({
+  visible,
+  slot,
+  fallback,
+}: {
+  visible: boolean;
+  slot: React.ReactNode;
+  fallback: React.ReactNode;
+}) {
+  const content = visible && slot == null ? fallback : slot;
+  return (
+    <div className={visible ? 'block' : 'hidden'} aria-hidden={!visible}>
+      {content}
+    </div>
+  );
+}
+
 function HiddenSlots({ feed, explore, reels, messages, profile }: Omit<TabShellProps, 'children'>) {
   return (
     <>
@@ -87,26 +105,15 @@ export function TabShell({ children, feed, explore, reels, messages, profile }: 
     return <PageTransition>{children}</PageTransition>;
   }
 
+  const routed = <PageTransition>{children}</PageTransition>;
+
   return (
     <>
-      <div className={active === 'feed' ? 'block' : 'hidden'} aria-hidden={active !== 'feed'}>
-        {feed}
-      </div>
-      <div className={active === 'explore' ? 'block' : 'hidden'} aria-hidden={active !== 'explore'}>
-        {explore}
-      </div>
-      <div className={active === 'reels' ? 'block' : 'hidden'} aria-hidden={active !== 'reels'}>
-        {reels}
-      </div>
-      <div
-        className={active === 'messages' ? 'block' : 'hidden'}
-        aria-hidden={active !== 'messages'}
-      >
-        {messages}
-      </div>
-      <div className={active === 'profile' ? 'block' : 'hidden'} aria-hidden={active !== 'profile'}>
-        {profile}
-      </div>
+      <TabSlot visible={active === 'feed'} slot={feed} fallback={routed} />
+      <TabSlot visible={active === 'explore'} slot={explore} fallback={routed} />
+      <TabSlot visible={active === 'reels'} slot={reels} fallback={routed} />
+      <TabSlot visible={active === 'messages'} slot={messages} fallback={routed} />
+      <TabSlot visible={active === 'profile'} slot={profile} fallback={routed} />
     </>
   );
 }

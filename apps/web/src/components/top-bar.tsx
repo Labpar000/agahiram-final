@@ -7,7 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { SearchSuggestionItem } from '@agahiram/shared';
 import { formatPersianNumber, normalizePersianText } from '@agahiram/shared';
 import {
-  IgActivity,
+  IgBell,
   IgClose,
   IgDirect,
   IgHeaderBadge,
@@ -117,12 +117,13 @@ export function TopBar() {
             <ThemeButton />
             <HeaderIconLink
               href="/notifications"
-              label="فعالیت"
+              label="اعلان‌ها"
               badge={notifUnread}
               icon={
-                <IgActivity
+                <IgBell
                   className="size-[var(--ig-icon)]"
                   filled={notifUnread > 0}
+                  strokeWidth={1.75}
                   aria-hidden
                 />
               }
