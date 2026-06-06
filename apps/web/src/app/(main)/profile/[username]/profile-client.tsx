@@ -37,6 +37,7 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient, assertSuccess } from '@/lib/api';
+import { profileTabQueryKey } from '@/lib/query-cache-profile';
 import { karmaTier } from '@/lib/reputation';
 import { PostLink } from '@/components/post-link';
 import { useAuth } from '@/hooks/useAuth';
@@ -105,7 +106,7 @@ export function ProfileClient({ username }: { username: string }) {
     hasNextPage: hasNextPostsPage,
     isFetchingNextPage: isFetchingNextPostsPage,
   } = useInfiniteQuery({
-    queryKey: ['profile', username, tab],
+    queryKey: profileTabQueryKey(username, tab),
     queryFn: async ({ pageParam }) => {
       let endpoint: string;
       switch (tab) {

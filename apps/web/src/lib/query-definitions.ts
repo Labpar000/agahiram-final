@@ -39,7 +39,13 @@ export async function fetchExplorePage(
     if (!data.posts) {
       throw new Error('پاسخ جستجو نامعتبر است');
     }
-    return { ...data.posts, users: data.users, categories: data.categories };
+    return {
+      data: data.posts.data ?? [],
+      nextCursor: data.posts.nextCursor ?? null,
+      hasMore: data.posts.hasMore ?? false,
+      users: data.users,
+      categories: data.categories,
+    };
   }
   const r = await apiClient.get<FeedPage>('/posts/explore', {
     ...filters,

@@ -3,6 +3,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { fetchExplorePage, fetchFeedPage, fetchReelsPage } from '@/lib/query-definitions';
+import { profileTabQueryKey } from '@/lib/query-cache-profile';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 
 const prefetched = new Set<string>();
@@ -54,14 +55,16 @@ export function prefetchMainTab(
             queryKey: ['profile', username],
             queryFn: async () => (await apiClient.get(`/users/${username}`)).data,
           });
-          void qc.prefetchQuery({
-            queryKey: ['profile', username, 'posts'],
-            queryFn: async () => {
+          void qc.prefetchInfiniteQuery({
+            queryKey: profileTabQueryKey(username, 'posts'),
+            queryFn: async ({ pageParam }) => {
               const r = await apiClient.get<PaginatedResponse<PostSummary>>(
                 `/posts/user/${username}`,
+                pageParam ? { cursor: pageParam as string } : undefined,
               );
-              return r.data?.data ?? [];
+              return r.data ?? { data: [], nextCursor: null, hasMore: false };
             },
+            initialPageParam: undefined as string | undefined,
           });
         });
       }

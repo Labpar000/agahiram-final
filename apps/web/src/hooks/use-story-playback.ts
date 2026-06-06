@@ -25,10 +25,7 @@ export function useStoryPlayback({
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
-  const segmentMs =
-    mediaType === 'video'
-      ? Math.max(1000, durationMs ?? STORY_IMAGE_MS)
-      : (durationMs ?? STORY_IMAGE_MS);
+  const segmentMs = Math.max(1000, durationMs && durationMs > 0 ? durationMs : STORY_IMAGE_MS);
 
   const timerProgress = useStorySegmentProgress({
     segmentKey: mediaType === 'image' ? storyId : undefined,

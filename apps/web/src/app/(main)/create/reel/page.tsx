@@ -81,8 +81,18 @@ export default function CreateReelPage() {
   const publish = useMutation({
     mutationFn: async () => {
       if (!mediaKey || title.length < 3) throw new Error('عنوان و ویدیو الزامی است');
-      const cats = await apiClient.get<Array<{ id: string }>>('/categories');
-      const categoryId = cats.data?.[0]?.id;
+      type CatNode = { id: string; children?: CatNode[] };
+      const cats = await apiClient.get<CatNode[]>('/categories/tree');
+      // Reels skip the category wizard, so pick the first leaf as a sensible default.
+      const firstLeaf = (nodes: CatNode[] | undefined): string | undefined => {
+        for (const n of nodes ?? []) {
+          if (!n.children?.length) return n.id;
+          const leaf = firstLeaf(n.children);
+          if (leaf) return leaf;
+        }
+        return undefined;
+      };
+      const categoryId = firstLeaf(cats.data);
       if (!categoryId) throw new Error('دسته‌بندی یافت نشد');
       const cities = await apiClient.get<{ data: Array<{ id: string }> }>(
         '/locations/cities?limit=1',

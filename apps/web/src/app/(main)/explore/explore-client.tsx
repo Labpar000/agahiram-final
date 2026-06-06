@@ -133,8 +133,11 @@ export function ExploreClient({
           limit: 24,
         });
         if (!r.success || !r.data) throw new Error(r.error ?? 'خطا در جستجو');
+        const posts = r.data.posts;
         return {
-          ...r.data.posts,
+          data: posts?.data ?? [],
+          nextCursor: posts?.nextCursor ?? null,
+          hasMore: posts?.hasMore ?? false,
           users: pageParam ? undefined : r.data.users,
           categories: pageParam ? undefined : r.data.categories,
         } satisfies ExplorePage;
@@ -144,7 +147,9 @@ export function ExploreClient({
         cursor: pageParam as string | undefined,
         limit: 24,
       });
-      if (r.success && r.data) return r.data;
+      if (r.success && r.data) {
+        return { ...r.data, data: r.data.data ?? [] };
+      }
       return { data: [], nextCursor: null, hasMore: false } as PaginatedResponse<PostSummary>;
     },
     getNextPageParam: (last) => last.nextCursor ?? undefined,

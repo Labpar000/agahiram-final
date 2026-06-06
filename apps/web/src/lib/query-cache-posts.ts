@@ -2,6 +2,7 @@
 
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
+import { profileTabQueryKey } from '@/lib/query-cache-profile';
 
 type FeedPage = PaginatedResponse<PostSummary>;
 
@@ -13,7 +14,7 @@ function patchPostInPages(
   if (!pages) return pages;
   return pages.map((page) => ({
     ...page,
-    data: page.data.map((p) => (p.id === postId ? { ...p, ...patch } : p)),
+    data: (page.data ?? []).map((p) => (p.id === postId ? { ...p, ...patch } : p)),
   }));
 }
 
@@ -54,15 +55,26 @@ export function patchProfileSavedList(
   saved: boolean,
   post?: PostSummary,
 ) {
-  const key = ['profile', username, 'saved'] as const;
-  qc.setQueryData<PostSummary[]>(key, (old) => {
-    const list = old ?? [];
-    if (saved) {
-      if (list.some((p) => p.id === postId)) return list;
-      if (post) return [post, ...list];
-      return list;
+  const key = profileTabQueryKey(username, 'saved');
+  qc.setQueryData<InfiniteData<FeedPage>>(key, (old) => {
+    if (!old?.pages?.length) {
+      if (!saved || !post) return old;
+      return {
+        pages: [{ data: [post], nextCursor: null, hasMore: false }],
+        pageParams: [undefined],
+      };
     }
-    return list.filter((p) => p.id !== postId);
+    const [first, ...rest] = old.pages;
+    const list = first?.data ?? [];
+    const next = saved
+      ? list.some((p) => p.id === postId)
+        ? list
+        : post
+          ? [post, ...list]
+          : list
+      : list.filter((p) => p.id !== postId);
+    if (next === list) return old;
+    return { ...old, pages: [{ ...first!, data: next }, ...rest] };
   });
 }
 
@@ -80,10 +92,12 @@ export function findPostInClientCache(qc: QueryClient, postId: string): PostSumm
     }
   }
 
-  const profileQueries = qc.getQueriesData<PostSummary[]>({ queryKey: ['profile'] });
-  for (const [, list] of profileQueries) {
-    const hit = list?.find((p) => p.id === postId);
-    if (hit) return hit;
+  const profileQueries = qc.getQueriesData<InfiniteData<FeedPage>>({ queryKey: ['profile'] });
+  for (const [, data] of profileQueries) {
+    for (const page of data?.pages ?? []) {
+      const hit = page.data?.find((p) => p.id === postId);
+      if (hit) return hit;
+    }
   }
 
   return undefined;

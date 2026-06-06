@@ -5,6 +5,7 @@ import type { PostSummary } from '@agahiram/shared';
 import { apiClient, assertSuccess } from '@/lib/api';
 import type { ApiResponse } from '@agahiram/shared';
 import { handleEngagementError } from '@/lib/engagement-auth';
+import { endUserSession } from '@/lib/logout-session';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   findPostInClientCache,
@@ -12,6 +13,7 @@ import {
   patchPostInInfiniteQueries,
   patchProfileSavedList,
 } from '@/lib/query-cache-posts';
+import { profileTabQueryKey } from '@/lib/query-cache-profile';
 import { isMocksEnabled } from '@/lib/mock-data';
 
 type LikeResult = { liked: boolean; likesCount: number };
@@ -54,8 +56,9 @@ export function useLikePost() {
         patchPostInInfiniteQueries(qc, ctx.postId, { isLiked: !ctx.like, likesCount });
         patchPostDetail(qc, ctx.postId, { isLiked: !ctx.like, likesCount });
       }
-      const logout = useAuthStore.getState().logout;
-      handleEngagementError(err as unknown as ApiResponse, 'like', logout);
+      handleEngagementError(err as unknown as ApiResponse, 'like', () => {
+        void endUserSession(qc);
+      });
     },
     onSettled: (_data, _err, { postId }) => {
       void qc.invalidateQueries({ queryKey: ['post', postId], refetchType: 'none' });
@@ -89,7 +92,7 @@ export function useSavePost() {
       await qc.cancelQueries({ queryKey: ['explore'] });
       await qc.cancelQueries({ queryKey: ['reels'] });
       if (me?.username) {
-        await qc.cancelQueries({ queryKey: ['profile', me.username, 'saved'] });
+        await qc.cancelQueries({ queryKey: profileTabQueryKey(me.username, 'saved') });
       }
 
       const prevPost = qc.getQueryData<PostSummary>(['post', postId]);
@@ -114,13 +117,14 @@ export function useSavePost() {
         patchProfileSavedList(qc, ctx.username, ctx.postId, !ctx.save, cached);
         patchPostInInfiniteQueries(qc, ctx.postId, { isSaved: !ctx.save });
       }
-      const logout = useAuthStore.getState().logout;
-      handleEngagementError(err as unknown as ApiResponse, 'save', logout);
+      handleEngagementError(err as unknown as ApiResponse, 'save', () => {
+        void endUserSession(qc);
+      });
     },
     onSettled: (_data, _err, { postId }) => {
       if (me?.username) {
         void qc.invalidateQueries({
-          queryKey: ['profile', me.username, 'saved'],
+          queryKey: profileTabQueryKey(me.username, 'saved'),
           refetchType: 'active',
         });
       }

@@ -32,6 +32,7 @@ import { apiClient } from '@/lib/api';
 import { handleEngagementError } from '@/lib/engagement-auth';
 import { useLikePost, useSavePost } from '@/hooks/usePosts';
 import { useAuthStore } from '@/lib/auth-store';
+import { endUserSession } from '@/lib/logout-session';
 import { runEngagementAction } from '@/lib/inp';
 import { useManagedVideo } from '@/hooks/use-managed-video';
 import { getReelsMutedPreference, setReelsMutedPreference } from '@/lib/video-playback';
@@ -43,7 +44,9 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const router = useRouter();
   const qc = useQueryClient();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const logout = useAuthStore((s) => s.logout);
+  const endSession = useCallback(() => {
+    void endUserSession(qc);
+  }, [qc]);
   const likeMutation = useLikePost();
   const saveMutation = useSavePost();
   const lastTapRef = useRef(0);
@@ -106,7 +109,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const onLikeToggle = useCallback(
     (forceLike?: boolean) => {
       if (!isAuthenticated) {
-        handleEngagementError({ success: false, statusCode: 401 }, 'like', logout);
+        handleEngagementError({ success: false, statusCode: 401 }, 'like', endSession);
         return;
       }
       const next = forceLike ?? !liked;
@@ -128,12 +131,12 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         );
       });
     },
-    [liked, reel.id, isAuthenticated, logout, likeMutation],
+    [liked, reel.id, isAuthenticated, endSession, likeMutation],
   );
 
   const onSaveToggle = useCallback(() => {
     if (!isAuthenticated) {
-      handleEngagementError({ success: false, statusCode: 401 }, 'save', logout);
+      handleEngagementError({ success: false, statusCode: 401 }, 'save', endSession);
       return;
     }
     const next = !saved;
@@ -141,7 +144,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     runEngagementAction(`save-${reel.id}`, () => {
       saveMutation.mutate({ postId: reel.id, save: next }, { onError: () => setSaved(!next) });
     });
-  }, [saved, reel.id, isAuthenticated, logout, saveMutation]);
+  }, [saved, reel.id, isAuthenticated, endSession, saveMutation]);
 
   const onShare = useCallback(async () => {
     const url = `${window.location.origin}/post/${reel.id}`;
@@ -331,7 +334,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                   const isUnauthorized =
                     r.statusCode === 401 ||
                     (typeof r.error === 'string' && r.error.includes('401'));
-                  if (isUnauthorized) logout();
+                  if (isUnauthorized) endSession();
                   toast.error('برای دنبال‌کردن ابتدا وارد شوید');
                 } else {
                   void qc.invalidateQueries({ queryKey: ['feed'] });

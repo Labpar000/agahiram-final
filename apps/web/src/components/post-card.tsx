@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { MouseEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -48,6 +49,7 @@ import { ReportDialog } from '@/components/report-dialog';
 import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
+import { endUserSession } from '@/lib/logout-session';
 import { CollectionPickerDrawer } from '@/components/collection-picker-drawer';
 import { CommentComposer, CommentList, CommentSectionProvider } from './comment-section';
 import { CommentsDrawerHeader } from './comments-drawer-header';
@@ -116,9 +118,12 @@ export function PostCard({
   }, [post.id, post.viewedByMe, locallyViewed]);
   const showSeenBadge = Boolean(post.viewedByMe) || locallyViewed;
 
+  const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const logout = useAuthStore((s) => s.logout);
+  const endSession = useCallback(() => {
+    void endUserSession(qc);
+  }, [qc]);
   const isOwner = me?.id === post.user.id;
   const tier = karmaTier(post.user.karma);
   const postQualityLabel = qualityLabel(post.qualityScore);
@@ -138,7 +143,7 @@ export function PostCard({
   const onLikeToggle = useCallback(
     (forceLike?: boolean) => {
       if (!isAuthenticated) {
-        handleEngagementError({ success: false, statusCode: 401 }, 'like', logout);
+        handleEngagementError({ success: false, statusCode: 401 }, 'like', endSession);
         return;
       }
       const next = forceLike ?? !liked;
@@ -160,12 +165,12 @@ export function PostCard({
         );
       });
     },
-    [liked, post.id, isAuthenticated, logout, likeMutation],
+    [liked, post.id, isAuthenticated, endSession, likeMutation],
   );
 
   const onSaveToggle = useCallback(() => {
     if (!isAuthenticated) {
-      handleEngagementError({ success: false, statusCode: 401 }, 'save', logout);
+      handleEngagementError({ success: false, statusCode: 401 }, 'save', endSession);
       return;
     }
     const next = !saved;
@@ -178,7 +183,7 @@ export function PostCard({
         },
       );
     });
-  }, [saved, post.id, isAuthenticated, logout, saveMutation]);
+  }, [saved, post.id, isAuthenticated, endSession, saveMutation]);
 
   const onContact = useCallback(async () => {
     if (contactRevealed) {

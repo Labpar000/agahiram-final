@@ -210,13 +210,32 @@ async function seedAdmin() {
 
   for (let i = 0; i < adminPhones.length; i++) {
     const phone = adminPhones[i]!;
+    const preferredUsername = i === 0 ? 'admin' : `admin${i + 1}`;
+
+    /* Check if the preferred username is already taken by a *different* user. */
+    const usernameOwner = await prisma.user.findUnique({ where: { username: preferredUsername } });
+    const usernameConflict = usernameOwner && usernameOwner.phone !== phone;
+
+    /* If the username is taken by someone else, promote that user to admin and
+     * skip creating a duplicate. Otherwise upsert normally. */
+    if (usernameConflict) {
+      await prisma.user.update({
+        where: { username: preferredUsername },
+        data: { role: 'admin', isVerified: true },
+      });
+      console.log(
+        `Username '${preferredUsername}' already exists — promoted existing user to admin.`,
+      );
+      continue;
+    }
+
     await prisma.user.upsert({
       where: { phone },
       update: { role: 'admin', isVerified: true },
       create: {
         phone,
         name: 'مدیر سیستم',
-        username: i === 0 ? 'admin' : `admin${i + 1}`,
+        username: preferredUsername,
         role: 'admin',
         isVerified: true,
       },

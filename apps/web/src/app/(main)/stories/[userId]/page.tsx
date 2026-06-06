@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, use, useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -101,6 +101,20 @@ interface ViewerListResponse {
 const STORY_IMAGE_MS = 5_000;
 
 export default function StoryViewerPage({ params }: { params: Promise<{ userId: string }> }) {
+  return (
+    <Suspense
+      fallback={
+        <StoryViewerOverlay className="grid place-items-center">
+          <Spinner size="xl" className="text-white" />
+        </StoryViewerOverlay>
+      }
+    >
+      <StoryViewerContent params={params} />
+    </Suspense>
+  );
+}
+
+function StoryViewerContent({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();

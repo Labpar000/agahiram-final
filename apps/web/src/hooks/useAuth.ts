@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   completeProfileSchema,
@@ -13,10 +13,11 @@ import {
 import type { AuthTokens, UserProfile } from '@agahiram/shared';
 import { apiClient, setAuthCookies } from '@/lib/api';
 import { isMocksEnabled } from '@/lib/mock-data';
+import { endUserSession } from '@/lib/logout-session';
 import { useAuthStore } from '@/lib/auth-store';
 
 export function useAuth() {
-  const { user, isAuthenticated, isLoading, setUser, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading, setUser } = useAuthStore();
   const queryClient = useQueryClient();
 
   const fetchMe = useQuery({
@@ -85,13 +86,16 @@ export function useAuth() {
   });
 
   const handleLogout = useCallback(async () => {
-    await apiClient.post('/auth/logout');
-    logout();
-    queryClient.clear();
-  }, [logout, queryClient]);
+    await endUserSession(queryClient);
+  }, [queryClient]);
+
+  const resolvedUser = useMemo(
+    () => (isAuthenticated ? (user ?? fetchMe.data ?? null) : null),
+    [isAuthenticated, user, fetchMe.data],
+  );
 
   return {
-    user: user ?? fetchMe.data ?? null,
+    user: resolvedUser,
     isAuthenticated,
     isLoading: isLoading || fetchMe.isLoading,
     sendOtp,
