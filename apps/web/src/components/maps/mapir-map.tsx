@@ -6,21 +6,20 @@ import { cn } from '@agahiram/shared';
 import {
   DEFAULT_MAP_CENTER,
   DEFAULT_MAP_ZOOM,
-  NESHAN_MAP_KEY,
-  NESHAN_STYLES,
-  neshanStaticUrl,
-  type NeshanStyleKey,
+  MAPIR_API_KEY,
+  MAPIR_STYLES,
+  type MapirStyleKey,
   transformRequest,
-} from '@/lib/neshan';
+} from '@/lib/mapir';
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 
-export interface NeshanMapProps {
+export interface MapirMapProps {
   /** Map center as [lng, lat] — note the order, MapLibre is GeoJSON-style. */
   center?: [number, number];
   zoom?: number;
   /** Daytime by default. Pass 'standardNight' for dark mode. */
-  styleKey?: NeshanStyleKey;
+  styleKey?: MapirStyleKey;
   className?: string;
   interactive?: boolean;
   /** Fires when the user clicks anywhere on the map. */
@@ -31,17 +30,17 @@ export interface NeshanMapProps {
   onReady?: (map: maplibregl.Map) => void;
 }
 
-export interface NeshanMapHandle {
+export interface MapirMapHandle {
   getMap: () => maplibregl.Map | null;
   flyTo: (lng: number, lat: number, zoom?: number) => void;
 }
 
 /**
- * Thin wrapper over MapLibre GL pre-wired to Neshan's vector tile style.
+ * Thin wrapper over MapLibre GL pre-wired to Map.ir's vector tile style.
  * SSR-safe: the library is loaded dynamically on the client, so importing
  * this component from a server file won't blow up.
  */
-export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function NeshanMap(
+export const MapirMap = forwardRef<MapirMapHandle, MapirMapProps>(function MapirMap(
   {
     center = DEFAULT_MAP_CENTER,
     zoom = DEFAULT_MAP_ZOOM,
@@ -78,26 +77,19 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
     let cancelled = false;
     let map: maplibregl.Map | null = null;
 
-    /* MapLibre touches `window`/`document` at import time, so we import it
-     * dynamically. This also lets us tree-shake the library out of any SSR
-     * bundle that doesn't actually mount the component. */
     void import('maplibre-gl')
       .then(({ default: maplibre }) => {
         if (cancelled || !containerRef.current) return;
         try {
           map = new maplibre.Map({
             container: containerRef.current,
-            style: NESHAN_STYLES[styleKey],
+            style: MAPIR_STYLES[styleKey],
             center,
             zoom,
             attributionControl: false,
             interactive,
             transformRequest,
-            /* Keep pinch/drag on the map instead of scrolling the page (Safari). */
             cooperativeGestures: false,
-            /* Persian map needs Persian fonts to actually display labels.
-             * Neshan's style ships glyphs that already cover this, but if a
-             * font block is missing we fall back to a sensible alternative. */
             localIdeographFontFamily: "'Vazirmatn', 'Tahoma', sans-serif",
           });
 
@@ -110,7 +102,7 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
               new maplibre.AttributionControl({
                 compact: true,
                 customAttribution:
-                  '© <a href="https://neshan.org" target="_blank" rel="noreferrer">نشان</a>',
+                  '© <a href="https://map.ir" target="_blank" rel="noreferrer">مپ</a>',
               }),
             );
           }
@@ -124,7 +116,7 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
           map.on('error', (ev: { error?: { status?: number; message?: string } }) => {
             const status = ev.error?.status;
             if (status === 401 || status === 403) {
-              setError('کلید نقشه نامعتبر یا دامنه مجاز نیست. در پنل نشان، دامنه را اضافه کنید.');
+              setError('کلید نقشه نامعتبر یا دامنه مجاز نیست. در پنل map.ir، دامنه را اضافه کنید.');
             }
           });
 
@@ -148,8 +140,6 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
       mapRef.current?.remove();
       mapRef.current = null;
     };
-    /* Map identity is mounted once per styleKey; ad-hoc center/zoom updates
-     * should go through the imperative handle, not through re-mounting. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [styleKey]);
 
@@ -178,24 +168,14 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
       />
       {error ? (
         <div className="absolute inset-0 grid place-items-center bg-background/80 backdrop-blur-sm">
-          {NESHAN_MAP_KEY && center ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={neshanStaticUrl({
-                lat: center[1],
-                lng: center[0],
-                zoom,
-                width: 640,
-                height: 360,
-              })}
-              alt="نقشه موقعیت"
-              className="size-full object-cover"
-            />
-          ) : (
-            <div className="max-w-[80%] rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
-              {error || 'نقشه در دسترس نیست'}
-            </div>
-          )}
+          <div className="max-w-[80%] rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-center text-xs text-destructive">
+            {error || 'نقشه در دسترس نیست'}
+            {!MAPIR_API_KEY ? (
+              <p className="mt-2 text-[10px] text-muted-foreground">
+                متغیر NEXT_PUBLIC_MAPIR_API_KEY تنظیم نشده است.
+              </p>
+            ) : null}
+          </div>
         </div>
       ) : !ready ? (
         <div className="absolute inset-0 grid place-items-center bg-muted">

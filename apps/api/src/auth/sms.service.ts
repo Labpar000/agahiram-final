@@ -6,7 +6,7 @@ const PLACEHOLDER_ENV_VALUES = new Set([
   '',
   'your_kavenegar_api_key',
   'your_merchant_id',
-  'your_neshan_api_key',
+  'your_mapir_api_key',
 ]);
 
 function isConfiguredSecret(value: string | undefined): value is string {

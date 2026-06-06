@@ -110,9 +110,10 @@ export const BANNED_WORDS = ['فروش اعضا', 'مواد مخدر', 'سلاح
 export const ZARINPAL_SANDBOX = 'https://sandbox.zarinpal.com/pg/v4/payment';
 export const ZARINPAL_PRODUCTION = 'https://api.zarinpal.com/pg/v4/payment';
 
-export const NESHAN_TILE_URL = 'https://api.neshan.org/v1/static';
-export const NESHAN_GEOCODE_URL = 'https://api.neshan.org/v4/geocoding';
-export const NESHAN_REVERSE_GEOCODE_URL = 'https://api.neshan.org/v5/reverse';
+export const MAPIR_API_BASE = 'https://map.ir';
+export const MAPIR_REVERSE_URL = `${MAPIR_API_BASE}/reverse/`;
+export const MAPIR_FAST_REVERSE_URL = `${MAPIR_API_BASE}/fast-reverse/`;
+export const MAPIR_SEARCH_URL = `${MAPIR_API_BASE}/search/v2/`;
 
 export const PWA_THEME_COLOR = '#db2777';
 export const PWA_BACKGROUND_COLOR = '#ffffff';

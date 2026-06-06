@@ -19,17 +19,17 @@ import {
   DEFAULT_MAP_ZOOM,
   reverseGeocode,
   searchPlaces,
-  type NeshanSearchItem,
+  type MapirSearchItem,
   type ReverseGeocodeResult,
-} from '@/lib/neshan';
-import { NeshanMap, type NeshanMapHandle } from './neshan-map';
+} from '@/lib/mapir';
+import { MapirMap, type MapirMapHandle } from './mapir-map';
 
 export interface PickedLocation {
   lat: number;
   lng: number;
   /** Human-readable address from reverse-geocoding (best-effort). */
   address?: string;
-  /** Optional structured pieces from Neshan reverse-geocode. */
+  /** Optional structured pieces from Map.ir reverse-geocode. */
   details?: ReverseGeocodeResult | null;
 }
 
@@ -50,7 +50,7 @@ export interface LocationPickerProps {
  *  - Dragging the map moves the pin (so users can pan-to-place — no fiddly
  *    marker dragging on touch devices).
  *  - "Use my location" snaps to GPS. Address resolves via reverse-geocoding.
- *  - Search bar autocompletes Neshan places and flies to the result.
+ *  - Search bar autocompletes Map.ir places and flies to the result.
  *  - Toggle to hide exact location from the public post (still stored, just
  *    not shown publicly).
  */
@@ -62,7 +62,7 @@ export function LocationPicker({
   defaultCenter,
   className,
 }: LocationPickerProps) {
-  const mapRef = useRef<NeshanMapHandle>(null);
+  const mapRef = useRef<MapirMapHandle>(null);
   const [center, setCenter] = useState<[number, number]>(() => {
     if (value) return [value.lng, value.lat];
     if (defaultCenter) return [defaultCenter.lng, defaultCenter.lat];
@@ -72,7 +72,7 @@ export function LocationPicker({
   const [resolving, setResolving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [q, setQ] = useState('');
-  const [results, setResults] = useState<NeshanSearchItem[]>([]);
+  const [results, setResults] = useState<MapirSearchItem[]>([]);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
@@ -144,7 +144,7 @@ export function LocationPicker({
     return () => clearTimeout(t);
   }, [q, center]);
 
-  const pickResult = useCallback((item: NeshanSearchItem) => {
+  const pickResult = useCallback((item: MapirSearchItem) => {
     mapRef.current?.flyTo(item.location.x, item.location.y, 16);
     setQ(item.title);
     setShowResults(false);
@@ -220,7 +220,7 @@ export function LocationPicker({
       </div>
 
       <div className="relative touch-none overscroll-contain">
-        <NeshanMap
+        <MapirMap
           ref={mapRef}
           center={center}
           zoom={value ? 15 : DEFAULT_MAP_ZOOM}

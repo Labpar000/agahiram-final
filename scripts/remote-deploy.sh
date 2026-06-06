@@ -41,6 +41,15 @@ write_status() {
   echo "$1" > "$STATUS_FILE"
 }
 
+run_db_migrate_and_seed() {
+  log "running database migrations..."
+  docker compose $COMPOSE run --rm --workdir /app api sh -lc \
+    '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
+  log "running database seed (idempotent)..."
+  docker compose $COMPOSE run --rm --workdir /app api sh -lc \
+    'cd /app/packages/database && node --experimental-strip-types prisma/seed.ts'
+}
+
 migrate_minio_env() {
   [[ -f "$ENV_FILE" ]] || return 0
   add_if_missing() {
@@ -236,9 +245,7 @@ deploy_transfer() {
   fi
 
   if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
-    log "running database migrations..."
-    docker compose $COMPOSE run --rm --workdir /app api sh -lc \
-      '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
+    run_db_migrate_and_seed
   fi
 
   log "restarting application containers..."
@@ -312,9 +319,7 @@ deploy_pull() {
   fi
 
   if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
-    log "running database migrations..."
-    docker compose $COMPOSE run --rm --workdir /app api sh -lc \
-      '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
+    run_db_migrate_and_seed
   fi
 
   log "restarting application containers..."
@@ -356,9 +361,7 @@ deploy_build() {
   docker compose $COMPOSE_BUILD build --parallel $BUILD_SERVICES
 
   if [[ " $BUILD_SERVICES " == *" api "* || " $BUILD_SERVICES " == *" worker "* ]]; then
-    log "running database migrations..."
-    docker compose $COMPOSE run --rm --workdir /app api sh -lc \
-      '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
+    run_db_migrate_and_seed
   fi
 
   log "restarting application containers..."

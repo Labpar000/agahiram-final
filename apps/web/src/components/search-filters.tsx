@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   IgArrowBack,
@@ -214,6 +214,8 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
             <CityLocationPicker
               currentCityId={local.cityId}
               currentProvinceId={local.provinceId}
+              currentCityName={local.cityName}
+              currentProvinceName={local.provinceName}
               onPickProvince={(p) => {
                 setLocal((s) => ({
                   ...s,
@@ -623,20 +625,29 @@ function CategoryPicker({
 export function CityLocationPicker({
   currentCityId,
   currentProvinceId,
+  currentCityName,
+  currentProvinceName,
   onPickProvince,
   onPickCity,
   onPickProvinceOnly,
   onClear,
+  embedded = false,
 }: {
   currentCityId?: string;
   currentProvinceId?: string;
+  currentCityName?: string;
+  currentProvinceName?: string;
   onPickProvince: (p: Province) => void;
   onPickCity: (c: City, p: Province) => void;
   onPickProvinceOnly: (p: Province) => void;
   onClear: () => void;
+  /** Collapse to a summary row after city pick (create/ad post flow). */
+  embedded?: boolean;
 }) {
   const [provincePicked, setProvincePicked] = useState<Province | null>(null);
   const [q, setQ] = useState('');
+  const [listOpen, setListOpen] = useState(() => !embedded || !currentCityId);
+  const userOpenedListRef = useRef(false);
 
   const { data: provinces, isLoading: provincesLoading } = useQuery({
     queryKey: ['provinces'],
@@ -654,6 +665,17 @@ export function CityLocationPicker({
       return r.data ?? [];
     },
     enabled: Boolean(provincePicked),
+  });
+
+  const { data: cityDetails } = useQuery({
+    queryKey: ['city-detail', currentCityId],
+    queryFn: async () => {
+      const r = await apiClient.get<City & { province: Province }>(
+        `/locations/city/${currentCityId}`,
+      );
+      return r.data ?? null;
+    },
+    enabled: embedded && !listOpen && !!currentCityId && !currentCityName,
   });
 
   /* Live search: hit the global city search endpoint when q has ≥2 chars and no province is picked */
@@ -681,8 +703,87 @@ export function CityLocationPicker({
     return (cities ?? []).filter((c) => normalizePersianText(c.name).includes(lower));
   }, [cities, provincePicked, q]);
 
+  const selectedLabel = useMemo(() => {
+    if (currentCityName) {
+      return currentProvinceName ? `${currentProvinceName} — ${currentCityName}` : currentCityName;
+    }
+    if (cityDetails) {
+      return `${cityDetails.province.name} — ${cityDetails.name}`;
+    }
+    if (currentProvinceName && !currentCityId) return currentProvinceName;
+    return 'سراسر کشور';
+  }, [currentCityName, currentProvinceName, currentCityId, cityDetails]);
+
+  const resetList = () => {
+    setProvincePicked(null);
+    setQ('');
+  };
+
+  const closeList = () => {
+    if (!embedded) return;
+    userOpenedListRef.current = false;
+    setListOpen(false);
+    resetList();
+  };
+
+  useEffect(() => {
+    if (embedded && currentCityId && !userOpenedListRef.current) {
+      setListOpen(false);
+      resetList();
+    }
+  }, [embedded, currentCityId]);
+
+  const handlePickCity = (c: City, p: Province) => {
+    onPickCity(c, p);
+    closeList();
+  };
+
+  const handlePickProvinceOnly = (p: Province) => {
+    onPickProvinceOnly(p);
+    closeList();
+  };
+
+  const handleClear = () => {
+    onClear();
+    if (embedded) {
+      userOpenedListRef.current = true;
+      setListOpen(true);
+      resetList();
+    }
+  };
+
+  const openProvince = (p: Province) => {
+    onPickProvince(p);
+    setProvincePicked(p);
+    setQ('');
+  };
+
+  if (embedded && !listOpen && currentCityId) {
+    return (
+      <div className="p-4">
+        <button
+          type="button"
+          onClick={() => {
+            userOpenedListRef.current = true;
+            setListOpen(true);
+          }}
+          className="flex w-full items-center gap-3 rounded-xl border border-input bg-surface px-3.5 py-3.5 text-start shadow-xs transition-colors hover:bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent text-ig-link">
+            <IgLocation className="size-5" strokeWidth={1.75} aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs text-muted-foreground">شهر آگهی</span>
+            <span className="block truncate font-semibold text-foreground">{selectedLabel}</span>
+          </span>
+          <span className="shrink-0 text-sm font-medium text-ig-link">تغییر</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    <div className={cn('flex min-h-0 flex-col', embedded ? 'max-h-80' : 'h-full min-h-0 flex-1')}>
       <div className="shrink-0 border-b border-border bg-surface/95 p-3">
         <Input
           type="search"
@@ -697,7 +798,7 @@ export function CityLocationPicker({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={onClear}
+            onClick={handleClear}
             className={cn(
               'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors tap-none',
               !currentCityId && !currentProvinceId
@@ -713,10 +814,7 @@ export function CityLocationPicker({
           {provincePicked ? (
             <button
               type="button"
-              onClick={() => {
-                setProvincePicked(null);
-                setQ('');
-              }}
+              onClick={resetList}
               className="inline-flex items-center gap-1.5 rounded-full border border-input bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted tap-none"
             >
               <IgChevron
@@ -731,7 +829,7 @@ export function CityLocationPicker({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-2">
           {!provincePicked && searchHits && searchHits.length > 0 ? (
             <>
@@ -740,19 +838,13 @@ export function CityLocationPicker({
               </p>
               <ul className="space-y-1">
                 {searchHits.map((hit) => (
-                  <li key={hit.id}>
-                    <button
-                      type="button"
-                      onClick={() => onPickCity(hit, hit.province)}
-                      className={cn(
-                        'flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-sm transition-colors hover:bg-muted tap-none',
-                        currentCityId === hit.id && 'bg-accent text-accent-foreground',
-                      )}
-                    >
-                      <span className="font-medium">{hit.name}</span>
-                      <span className="text-xs text-muted-foreground">{hit.province.name}</span>
-                    </button>
-                  </li>
+                  <LocationListItem
+                    key={hit.id}
+                    label={hit.name}
+                    sublabel={hit.province.name}
+                    isSelected={currentCityId === hit.id}
+                    onClick={() => handlePickCity(hit, hit.province)}
+                  />
                 ))}
               </ul>
               <hr className="my-2 border-border" />
@@ -762,6 +854,10 @@ export function CityLocationPicker({
           {!provincePicked ? (
             provincesLoading ? (
               <SkeletonRows />
+            ) : (provinces ?? []).length === 0 ? (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                لیست استان‌ها در دسترس نیست. لطفاً چند لحظه بعد دوباره تلاش کنید.
+              </p>
             ) : filteredProvinces.length === 0 ? (
               <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                 استانی پیدا نشد.
@@ -769,18 +865,20 @@ export function CityLocationPicker({
             ) : (
               <ul className="space-y-1">
                 {filteredProvinces.map((p) => (
-                  <li key={p.id}>
-                    <ProvinceRow
-                      province={p}
-                      isCurrent={currentProvinceId === p.id && !currentCityId}
-                      onOpen={() => {
-                        onPickProvince(p);
-                        setProvincePicked(p);
-                        setQ('');
-                      }}
-                      onWholeProvince={() => onPickProvinceOnly(p)}
-                    />
-                  </li>
+                  <LocationListItem
+                    key={p.id}
+                    label={p.name}
+                    isSelected={currentProvinceId === p.id && !currentCityId}
+                    trailing={
+                      <IgChevron
+                        direction="left"
+                        className="size-4 shrink-0 text-muted-foreground rtl:scale-x-[-1]"
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
+                    }
+                    onClick={() => openProvince(p)}
+                  />
                 ))}
               </ul>
             )
@@ -788,50 +886,30 @@ export function CityLocationPicker({
             <SkeletonRows />
           ) : (
             <ul className="space-y-1">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onPickProvinceOnly(provincePicked)}
-                  className={cn(
-                    'flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-sm font-semibold transition-colors hover:bg-muted tap-none',
-                    currentProvinceId === provincePicked.id &&
-                      !currentCityId &&
-                      'bg-accent text-accent-foreground',
-                  )}
-                >
-                  <span>کل استان {provincePicked.name}</span>
-                  {currentProvinceId === provincePicked.id && !currentCityId ? (
-                    <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
-                  ) : null}
-                </button>
-              </li>
+              <LocationListItem
+                label={`کل استان ${provincePicked.name}`}
+                isSelected={currentProvinceId === provincePicked.id && !currentCityId}
+                onClick={() => handlePickProvinceOnly(provincePicked)}
+                className="font-semibold"
+              />
               {filteredCities.length === 0 ? (
                 <li className="px-3 py-6 text-center text-sm text-muted-foreground">
                   شهری پیدا نشد.
                 </li>
               ) : (
                 filteredCities.map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => onPickCity(c, provincePicked)}
-                      className={cn(
-                        'flex w-full items-center justify-between rounded-xl px-3 py-3 text-start text-sm transition-colors hover:bg-muted tap-none',
-                        currentCityId === c.id && 'bg-accent text-accent-foreground',
-                      )}
-                    >
-                      <span>{c.name}</span>
-                      {currentCityId === c.id ? (
-                        <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
-                      ) : null}
-                    </button>
-                  </li>
+                  <LocationListItem
+                    key={c.id}
+                    label={c.name}
+                    isSelected={currentCityId === c.id}
+                    onClick={() => handlePickCity(c, provincePicked)}
+                  />
                 ))
               )}
             </ul>
           )}
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -946,48 +1024,41 @@ function PriceChips({ onPick }: { onPick: (min?: number, max?: number) => void }
   );
 }
 
-function ProvinceRow({
-  province,
-  isCurrent,
-  onOpen,
-  onWholeProvince,
+function LocationListItem({
+  label,
+  sublabel,
+  isSelected,
+  trailing,
+  onClick,
+  className,
 }: {
-  province: Province;
-  isCurrent: boolean;
-  onOpen: () => void;
-  onWholeProvince: () => void;
+  label: string;
+  sublabel?: string;
+  isSelected?: boolean;
+  trailing?: React.ReactNode;
+  onClick: () => void;
+  className?: string;
 }) {
   return (
-    <div className="flex items-stretch gap-1">
+    <li>
       <button
         type="button"
-        onClick={onWholeProvince}
+        onClick={onClick}
         className={cn(
-          'flex-1 rounded-xl px-3 py-3 text-start text-sm font-medium transition-colors hover:bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          isCurrent && 'bg-accent text-accent-foreground',
+          'flex w-full min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-3 text-start text-sm transition-colors hover:bg-muted active:bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          isSelected && 'bg-accent text-accent-foreground',
+          className,
         )}
       >
-        <span className="inline-flex items-center gap-2">
-          {isCurrent ? (
-            <IgCheck className="size-4 text-ig-link" strokeWidth={1.75} aria-hidden />
-          ) : null}
-          {province.name}
-        </span>
+        <span className={cn('min-w-0 flex-1 truncate', sublabel && 'font-medium')}>{label}</span>
+        {trailing ??
+          (sublabel ? (
+            <span className="shrink-0 text-xs text-muted-foreground">{sublabel}</span>
+          ) : isSelected ? (
+            <IgCheck className="size-4 shrink-0 text-ig-link" strokeWidth={1.75} aria-hidden />
+          ) : null)}
       </button>
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-label={`مشاهده شهرهای ${province.name}`}
-        className="grid w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <IgChevron
-          direction="left"
-          className="size-4 rtl:scale-x-[-1]"
-          strokeWidth={1.75}
-          aria-hidden
-        />
-      </button>
-    </div>
+    </li>
   );
 }
 

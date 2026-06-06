@@ -5,7 +5,8 @@ import type maplibregl from 'maplibre-gl';
 import { Navigation } from 'lucide-react';
 import { IgExternalLink, IgLocation } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
-import { NeshanMap, type NeshanMapHandle } from './neshan-map';
+import { mapirWebUrl } from '@/lib/mapir';
+import { MapirMap, type MapirMapHandle } from './mapir-map';
 
 export interface LocationViewProps {
   lat: number;
@@ -18,10 +19,10 @@ export interface LocationViewProps {
 
 /**
  * Read-only map for the post detail page. Renders a single marker with a
- * "open in Neshan" link so users can launch full navigation.
+ * "open in Map.ir" link so users can launch full navigation.
  */
 export function LocationView({ lat, lng, address, zoom = 15, className }: LocationViewProps) {
-  const mapRef = useRef<NeshanMapHandle>(null);
+  const mapRef = useRef<MapirMapHandle>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
 
   const handleReady = useCallback(
@@ -41,8 +42,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
     [lat, lng],
   );
 
-  const neshanUrl = `https://neshan.org/maps/@${lat},${lng},${zoom}z`;
-  const directionsUrl = `https://neshan.org/maps/routing/car/origin/-/destination/${lat},${lng}`;
+  const mapUrl = mapirWebUrl({ lat, lng, zoom });
 
   return (
     <section className={cn('space-y-3', className)}>
@@ -56,7 +56,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
         ) : null}
       </div>
 
-      <NeshanMap
+      <MapirMap
         ref={mapRef}
         center={[lng, lat]}
         zoom={zoom}
@@ -66,7 +66,7 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
 
       <div className="flex flex-wrap gap-2">
         <a
-          href={directionsUrl}
+          href={mapUrl}
           target="_blank"
           rel="noreferrer"
           className="inline-flex min-h-10 items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-bold text-primary-foreground shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -75,13 +75,13 @@ export function LocationView({ lat, lng, address, zoom = 15, className }: Locati
           مسیریابی
         </a>
         <a
-          href={neshanUrl}
+          href={mapUrl}
           target="_blank"
           rel="noreferrer"
           className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border bg-background px-4 py-2 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         >
           <IgExternalLink className="size-4" strokeWidth={1.75} aria-hidden />
-          باز کردن در نشان
+          باز کردن در مپ
         </a>
       </div>
     </section>

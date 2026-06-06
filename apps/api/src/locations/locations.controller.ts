@@ -1,14 +1,14 @@
 import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
 import { LocationsService } from './locations.service';
-import { NeshanService } from './neshan.service';
+import { MapirService } from './mapir.service';
 
 @Public()
 @Controller('locations')
 export class LocationsController {
   constructor(
     private readonly service: LocationsService,
-    private readonly neshan: NeshanService,
+    private readonly mapir: MapirService,
   ) {}
 
   @Get('provinces')
@@ -38,7 +38,7 @@ export class LocationsController {
   }
 
   /**
-   * Reverse-geocode coordinates → Persian address (Neshan).
+   * Reverse-geocode coordinates → Persian address (Map.ir).
    * GET /locations/reverse?lat=35.7&lng=51.4
    */
   @Get('reverse')
@@ -48,11 +48,11 @@ export class LocationsController {
     if (!isFinite(lat) || !isFinite(lng)) {
       throw new BadRequestException('lat و lng معتبر لازم است');
     }
-    return this.neshan.reverse(lat, lng);
+    return this.mapir.reverse(lat, lng);
   }
 
   /**
-   * Forward-geocode an address → coordinates (Neshan).
+   * Forward-geocode an address → coordinates (Map.ir).
    * GET /locations/geocode?address=...
    */
   @Get('geocode')
@@ -60,7 +60,7 @@ export class LocationsController {
     if (!address || address.trim().length < 2) {
       throw new BadRequestException('آدرس باید حداقل ۲ کاراکتر باشد');
     }
-    return this.neshan.geocode(address.trim());
+    return this.mapir.geocode(address.trim());
   }
 
   /**
@@ -76,7 +76,7 @@ export class LocationsController {
     if (!term || term.trim().length < 2) return { count: 0, items: [] };
     const lat = latRaw != null ? Number(latRaw) : undefined;
     const lng = lngRaw != null ? Number(lngRaw) : undefined;
-    return this.neshan.searchPlaces(
+    return this.mapir.searchPlaces(
       term.trim(),
       isFinite(lat as number) ? lat : undefined,
       isFinite(lng as number) ? lng : undefined,

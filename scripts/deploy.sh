@@ -96,7 +96,7 @@ if [[ ! -f "$APP_DIR/docker/.env" ]]; then
   sed -i "s|NEXT_PUBLIC_SOCKET_URL=.*|NEXT_PUBLIC_SOCKET_URL=https://$DOMAIN|" "$APP_DIR/docker/.env"
   sed -i "s|ZARINPAL_CALLBACK_URL=.*|ZARINPAL_CALLBACK_URL=https://$DOMAIN/payment/callback|" "$APP_DIR/docker/.env"
 
-  warn "فایل .env ساخته شد - حتماً SMS_IR_API_KEY (یا KAVENEGAR_API_KEY) و ZARINPAL_MERCHANT_ID و NESHAN_API_KEY را در آن وارد کنید"
+  warn "فایل .env ساخته شد - حتماً SMS_IR_API_KEY (یا KAVENEGAR_API_KEY) و ZARINPAL_MERCHANT_ID و MAPIR_API_KEY را در آن وارد کنید"
   warn "مسیر: $APP_DIR/docker/.env"
 fi
 
@@ -136,7 +136,8 @@ docker compose -f docker-compose.prod.yml up -d
 log "7/8 اجرای migration و seed دیتابیس..."
 sleep 5
 docker compose -f docker-compose.prod.yml run --rm api pnpm --filter @agahiram/database migrate:deploy
-docker compose -f docker-compose.prod.yml run --rm api pnpm --filter @agahiram/database seed
+docker compose -f docker-compose.prod.yml run --rm --workdir /app api sh -lc \
+  'cd /app/packages/database && node --experimental-strip-types prisma/seed.ts'
 
 log "8/8 ثبت cron برای پشتیبان‌گیری روزانه..."
 CRON_LINE="0 3 * * * bash $APP_DIR/scripts/backup.sh > /var/log/agahiram-backup.log 2>&1"

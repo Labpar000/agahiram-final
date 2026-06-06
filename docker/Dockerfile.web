@@ -17,6 +17,7 @@ ARG NEXT_PUBLIC_API_URL=/api/v1
 ARG NEXT_PUBLIC_WS_URL=
 ARG NEXT_PUBLIC_APP_URL=/
 ARG NEXT_PUBLIC_SOCKET_URL=
+ARG NEXT_PUBLIC_MAPIR_API_KEY=
 # `next build` bakes the result of `rewrites()` into routes-manifest.json,
 # and that result is what `next start` actually serves — runtime changes to
 # this env var do NOT re-route requests. So we set it at build time too,
@@ -26,6 +27,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL \
     NEXT_PUBLIC_WS_URL=$NEXT_PUBLIC_WS_URL \
     NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL \
     NEXT_PUBLIC_SOCKET_URL=$NEXT_PUBLIC_SOCKET_URL \
+    NEXT_PUBLIC_MAPIR_API_KEY=$NEXT_PUBLIC_MAPIR_API_KEY \
     API_UPSTREAM_URL=$API_UPSTREAM_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json pnpm-workspace.yaml turbo.json ./
