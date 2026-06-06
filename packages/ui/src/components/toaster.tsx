@@ -7,6 +7,9 @@ type SonnerProps = React.ComponentProps<typeof Sonner>;
 /**
  * Agahiram Toaster — RTL, bottom-center on mobile, top-end on desktop.
  * Re-skinned to use design tokens so it picks up dark mode automatically.
+ *
+ * Mobile-specific: shorter auto-dismiss (3s), swipe gestures enabled, safe-area
+ * aware positioning so toasts are never hidden behind the bottom nav or notch.
  */
 export function Toaster(props: SonnerProps) {
   return (
@@ -15,9 +18,14 @@ export function Toaster(props: SonnerProps) {
       position="bottom-center"
       richColors
       closeButton
+      duration={3000}
       offset={16}
       gap={8}
       visibleToasts={4}
+      style={{
+        // Position above bottom nav + safe area so toasts are tappable
+        bottom: 'calc(var(--bottom-nav) + var(--safe-bottom) + 0.5rem)',
+      }}
       toastOptions={{
         classNames: {
           toast:

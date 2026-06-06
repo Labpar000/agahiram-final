@@ -14,6 +14,7 @@ import {
   type PostSummary,
 } from '@agahiram/shared';
 import { prependProfilePost } from '@/lib/query-cache-profile';
+import { prependExplorePost, prependFeedPost, prependReelsPost } from '@/lib/query-cache-posts';
 import {
   Button,
   IconButton,
@@ -381,21 +382,27 @@ export default function CreatePage() {
       return r.data;
     },
     onSuccess: (post) => {
+      if (!post) {
+        router.replace('/create/success');
+        return;
+      }
       try {
         localStorage.removeItem('agahiram_post_draft');
       } catch {
         /* ignore */
       }
-      void qc.invalidateQueries({ queryKey: ['feed'] });
-      void qc.invalidateQueries({ queryKey: ['explore'] });
-      void qc.invalidateQueries({ queryKey: ['reels'] });
-      if (myUsername && post) {
-        prependProfilePost(qc, myUsername, {
-          ...post,
-          status: post.status ?? PostStatus.PENDING_REVIEW,
-        });
+      // Optimistically prepend new post to all caches so images appear immediately
+      // without requiring a page refresh.
+      const enrichedPost = { ...post, status: post.status ?? PostStatus.PENDING_REVIEW };
+      prependFeedPost(qc, enrichedPost);
+      prependExplorePost(qc, enrichedPost);
+      if (enrichedPost.type === 'reel') {
+        prependReelsPost(qc, enrichedPost);
       }
-      router.replace(`/create/success?id=${encodeURIComponent(post?.id ?? '')}`);
+      if (myUsername) {
+        prependProfilePost(qc, myUsername, enrichedPost);
+      }
+      router.replace(`/create/success?id=${encodeURIComponent(post.id)}`);
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -419,7 +426,10 @@ export default function CreatePage() {
     : rootCategories;
 
   return (
-    <div className="bg-background pb-32">
+    <div
+      className="bg-background"
+      style={{ paddingBottom: 'calc(var(--bottom-nav) + var(--safe-bottom) + 4.5rem)' }}
+    >
       <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <IconButton
@@ -694,6 +704,7 @@ export default function CreatePage() {
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="مثلاً: آیفون ۱۵ پرو ۲۵۶ گیگ گلوبال"
                   maxLength={100}
+                  enterKeyHint="next"
                 />
                 <p className="text-[11px] text-muted-foreground">{toFa(title.length)} / ۱۰۰</p>
               </div>
@@ -745,9 +756,11 @@ export default function CreatePage() {
                     id="price"
                     type="number"
                     inputMode="numeric"
+                    pattern="[0-9]*"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     placeholder="0"
+                    enterKeyHint="next"
                   />
                   {price ? (
                     <p className="text-xs font-semibold gradient-text-brand">
@@ -787,7 +800,7 @@ export default function CreatePage() {
               <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما در کجاست؟</p>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-border">
+            <div className="mt-4 max-h-[min(24rem,65svh)] overflow-hidden rounded-2xl border border-border">
               <CityLocationPicker
                 embedded
                 currentCityId={cityId || undefined}
@@ -847,7 +860,7 @@ export default function CreatePage() {
       </div>
 
       <div
-        className="fixed inset-x-0 z-30 border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
+        className="fixed inset-x-0 z-50 border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
         style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
       >
         <div className="mx-auto max-w-2xl">

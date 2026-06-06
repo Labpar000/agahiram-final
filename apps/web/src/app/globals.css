@@ -295,7 +295,7 @@ video {
   z-index: 10;
   padding-inline: 0.75rem;
   padding-inline-end: 4rem;
-  padding-bottom: 0.625rem;
+  padding-bottom: max(0.625rem, var(--safe-bottom));
   color: white;
 }
 

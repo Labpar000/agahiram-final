@@ -78,6 +78,39 @@ export function patchProfileSavedList(
   });
 }
 
+/** Optimistically prepend a post to the feed infinite cache. */
+export function prependFeedPost(qc: QueryClient, post: PostSummary) {
+  const queries = qc.getQueriesData<InfiniteData<FeedPage>>({ queryKey: ['feed'] });
+  for (const [key, data] of queries) {
+    if (!data?.pages) continue;
+    const [first, ...rest] = data.pages;
+    const next = { ...first!, data: [post, ...(first?.data ?? [])] };
+    qc.setQueryData(key, { ...data, pages: [next, ...rest] });
+  }
+}
+
+/** Optimistically prepend a post to the explore infinite cache. */
+export function prependExplorePost(qc: QueryClient, post: PostSummary) {
+  const queries = qc.getQueriesData<InfiniteData<FeedPage>>({ queryKey: ['explore'] });
+  for (const [key, data] of queries) {
+    if (!data?.pages) continue;
+    const [first, ...rest] = data.pages;
+    const next = { ...first!, data: [post, ...(first?.data ?? [])] };
+    qc.setQueryData(key, { ...data, pages: [next, ...rest] });
+  }
+}
+
+/** Optimistically prepend a post to the reels infinite cache. */
+export function prependReelsPost(qc: QueryClient, post: PostSummary) {
+  const queries = qc.getQueriesData<InfiniteData<FeedPage>>({ queryKey: ['reels'] });
+  for (const [key, data] of queries) {
+    if (!data?.pages) continue;
+    const [first, ...rest] = data.pages;
+    const next = { ...first!, data: [post, ...(first?.data ?? [])] };
+    qc.setQueryData(key, { ...data, pages: [next, ...rest] });
+  }
+}
+
 export function findPostInClientCache(qc: QueryClient, postId: string): PostSummary | undefined {
   const detail = qc.getQueryData<PostSummary>(['post', postId]);
   if (detail?.id) return detail;

@@ -156,7 +156,12 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[92svh] overflow-hidden">
+      <DrawerContent
+        className="overflow-hidden"
+        style={{
+          maxHeight: 'calc(100svh - var(--header-height) - var(--safe-top))',
+        }}
+      >
         <DrawerHeader className="flex items-center justify-between gap-3 border-b border-border bg-surface/95 backdrop-blur">
           <DrawerTitle className="inline-flex items-center gap-2">
             {step !== 'main' ? (
@@ -290,7 +295,7 @@ function MainStep({
   onOpenLocation: () => void;
 }) {
   return (
-    <ScrollArea className="max-h-[68svh]">
+    <ScrollArea className="h-full">
       <div className="space-y-5 p-4 pb-6">
         {/* Category picker row */}
         <PickerRow
@@ -483,7 +488,7 @@ function CategoryPicker({
         </button>
       </div>
 
-      <ScrollArea className="max-h-[60svh]">
+      <ScrollArea className="h-full">
         <div className="p-2">
           {isLoading ? (
             <div className="space-y-2 p-2">
@@ -783,7 +788,12 @@ export function CityLocationPicker({
   }
 
   return (
-    <div className={cn('flex min-h-0 flex-col', embedded ? 'max-h-80' : 'h-full min-h-0 flex-1')}>
+    <div
+      className={cn(
+        'flex min-h-0 flex-col',
+        embedded ? 'max-h-[min(20rem,60svh)]' : 'h-full min-h-0 flex-1',
+      )}
+    >
       <div className="shrink-0 border-b border-border bg-surface/95 p-3">
         <Input
           type="search"

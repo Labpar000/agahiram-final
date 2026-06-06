@@ -36,7 +36,10 @@ const SearchFiltersSheet = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="fixed inset-x-0 bottom-0 z-50 h-[40svh] animate-pulse rounded-t-3xl bg-muted" />
+      <div
+        className="fixed inset-x-0 z-50 h-[40svh] animate-pulse rounded-t-3xl bg-muted"
+        style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
+      />
     ),
   },
 );

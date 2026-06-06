@@ -23,7 +23,15 @@ export function StoryViewerOverlay({
   if (!mounted) return null;
 
   return createPortal(
-    <div className={cn('fixed inset-0 z-[100] touch-none overscroll-none bg-black', className)}>
+    <div
+      className={cn('fixed inset-0 z-[100] touch-none overscroll-none bg-black', className)}
+      style={{
+        paddingTop: 'var(--safe-top)',
+        paddingBottom: 'var(--safe-bottom)',
+        paddingLeft: 'env(safe-area-inset-left, 0px)',
+        paddingRight: 'env(safe-area-inset-right, 0px)',
+      }}
+    >
       {children}
     </div>,
     document.body,

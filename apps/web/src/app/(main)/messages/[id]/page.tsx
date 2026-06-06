@@ -299,6 +299,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
           void send();
         }}
         className="relative flex items-center gap-2 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur-md"
+        style={{ paddingBottom: 'calc(0.75rem + var(--safe-bottom))' }}
       >
         <VoiceRecordOverlay elapsedLabel={voice.elapsedLabel} visible={voice.isRecording} />
         <input
