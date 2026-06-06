@@ -682,8 +682,8 @@ export function CityLocationPicker({
   }, [cities, provincePicked, q]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-surface/95 p-3 backdrop-blur-md">
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <div className="shrink-0 border-b border-border bg-surface/95 p-3">
         <Input
           type="search"
           value={q}
@@ -731,7 +731,7 @@ export function CityLocationPicker({
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="p-2">
           {!provincePicked && searchHits && searchHits.length > 0 ? (
             <>
@@ -831,7 +831,7 @@ export function CityLocationPicker({
             </ul>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
