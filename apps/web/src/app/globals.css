@@ -55,19 +55,6 @@ main {
   }
 }
 
-/* Bottom-anchored dialogs on narrow screens — avoids off-screen modals on mobile Safari. */
-@media (max-width: 639px) {
-  .dialog-mobile-sheet {
-    top: auto !important;
-    bottom: max(0.75rem, var(--safe-bottom));
-    left: 50% !important;
-    right: auto !important;
-    transform: translateX(-50%) !important;
-    width: calc(100% - 1.5rem);
-    max-height: min(92svh, 100%);
-  }
-}
-
 /* iOS: fixed bottom chrome must not be clipped by transformed ancestors. */
 nav[aria-label='ناوبری اصلی'] {
   -webkit-transform: translateZ(0);

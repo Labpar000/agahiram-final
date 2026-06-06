@@ -49,14 +49,19 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed z-50 grid w-[calc(100%-2rem)] gap-4',
+        'fixed z-50 grid gap-4',
+        /* Margin-auto centering avoids RTL + translate property conflicts on mobile. */
+        'inset-x-0 mx-auto w-[calc(100%-2rem)]',
         'max-h-[min(92svh,100%)] overflow-y-auto overscroll-contain',
         'rounded-2xl border border-border bg-popover p-6 text-popover-foreground shadow-popover',
-        'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+        'top-1/2 -translate-y-1/2',
+        /* Narrow viewports: bottom-anchored sheet, no translate (Safari / RTL safe). */
+        'max-sm:top-auto max-sm:bottom-[max(0.75rem,var(--safe-bottom))]',
+        'max-sm:inset-x-3 max-sm:mx-0 max-sm:w-auto max-sm:translate-none',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
-        'data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95',
-        'data-[state=open]:slide-in-from-bottom-2',
+        'max-sm:data-[state=open]:slide-in-from-bottom-2',
+        'sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95',
         sizeMap[size],
         className,
       )}

@@ -231,7 +231,7 @@ export function LocationPicker({
          * interaction Snapp uses; it works great on phones. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
+          className="pointer-events-none absolute start-1/2 top-1/2 z-10 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-full"
         >
           <div className="flex flex-col items-center">
             <div className="rounded-full bg-ig-link p-2 shadow-popover ring-4 ring-ig-link/20">

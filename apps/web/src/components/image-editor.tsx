@@ -227,7 +227,7 @@ export function ImageEditor({
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
       <DialogContent
-        className="dialog-mobile-sheet max-h-[min(92svh,48rem)] max-w-2xl overflow-y-auto overscroll-contain p-4 sm:p-6"
+        className="max-h-[min(92svh,48rem)] max-w-2xl overflow-y-auto overscroll-contain p-4 sm:p-6"
         showClose={false}
       >
         <DialogTitle className="sr-only">ویرایش تصویر</DialogTitle>
