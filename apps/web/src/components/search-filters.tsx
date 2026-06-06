@@ -682,8 +682,8 @@ export function CityLocationPicker({
   }, [cities, provincePicked, q]);
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="sticky top-0 z-10 border-b border-border bg-surface/95 p-3 backdrop-blur-md">
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-surface/95 p-3 backdrop-blur-md">
         <Input
           type="search"
           value={q}
@@ -731,7 +731,7 @@ export function CityLocationPicker({
         </div>
       </div>
 
-      <ScrollArea className="max-h-[60svh]">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="p-2">
           {!provincePicked && searchHits && searchHits.length > 0 ? (
             <>
@@ -762,6 +762,10 @@ export function CityLocationPicker({
           {!provincePicked ? (
             provincesLoading ? (
               <SkeletonRows />
+            ) : filteredProvinces.length === 0 ? (
+              <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+                استانی پیدا نشد.
+              </p>
             ) : (
               <ul className="space-y-1">
                 {filteredProvinces.map((p) => (

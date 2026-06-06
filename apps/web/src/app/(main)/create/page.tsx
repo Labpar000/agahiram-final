@@ -787,7 +787,7 @@ export default function CreatePage() {
               <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما در کجاست؟</p>
-            <div className="mt-4 h-80 overflow-hidden rounded-2xl border border-border">
+            <div className="mt-4 flex h-80 min-h-0 flex-col overflow-hidden rounded-2xl border border-border">
               <CityLocationPicker
                 currentCityId={cityId}
                 currentProvinceId={provinceId}
