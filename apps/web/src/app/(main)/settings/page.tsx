@@ -11,6 +11,12 @@ import {
   Button,
   Card,
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   IgArrowBack,
   IgBell,
   IgGallery,
@@ -37,6 +43,19 @@ import { uploadToMinio } from '@/lib/upload-media';
 import { useAuth } from '@/hooks/useAuth';
 import { patchAuthUser, patchProfileQuery } from '@/lib/query-cache-profile';
 import { useAuthStore } from '@/lib/auth-store';
+
+const PAYMENT_STATUS_FA: Record<string, string> = {
+  PENDING: 'در انتظار',
+  COMPLETED: 'موفق',
+  FAILED: 'ناموفق',
+  CANCELLED: 'لغو شده',
+  PROCESSING: 'در حال پردازش',
+  REFUNDED: 'بازگشت وجه',
+};
+
+function localizeStatus(status: string) {
+  return PAYMENT_STATUS_FA[status.toUpperCase()] ?? status;
+}
 
 interface NotificationPrefs {
   likesPush: boolean;
@@ -74,6 +93,8 @@ export default function SettingsPage() {
   const [payoutIban, setPayoutIban] = useState('');
   const [newCollectionName, setNewCollectionName] = useState('');
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [logoutDialogOpen, setLogoutDialogOpen] = useState(false);
+  const [deleteCollectionId, setDeleteCollectionId] = useState<string | null>(null);
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],
@@ -149,6 +170,20 @@ export default function SettingsPage() {
     staleTime: 30_000,
   });
 
+  const savePrivacy = useMutation({
+    mutationFn: async (patch: { isPrivate?: boolean; storyArchiveEnabled?: boolean }) => {
+      const r = await apiClient.patch('/users/me', patch);
+      if (!r.success) throw new Error(r.error);
+    },
+    onSuccess: (_data, patch) => {
+      if ('isPrivate' in patch) updateUser({ isPrivate: patch.isPrivate });
+      if ('storyArchiveEnabled' in patch)
+        updateUser({ storyArchiveEnabled: patch.storyArchiveEnabled });
+      toast.success('تنظیمات حریم خصوصی ذخیره شد');
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const save = useMutation({
     mutationFn: async () => {
       const parsedUsername = usernameSchema.safeParse(username);
@@ -180,8 +215,19 @@ export default function SettingsPage() {
       const r = await apiClient.patch('/users/me/notification-preferences', patch);
       if (!r.success) throw new Error(r.error);
     },
-    onSuccess: () => void refetchPrefs(),
-    onError: (e) => toast.error((e as Error).message),
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: ['notification-preferences'] });
+      const prev = qc.getQueryData<NotificationPrefs>(['notification-preferences']);
+      qc.setQueryData<NotificationPrefs>(['notification-preferences'], (old) =>
+        old ? { ...old, ...patch } : old,
+      );
+      return { prev };
+    },
+    onError: (e, _patch, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['notification-preferences'], ctx.prev);
+      toast.error((e as Error).message);
+    },
+    onSettled: () => void refetchPrefs(),
   });
 
   const uploadAvatar = async (file: File) => {
@@ -238,17 +284,38 @@ export default function SettingsPage() {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  type CollectionItem = { id: string; name: string; _count?: { saves: number } };
+
   const createCollection = useMutation({
-    mutationFn: async (name: string) => {
-      const r = await apiClient.post('/me/collections', { name });
+    mutationFn: async (colName: string) => {
+      const r = await apiClient.post<CollectionItem>('/me/collections', { name: colName });
       if (!r.success) throw new Error(r.error ?? 'خطا در ساخت مجموعه');
+      return r.data;
     },
-    onSuccess: () => {
+    onMutate: async (colName) => {
+      await qc.cancelQueries({ queryKey: ['collections'] });
+      const prev = qc.getQueryData<CollectionItem[]>(['collections']);
+      const tempId = `temp-${Date.now()}`;
+      qc.setQueryData<CollectionItem[]>(['collections'], (old) => [
+        ...(old ?? []),
+        { id: tempId, name: colName, _count: { saves: 0 } },
+      ]);
+      return { prev, tempId };
+    },
+    onSuccess: (created, _colName, ctx) => {
       toast.success('مجموعه ساخته شد');
       setNewCollectionName('');
-      void refetchCollections();
+      if (created && ctx?.tempId) {
+        qc.setQueryData<CollectionItem[]>(['collections'], (old) =>
+          (old ?? []).map((c) => (c.id === ctx.tempId ? { ...c, ...created } : c)),
+        );
+      }
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e, _colName, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['collections'], ctx.prev);
+      toast.error((e as Error).message);
+    },
+    onSettled: () => void refetchCollections(),
   });
 
   const deleteCollection = useMutation({
@@ -256,11 +323,22 @@ export default function SettingsPage() {
       const r = await apiClient.delete(`/me/collections/${id}`);
       if (!r.success) throw new Error(r.error ?? 'خطا در حذف مجموعه');
     },
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['collections'] });
+      const prev = qc.getQueryData<CollectionItem[]>(['collections']);
+      qc.setQueryData<CollectionItem[]>(['collections'], (old) =>
+        (old ?? []).filter((c) => c.id !== id),
+      );
+      return { prev };
+    },
     onSuccess: () => {
       toast.success('مجموعه حذف شد');
-      void refetchCollections();
     },
-    onError: (e) => toast.error((e as Error).message),
+    onError: (e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['collections'], ctx.prev);
+      toast.error((e as Error).message);
+    },
+    onSettled: () => void refetchCollections(),
   });
 
   const topup = useMutation({
@@ -454,7 +532,15 @@ export default function SettingsPage() {
           icon={<IgShield className="size-5" strokeWidth={1.75} aria-hidden />}
         >
           <Row label="حساب خصوصی" description="فقط دنبال‌کنندگان می‌توانند پست‌ها را ببینند">
-            <Switch checked={isPrivate} onCheckedChange={setIsPrivate} aria-label="حساب خصوصی" />
+            <Switch
+              checked={isPrivate}
+              disabled={savePrivacy.isPending}
+              onCheckedChange={(v) => {
+                setIsPrivate(v);
+                savePrivacy.mutate({ isPrivate: v });
+              }}
+              aria-label="حساب خصوصی"
+            />
           </Row>
           <Row
             label="آرشیو خودکار استوری"
@@ -462,14 +548,14 @@ export default function SettingsPage() {
           >
             <Switch
               checked={storyArchiveEnabled}
-              onCheckedChange={setStoryArchiveEnabled}
+              disabled={savePrivacy.isPending}
+              onCheckedChange={(v) => {
+                setStoryArchiveEnabled(v);
+                savePrivacy.mutate({ storyArchiveEnabled: v });
+              }}
               aria-label="آرشیو خودکار استوری"
             />
           </Row>
-          <div className="rounded-xl bg-muted/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
-            بعد از تغییر وضعیت حریم خصوصی یا آرشیو، دکمه «ذخیره تغییرات» در بخش حساب کاربری را
-            بزنید.
-          </div>
         </Section>
 
         <Section
@@ -490,9 +576,15 @@ export default function SettingsPage() {
                   variant="outline"
                   onClick={async () => {
                     if (!u.username) return;
+                    // Optimistically remove from list
+                    qc.setQueryData<BlockedUser[]>(['blocked-users'], (old) =>
+                      (old ?? []).filter((b) => b.id !== u.id),
+                    );
                     const r = await apiClient.delete(`/users/me/blocked/${u.username}`);
                     if (r.success) {
                       toast.success('کاربر از مسدودها حذف شد');
+                    } else {
+                      // Rollback on failure
                       void refetchBlocked();
                     }
                   }}
@@ -558,11 +650,7 @@ export default function SettingsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => {
-                    if (window.confirm(`مجموعه «${c.name}» حذف شود؟`)) {
-                      deleteCollection.mutate(c.id);
-                    }
-                  }}
+                  onClick={() => setDeleteCollectionId(c.id)}
                   disabled={deleteCollection.isPending}
                 >
                   حذف
@@ -645,7 +733,7 @@ export default function SettingsPage() {
                         <span className="font-medium">
                           {formatPersianPrice(Number(item.amount))}
                         </span>
-                        <span className="text-muted-foreground">{item.status}</span>
+                        <span className="text-muted-foreground">{localizeStatus(item.status)}</span>
                       </div>
                     ))
                   )}
@@ -684,7 +772,7 @@ export default function SettingsPage() {
                           {new Date(p.createdAt).toLocaleDateString('fa-IR')}
                         </span>
                         <span className="font-medium">{formatPersianPrice(Number(p.amount))}</span>
-                        <span className="text-muted-foreground">{p.status}</span>
+                        <span className="text-muted-foreground">{localizeStatus(p.status)}</span>
                       </div>
                     ))}
                   </div>
@@ -697,13 +785,62 @@ export default function SettingsPage() {
         <button
           type="button"
           className="flex w-full min-h-11 items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={() => {
-            if (window.confirm('آیا مطمئن هستید که می‌خواهید از حساب خارج شوید؟')) void logout();
-          }}
+          onClick={() => setLogoutDialogOpen(true)}
         >
           <IgLogout className="size-5" strokeWidth={1.75} aria-hidden />
           خروج از حساب
         </button>
+
+        <Dialog open={logoutDialogOpen} onOpenChange={setLogoutDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>خروج از حساب</DialogTitle>
+              <DialogDescription>آیا مطمئن هستید که می‌خواهید از حساب خارج شوید؟</DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex-row justify-end gap-2">
+              <Button variant="outline" onClick={() => setLogoutDialogOpen(false)}>
+                انصراف
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setLogoutDialogOpen(false);
+                  void logout();
+                }}
+              >
+                خروج
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {deleteCollectionId ? (
+          <Dialog open onOpenChange={(v) => !v && setDeleteCollectionId(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>حذف مجموعه</DialogTitle>
+                <DialogDescription>
+                  آیا مطمئنید که این مجموعه حذف شود؟ این عمل قابل بازگشت نیست.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex-row justify-end gap-2">
+                <Button variant="outline" onClick={() => setDeleteCollectionId(null)}>
+                  انصراف
+                </Button>
+                <Button
+                  variant="destructive"
+                  isLoading={deleteCollection.isPending}
+                  onClick={() => {
+                    deleteCollection.mutate(deleteCollectionId);
+                    setDeleteCollectionId(null);
+                  }}
+                >
+                  حذف
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null}
       </div>
     </div>
   );

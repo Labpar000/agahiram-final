@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -41,6 +41,7 @@ import { ReportDialog } from '@/components/report-dialog';
 
 export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: boolean }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const logout = useAuthStore((s) => s.logout);
   const likeMutation = useLikePost();
@@ -290,10 +291,51 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
               )}
               onClick={async (e) => {
                 e.preventDefault();
+                const nowFollowing = !following;
+                setFollowing(nowFollowing);
+                // Also patch the profile cache for consistency across views
+                qc.setQueryData(
+                  ['profile', reel.user.username],
+                  (old: Record<string, unknown> | undefined) =>
+                    old
+                      ? {
+                          ...old,
+                          isFollowing: nowFollowing,
+                          followersCount: Math.max(
+                            0,
+                            ((old.followersCount as number) ?? 0) + (nowFollowing ? 1 : -1),
+                          ),
+                        }
+                      : old,
+                );
                 const r = following
                   ? await apiClient.delete(`/users/${reel.user.username}/follow`)
                   : await apiClient.post(`/users/${reel.user.username}/follow`);
-                if (r.success) setFollowing(!following);
+                if (!r.success) {
+                  // Rollback on error
+                  setFollowing(following);
+                  qc.setQueryData(
+                    ['profile', reel.user.username],
+                    (old: Record<string, unknown> | undefined) =>
+                      old
+                        ? {
+                            ...old,
+                            isFollowing: following,
+                            followersCount: Math.max(
+                              0,
+                              ((old.followersCount as number) ?? 0) + (following ? 1 : -1),
+                            ),
+                          }
+                        : old,
+                  );
+                  const isUnauthorized =
+                    r.statusCode === 401 ||
+                    (typeof r.error === 'string' && r.error.includes('401'));
+                  if (isUnauthorized) logout();
+                  toast.error('برای دنبال‌کردن ابتدا وارد شوید');
+                } else {
+                  void qc.invalidateQueries({ queryKey: ['feed'] });
+                }
               }}
             >
               {following ? (

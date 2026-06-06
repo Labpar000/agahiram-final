@@ -66,16 +66,45 @@ export function FollowersClient({
 
   const toggleFollow = async (u: FollowUser) => {
     if (!u.username || pendingId) return;
+    const nowFollowing = !u.isFollowing;
+    // Optimistically update the list immediately
+    qc.setQueryData<FollowUser[]>(queryKey, (old) =>
+      (old ?? []).map((item) =>
+        item.id === u.id
+          ? { ...item, isFollowing: nowFollowing, isMutual: nowFollowing ? item.followsMe : false }
+          : item,
+      ),
+    );
+    // Also update that user's profile cache if loaded
+    qc.setQueryData(['profile', u.username], (old: Record<string, unknown> | undefined) =>
+      old
+        ? {
+            ...old,
+            isFollowing: nowFollowing,
+            followersCount: Math.max(
+              0,
+              ((old.followersCount as number) ?? 0) + (nowFollowing ? 1 : -1),
+            ),
+          }
+        : old,
+    );
     setPendingId(u.id);
     const res = u.isFollowing
       ? await apiClient.delete(`/users/${u.username}/follow`)
       : await apiClient.post(`/users/${u.username}/follow`);
     setPendingId(null);
     if (!res.success) {
+      // Rollback optimistic update
+      qc.setQueryData<FollowUser[]>(queryKey, (old) =>
+        (old ?? []).map((item) =>
+          item.id === u.id ? { ...item, isFollowing: u.isFollowing, isMutual: u.isMutual } : item,
+        ),
+      );
       toast.error('برای دنبال‌کردن ابتدا وارد شوید');
       return;
     }
-    await qc.invalidateQueries({ queryKey });
+    void qc.invalidateQueries({ queryKey: ['feed'] });
+    void qc.invalidateQueries({ queryKey, refetchType: 'none' });
   };
 
   const title = type === 'followers' ? 'دنبال‌کننده‌ها' : 'دنبال‌شده‌ها';

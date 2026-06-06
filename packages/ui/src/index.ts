@@ -43,6 +43,9 @@ export * from './components/ig-icons';
 /* Instagram layout molecules (Figma Components + Templates) */
 export * from './components/ig/index';
 
+/* Shop / Verification molecules */
+export * from './components/shop';
+
 /* Theme */
 export * from './components/theme-provider';
 export * from './components/theme-toggle';

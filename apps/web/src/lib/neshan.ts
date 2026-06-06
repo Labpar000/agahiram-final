@@ -155,24 +155,3 @@ export function neshanStaticUrl(opts: {
   if (marker) params.set('marker', 'red');
   return `${NESHAN_API_BASE}/v5/static?${params.toString()}`;
 }
-
-function buildRasterStyle(tileUrls: string[]): maplibregl.StyleSpecification {
-  return {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: tileUrls,
-        tileSize: 256,
-        attribution: '© OpenStreetMap contributors',
-      },
-    },
-    layers: [
-      {
-        id: 'osm',
-        type: 'raster',
-        source: 'osm',
-      },
-    ],
-  };
-}

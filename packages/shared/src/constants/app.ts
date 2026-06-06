@@ -116,3 +116,30 @@ export const NESHAN_REVERSE_GEOCODE_URL = 'https://api.neshan.org/v5/reverse';
 
 export const PWA_THEME_COLOR = '#db2777';
 export const PWA_BACKGROUND_COLOR = '#ffffff';
+
+export const VERIFICATION_SCORES: Record<string, number> = {
+  PHONE: 100,
+  NATIONAL_ID: 150,
+  BUSINESS_LICENSE: 250,
+  COMPANY_REG: 300,
+  ENAMAD: 200,
+  ADDRESS: 100,
+  BANK_ACCOUNT: 100,
+};
+
+export const TRUST_TIER_THRESHOLDS = {
+  UNVERIFIED: 0,
+  BASIC: 100,
+  STANDARD: 250,
+  VERIFIED: 500,
+  TRUSTED: 800,
+  PREMIUM: 1000,
+};
+
+export const VERIFICATION_BADGE_MAP: Record<string, string> = {
+  PHONE: 'PHONE_VERIFIED',
+  NATIONAL_ID: 'IDENTITY_VERIFIED',
+  BUSINESS_LICENSE: 'BUSINESS_VERIFIED',
+  COMPANY_REG: 'BUSINESS_VERIFIED',
+  ENAMAD: 'ENAMAD_HOLDER',
+};

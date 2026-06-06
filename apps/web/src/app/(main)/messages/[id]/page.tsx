@@ -245,13 +245,15 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         </SheetContent>
       </Sheet>
 
-      <ReportDialog
-        open={reportOpen}
-        onOpenChange={setReportOpen}
-        targetType="user"
-        targetId={head?.otherUser?.id ?? ''}
-        title="گزارش کاربر"
-      />
+      {head?.otherUser?.id ? (
+        <ReportDialog
+          open={reportOpen}
+          onOpenChange={setReportOpen}
+          targetType="user"
+          targetId={head.otherUser.id}
+          title="گزارش کاربر"
+        />
+      ) : null}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
         {isError ? (

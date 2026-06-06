@@ -124,7 +124,7 @@ function CommentLikeButton({
   );
 }
 
-function CommentReplies({ commentId, postId }: { commentId: string; postId: string }) {
+function CommentReplies({ commentId }: { commentId: string; postId: string }) {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ['comment-replies', commentId],
@@ -142,11 +142,40 @@ function CommentReplies({ commentId, postId }: { commentId: string; postId: stri
       if (!r.success) throw new Error(r.error);
       return r.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['comment-replies', commentId] });
-      qc.invalidateQueries({ queryKey: ['comments', postId] });
+    onMutate: async ({ id, liked }) => {
+      await qc.cancelQueries({ queryKey: ['comment-replies', commentId] });
+      const prev = qc.getQueryData<Reply[]>(['comment-replies', commentId]);
+      qc.setQueryData<Reply[]>(['comment-replies', commentId], (old) =>
+        (old ?? []).map((reply) =>
+          reply.id === id
+            ? {
+                ...reply,
+                isLikedByMe: !liked,
+                likesCount: Math.max(0, (reply.likesCount ?? 0) + (!liked ? 1 : -1)),
+              }
+            : reply,
+        ),
+      );
+      return { prev };
     },
-    onError: () => toast.error('برای لایک نظر ابتدا وارد شوید'),
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['comment-replies', commentId], ctx.prev);
+      toast.error('برای لایک نظر ابتدا وارد شوید');
+    },
+    onSuccess: (resData, { id, liked }) => {
+      if (typeof resData?.likesCount === 'number') {
+        qc.setQueryData<Reply[]>(['comment-replies', commentId], (old) =>
+          (old ?? []).map((reply) =>
+            reply.id === id
+              ? { ...reply, isLikedByMe: !liked, likesCount: resData.likesCount! }
+              : reply,
+          ),
+        );
+      }
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['comment-replies', commentId], refetchType: 'none' });
+    },
   });
 
   if (!data?.length) return null;
@@ -653,6 +682,14 @@ function useCommentSectionState({
       if (!r.success) throw new Error(r.error);
       return r.data;
     },
+    onMutate: async ({ id, pinned }) => {
+      await qc.cancelQueries({ queryKey: ['comments', postId] });
+      patchCommentInCache(qc, postId, id, { isPinned: pinned });
+      return { id, pinned };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx) patchCommentInCache(qc, postId, ctx.id, { isPinned: !ctx.pinned });
+    },
     onSettled: () => qc.invalidateQueries({ queryKey: ['comments', postId] }),
   });
 
@@ -660,6 +697,15 @@ function useCommentSectionState({
     mutationFn: async (id: string) => {
       const r = await apiClient.delete(`/comments/${id}`);
       if (!r.success) throw new Error(r.error);
+    },
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['comments', postId] });
+      const prev = qc.getQueryData(['comments', postId]);
+      removeCommentFromCache(qc, postId, id);
+      return { id, prev };
+    },
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['comments', postId], ctx.prev);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['comments', postId] }),
   });

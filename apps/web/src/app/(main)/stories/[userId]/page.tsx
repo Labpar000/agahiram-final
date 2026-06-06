@@ -8,6 +8,13 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Drawer,
   DrawerContent,
   DropdownMenu,
@@ -103,6 +110,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [mentionsOpen, setMentionsOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [floatingEmoji, setFloatingEmoji] = useState<string | null>(null);
   const [liveViewCount, setLiveViewCount] = useState<number | null>(null);
@@ -310,7 +318,11 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
     const r = await apiClient.delete(`/stories/${current.id}`);
     if (r.success) {
       toast.success('حذف شد');
+      void queryClient.invalidateQueries({ queryKey: ['stories', 'feed'] });
+      void queryClient.invalidateQueries({ queryKey: ['stories', 'user', userId] });
       router.back();
+    } else {
+      toast.error(r.error ?? 'حذف ناموفق بود');
     }
   };
 
@@ -438,7 +450,7 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
                           آمار استوری‌ها
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem destructive onClick={() => void deleteStory()}>
+                      <DropdownMenuItem destructive onClick={() => setDeleteDialogOpen(true)}>
                         <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
                         حذف استوری
                       </DropdownMenuItem>
@@ -681,6 +693,31 @@ export default function StoryViewerPage({ params }: { params: Promise<{ userId: 
           </DrawerContent>
         </Drawer>
       ) : null}
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>حذف استوری</DialogTitle>
+            <DialogDescription>
+              آیا مطمئن هستید که این استوری حذف شود؟ این عمل قابل بازگشت نیست.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              انصراف
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                void deleteStory();
+              }}
+            >
+              حذف
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

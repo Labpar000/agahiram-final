@@ -31,6 +31,8 @@ import { ReputationModule } from './reputation/reputation.module';
 import { ReportsModule } from './reports/reports.module';
 import { PushModule } from './push/push.module';
 import { HealthModule } from './health/health.module';
+import { ShopsModule } from './shops/shops.module';
+import { VerificationsModule } from './verifications/verifications.module';
 
 @Module({
   imports: [
@@ -84,6 +86,8 @@ import { HealthModule } from './health/health.module';
     ReportsModule,
     PushModule,
     HealthModule,
+    ShopsModule,
+    VerificationsModule,
   ],
   providers: [
     {

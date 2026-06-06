@@ -14,7 +14,6 @@ export function YourStoryTrayCell({
   hasStories,
   hasUnviewed,
   avatarUrl,
-  username,
 }: {
   userId: string;
   hasStories: boolean;
@@ -44,6 +43,7 @@ export function YourStoryTrayCell({
             variant={hasStories ? 'story' : 'add'}
             hasUnviewed={!!hasUnviewed}
             label={hasStories ? 'استوری شما' : 'شما'}
+            labelClassName="hidden"
             ringImage={hasStories ? ringImage : undefined}
             className="transition-transform group-active:scale-95"
           />
@@ -58,6 +58,9 @@ export function YourStoryTrayCell({
           </Link>
         ) : null}
       </div>
+      <span className="mt-1.5 w-full max-w-[66px] truncate text-center text-xs text-muted-foreground">
+        {hasStories ? 'استوری شما' : 'شما'}
+      </span>
     </div>
   );
 }

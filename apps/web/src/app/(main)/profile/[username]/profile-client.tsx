@@ -5,7 +5,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Award } from 'lucide-react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
 import { cn, formatPersianNumber } from '@agahiram/shared';
 import {
@@ -92,13 +97,16 @@ export function ProfileClient({ username }: { username: string }) {
   const isMe = me?.username === username;
 
   const {
-    data: posts,
+    data: postsData,
     isLoading: postsLoading,
     isError: postsError,
     refetch: refetchPosts,
-  } = useQuery({
+    fetchNextPage: fetchNextPostsPage,
+    hasNextPage: hasNextPostsPage,
+    isFetchingNextPage: isFetchingNextPostsPage,
+  } = useInfiniteQuery({
     queryKey: ['profile', username, tab],
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       let endpoint: string;
       switch (tab) {
         case 'reels':
@@ -110,12 +118,21 @@ export function ProfileClient({ username }: { username: string }) {
         default:
           endpoint = `/posts/user/${username}`;
       }
-      const page = assertSuccess(await apiClient.get<PaginatedResponse<PostSummary>>(endpoint));
-      return page.data;
+      const page = assertSuccess(
+        await apiClient.get<PaginatedResponse<PostSummary>>(
+          endpoint,
+          pageParam ? { cursor: pageParam as string } : undefined,
+        ),
+      );
+      return page;
     },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    initialPageParam: undefined as string | undefined,
     enabled: !!profile,
     placeholderData: keepPreviousData,
   });
+
+  const posts = postsData?.pages.flatMap((p) => p.data) ?? [];
 
   const toggleFollow = async () => {
     if (!profile) return;
@@ -374,7 +391,15 @@ export function ProfileClient({ username }: { username: string }) {
           {postsError ? (
             <ErrorState onRetry={() => void refetchPosts()} />
           ) : (
-            <PostsGrid posts={posts ?? []} isLoading={postsLoading} tab={tab} showStatus={isMe} />
+            <PostsGrid
+              posts={posts}
+              isLoading={postsLoading}
+              tab={tab}
+              showStatus={isMe}
+              hasMore={!!hasNextPostsPage}
+              isFetchingMore={isFetchingNextPostsPage}
+              onLoadMore={() => void fetchNextPostsPage()}
+            />
           )}
         </TabsContent>
       </Tabs>
@@ -450,11 +475,17 @@ function PostsGrid({
   isLoading,
   tab,
   showStatus,
+  hasMore,
+  isFetchingMore,
+  onLoadMore,
 }: {
   posts: PostSummary[];
   isLoading: boolean;
   tab: 'posts' | 'reels' | 'saved';
   showStatus?: boolean;
+  hasMore?: boolean;
+  isFetchingMore?: boolean;
+  onLoadMore?: () => void;
 }) {
   if (isLoading && posts.length === 0) {
     return (
@@ -513,6 +544,13 @@ function PostsGrid({
           ) : null}
         </PostLink>
       ))}
+      {hasMore ? (
+        <div className="col-span-3 flex justify-center py-3">
+          <Button variant="outline" size="sm" isLoading={isFetchingMore} onClick={onLoadMore}>
+            بارگذاری بیشتر
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

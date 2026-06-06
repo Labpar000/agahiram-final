@@ -31,16 +31,38 @@ export function useNotifications() {
 
   const markRead = useMutation({
     mutationFn: (id: string) => apiClient.patch(`/notifications/${id}/read`),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['notifications'] });
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const prev = qc.getQueryData<NotificationItem[]>(['notifications']);
+      qc.setQueryData<NotificationItem[]>(['notifications'], (old) =>
+        (old ?? []).map((n) => (n.id === id ? { ...n, isRead: true } : n)),
+      );
+      return { prev };
+    },
+    onError: (_e, _id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['notifications'], ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'], refetchType: 'none' });
       void qc.invalidateQueries({ queryKey: ['notifications', 'unread'] });
     },
   });
 
   const markAllRead = useMutation({
     mutationFn: () => apiClient.patch('/notifications/read-all'),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['notifications'] });
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['notifications'] });
+      const prev = qc.getQueryData<NotificationItem[]>(['notifications']);
+      qc.setQueryData<NotificationItem[]>(['notifications'], (old) =>
+        (old ?? []).map((n) => ({ ...n, isRead: true })),
+      );
+      return { prev };
+    },
+    onError: (_e, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['notifications'], ctx.prev);
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ['notifications'], refetchType: 'none' });
       void qc.invalidateQueries({ queryKey: ['notifications', 'unread'] });
     },
   });

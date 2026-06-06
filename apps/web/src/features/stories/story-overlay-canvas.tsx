@@ -186,7 +186,6 @@ export function StoryOverlayCanvas({
     onSelectIndex(index);
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
     dragRef.current = {
       index,
       startX: e.clientX,

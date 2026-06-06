@@ -14,7 +14,16 @@ import {
   MAX_VIDEO_UPLOAD_BYTES,
 } from '@agahiram/shared';
 import type { StoryOverlayDocument } from '@agahiram/shared';
-import { Button, IconButton, IgArrowBack, IgImagePlus, IgText, Spinner, toast } from '@agahiram/ui';
+import {
+  Button,
+  IconButton,
+  IgArrowBack,
+  IgClose,
+  IgImagePlus,
+  IgText,
+  Spinner,
+  toast,
+} from '@agahiram/ui';
 import { StoryBatchPublishPreview } from '@/features/stories/story-batch-publish-preview';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
@@ -207,7 +216,7 @@ export default function CreateStoryPage() {
     },
     onSuccess: (data, queue) => {
       for (const s of queue) revokePreviewUrl(s.previewUrl);
-      void qc.invalidateQueries({ queryKey: ['stories', 'feed'] });
+      qc.removeQueries({ queryKey: ['stories', 'feed'] });
       const scheduled =
         data &&
         typeof data === 'object' &&
@@ -375,6 +384,17 @@ export default function CreateStoryPage() {
                         sizes="48px"
                         unoptimized
                       />
+                      <button
+                        type="button"
+                        aria-label="حذف اسلاید"
+                        onClick={() => {
+                          revokePreviewUrl(s.previewUrl);
+                          setSlides((prev) => prev.filter((_, j) => j !== i));
+                        }}
+                        className="absolute end-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-black/70 text-white tap-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white"
+                      >
+                        <IgClose className="size-3" strokeWidth={2} aria-hidden />
+                      </button>
                     </li>
                   ))}
                 </ul>

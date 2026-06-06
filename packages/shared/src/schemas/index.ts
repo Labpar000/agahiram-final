@@ -14,3 +14,4 @@ export * from './payout';
 export * from './media';
 export * from './ai';
 export * from './live';
+export * from './shop';

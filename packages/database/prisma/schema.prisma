@@ -151,6 +151,49 @@ enum StoryArchiveAudience {
   CLOSE_FRIENDS
 }
 
+enum ShopType {
+  PERSONAL
+  ONLINE_STORE
+  PHYSICAL_STORE
+  BRAND
+}
+
+enum TrustTier {
+  UNVERIFIED
+  BASIC
+  STANDARD
+  VERIFIED
+  TRUSTED
+  PREMIUM
+}
+
+enum VerificationType {
+  PHONE
+  NATIONAL_ID
+  BUSINESS_LICENSE
+  COMPANY_REG
+  ENAMAD
+  ADDRESS
+  BANK_ACCOUNT
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum BadgeType {
+  PHONE_VERIFIED
+  IDENTITY_VERIFIED
+  BUSINESS_VERIFIED
+  ENAMAD_HOLDER
+  TOP_SELLER
+  FAST_RESPONDER
+  TRUSTED_SHOP
+}
+
 model User {
   id            String   @id @default(uuid())
   phone         String   @unique
@@ -216,6 +259,7 @@ model User {
   followRequestsSent     FollowRequest[] @relation("FollowRequests")
   followRequestsReceived FollowRequest[] @relation("FollowRequestTargets")
   businessExpiresAt DateTime?
+  shop              Shop?
 
   @@index([username])
   @@index([phone])
@@ -287,6 +331,7 @@ model City {
   users         User[]
   searchAlerts  SearchAlert[]
   stories       Story[]
+  shops         Shop[]
 
   @@index([provinceId])
 }
@@ -996,6 +1041,67 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Shop {
+  id           String    @id @default(uuid())
+  userId       String    @unique
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopType     ShopType
+  slug         String    @unique
+  name         String
+  description  String?
+  logo         String?
+  coverImage   String?
+  category     String?
+  website      String?
+  contactPhone String?
+  address      String?
+  cityId       String?
+  city         City?     @relation(fields: [cityId], references: [id])
+  workingHours Json?
+  trustScore   Int       @default(0)
+  trustTier    TrustTier @default(UNVERIFIED)
+  isActive     Boolean   @default(true)
+  isFeatured   Boolean   @default(false)
+  verifications VerificationRequest[]
+  badges        ShopBadge[]
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([slug])
+  @@index([userId])
+  @@index([trustTier])
+}
+
+model VerificationRequest {
+  id           String             @id @default(uuid())
+  shopId       String
+  shop         Shop               @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type         VerificationType
+  status       VerificationStatus @default(PENDING)
+  documents    String[]
+  adminNote    String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  scoreGranted Int?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([shopId])
+  @@index([status, createdAt])
+  @@index([type, status])
+}
+
+model ShopBadge {
+  id        String    @id @default(uuid())
+  shopId    String
+  shop      Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type      BadgeType
+  grantedAt DateTime  @default(now())
+
+  @@unique([shopId, type])
+  @@index([shopId])
 }
 
 /// Per-user notification delivery preferences. `null` row means defaults (all on).

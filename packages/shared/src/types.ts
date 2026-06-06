@@ -391,3 +391,94 @@ export interface CategorySuggestion {
   confidence: number;
   suggestedPrice?: number;
 }
+
+export enum ShopType {
+  PERSONAL = 'PERSONAL',
+  ONLINE_STORE = 'ONLINE_STORE',
+  PHYSICAL_STORE = 'PHYSICAL_STORE',
+  BRAND = 'BRAND',
+}
+
+export enum TrustTier {
+  UNVERIFIED = 'UNVERIFIED',
+  BASIC = 'BASIC',
+  STANDARD = 'STANDARD',
+  VERIFIED = 'VERIFIED',
+  TRUSTED = 'TRUSTED',
+  PREMIUM = 'PREMIUM',
+}
+
+export enum VerificationType {
+  PHONE = 'PHONE',
+  NATIONAL_ID = 'NATIONAL_ID',
+  BUSINESS_LICENSE = 'BUSINESS_LICENSE',
+  COMPANY_REG = 'COMPANY_REG',
+  ENAMAD = 'ENAMAD',
+  ADDRESS = 'ADDRESS',
+  BANK_ACCOUNT = 'BANK_ACCOUNT',
+}
+
+export enum VerificationStatus {
+  PENDING = 'PENDING',
+  UNDER_REVIEW = 'UNDER_REVIEW',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+export enum BadgeType {
+  PHONE_VERIFIED = 'PHONE_VERIFIED',
+  IDENTITY_VERIFIED = 'IDENTITY_VERIFIED',
+  BUSINESS_VERIFIED = 'BUSINESS_VERIFIED',
+  ENAMAD_HOLDER = 'ENAMAD_HOLDER',
+  TOP_SELLER = 'TOP_SELLER',
+  FAST_RESPONDER = 'FAST_RESPONDER',
+  TRUSTED_SHOP = 'TRUSTED_SHOP',
+}
+
+export interface ShopBadgePublic {
+  id: string;
+  type: BadgeType;
+  grantedAt: string;
+}
+
+export interface VerificationRequestPublic {
+  id: string;
+  type: VerificationType;
+  status: VerificationStatus;
+  documents: string[];
+  adminNote: string | null;
+  scoreGranted: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ShopPublicProfile {
+  id: string;
+  userId: string;
+  shopType: ShopType;
+  slug: string;
+  name: string;
+  description: string | null;
+  logo: string | null;
+  coverImage: string | null;
+  category: string | null;
+  website: string | null;
+  contactPhone: string | null;
+  address: string | null;
+  cityId: string | null;
+  workingHours: unknown | null;
+  trustScore: number;
+  trustTier: TrustTier;
+  isActive: boolean;
+  isFeatured: boolean;
+  badges: ShopBadgePublic[];
+  createdAt: string;
+  updatedAt: string;
+  city?: { id: string; name: string; slug: string } | null;
+  user?: {
+    id: string;
+    username: string | null;
+    name: string | null;
+    avatar: string | null;
+  };
+}

@@ -180,15 +180,13 @@ export default function CreatePage() {
     })();
   }, []);
 
-  const { data: cats } = useQuery({
+  const {
+    data: cats,
+    isPending: catsLoading,
+    isError: catsError,
+  } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => (await apiClient.get<Category[]>('/categories/tree')).data ?? [],
-  });
-
-  const { data: _provinces } = useQuery({
-    queryKey: ['provinces'],
-    queryFn: async () =>
-      (await apiClient.get<Array<{ id: string; name: string }>>('/locations/provinces')).data ?? [],
   });
 
   const { data: cities } = useQuery({
@@ -509,7 +507,7 @@ export default function CreatePage() {
               <IgTag className="size-5" strokeWidth={1.75} aria-hidden /> دسته‌بندی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              اول موضوع اصلی را انتخاب کنید، بعد زیرموضوع دقیق را مثل دیوار مشخص کنید.
+              موضوع اصلی را انتخاب کنید، سپس زیرموضوع دقیق را مشخص کنید.
             </p>
             {selectedParent ? (
               <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3">
@@ -538,54 +536,64 @@ export default function CreatePage() {
               </div>
             ) : null}
 
-            <div className="mt-4 space-y-2">
-              {visibleCategories.map((c) => {
-                const hasChildren = !!c.children?.length;
-                const selected = categoryId === c.id && category?.id === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => {
-                      if (hasChildren) {
-                        setCategoryPath((p) => [...p, c]);
-                        setCategoryId('');
-                        setCategory(null);
-                      } else {
-                        setCategoryId(c.id);
-                        setCategory(c);
-                      }
-                      setAttributes({});
-                    }}
-                    className={cn(
-                      'flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-start shadow-xs tap-none',
-                      'transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-                      selected ? 'border-primary bg-accent' : 'border-input hover:bg-muted',
-                    )}
-                  >
-                    <span className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
-                      <IgTag className="size-5" strokeWidth={1.75} aria-hidden />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{c.name}</span>
+            {catsLoading ? (
+              <div className="mt-6 flex justify-center">
+                <Spinner size="md" label="در حال بارگذاری دسته‌بندی‌ها…" />
+              </div>
+            ) : catsError ? (
+              <p className="mt-4 text-sm text-destructive">
+                خطا در بارگذاری دسته‌بندی‌ها. لطفاً صفحه را مجدداً بارگذاری کنید.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-2">
+                {visibleCategories.map((c) => {
+                  const hasChildren = !!c.children?.length;
+                  const selected = categoryId === c.id && category?.id === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        if (hasChildren) {
+                          setCategoryPath((p) => [...p, c]);
+                          setCategoryId('');
+                          setCategory(null);
+                        } else {
+                          setCategoryId(c.id);
+                          setCategory(c);
+                        }
+                        setAttributes({});
+                      }}
+                      className={cn(
+                        'flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 text-start shadow-xs tap-none',
+                        'transition-[background-color,border-color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                        selected ? 'border-primary bg-accent' : 'border-input hover:bg-muted',
+                      )}
+                    >
+                      <span className="grid size-10 place-items-center rounded-lg bg-muted text-muted-foreground">
+                        <IgTag className="size-5" strokeWidth={1.75} aria-hidden />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{c.name}</span>
+                        {hasChildren ? (
+                          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                            {toFa(c.children!.length)} زیرموضوع
+                          </span>
+                        ) : null}
+                      </span>
                       {hasChildren ? (
-                        <span className="mt-0.5 block text-[11px] text-muted-foreground">
-                          {toFa(c.children!.length)} زیرموضوع
-                        </span>
+                        <IgChevron
+                          className="size-5 text-muted-foreground rtl:rotate-180"
+                          aria-hidden
+                        />
+                      ) : selected ? (
+                        <IgCheck className="size-5 text-ig-link" strokeWidth={1.75} aria-hidden />
                       ) : null}
-                    </span>
-                    {hasChildren ? (
-                      <IgChevron
-                        className="size-5 text-muted-foreground rtl:rotate-180"
-                        aria-hidden
-                      />
-                    ) : selected ? (
-                      <IgCheck className="size-5 text-ig-link" strokeWidth={1.75} aria-hidden />
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </section>
         )}
 

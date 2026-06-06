@@ -1,10 +1,8 @@
 'use client';
 
 import type { QueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, PostSummary, UserProfile } from '@agahiram/shared';
+import type { PostSummary, UserProfile } from '@agahiram/shared';
 import type { Profile } from '@/app/(main)/profile/[username]/profile-client';
-
-type FeedPage = PaginatedResponse<PostSummary>;
 
 export function patchAuthUser(qc: QueryClient, partial: Partial<UserProfile>) {
   qc.setQueryData<UserProfile | null>(['auth', 'me'], (old) =>

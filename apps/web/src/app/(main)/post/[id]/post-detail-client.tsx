@@ -15,6 +15,13 @@ import {
   IgArrowBack,
   IgPencil,
   IgTrash,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Button,
 } from '@agahiram/ui';
 import type { PostSummary } from '@agahiram/shared';
 import { apiClient, assertSuccess } from '@/lib/api';
@@ -60,6 +67,7 @@ export function PostDetailClient({ id }: { id: string }) {
   const me = useAuthStore((s) => s.user);
   const qc = useQueryClient();
   const [reportOpen, setReportOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const searchParams = useSearchParams();
   const highlightCommentId = searchParams.get('highlightComment');
   const cachedSummary = findPostInClientCache(qc, id);
@@ -139,11 +147,7 @@ export function PostDetailClient({ id }: { id: string }) {
                 type="button"
                 aria-label="حذف آگهی"
                 className="inline-flex items-center gap-1.5 rounded-full bg-destructive/10 px-3 py-1.5 text-xs font-semibold text-destructive"
-                onClick={() => {
-                  if (window.confirm('آیا مطمئن هستید؟ این آگهی برای همیشه حذف خواهد شد.')) {
-                    deletePost.mutate();
-                  }
-                }}
+                onClick={() => setDeleteDialogOpen(true)}
               >
                 <IgTrash className="size-4" strokeWidth={1.75} aria-hidden />
                 حذف
@@ -234,6 +238,32 @@ export function PostDetailClient({ id }: { id: string }) {
         targetId={id}
         title="گزارش آگهی"
       />
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>حذف آگهی</DialogTitle>
+            <DialogDescription>
+              آیا مطمئن هستید؟ این آگهی برای همیشه حذف خواهد شد و قابل بازگشت نیست.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              انصراف
+            </Button>
+            <Button
+              variant="destructive"
+              isLoading={deletePost.isPending}
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                deletePost.mutate();
+              }}
+            >
+              حذف آگهی
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PostDetailSwipe>
   );
 }

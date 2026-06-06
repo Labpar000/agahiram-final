@@ -254,7 +254,7 @@ export function StoryComposer({
         ) : null}
         <div className="flex gap-2">
           <Button variant="outline" fullWidth onClick={onCancel} disabled={isPublishing}>
-            لغو
+            تغییر رسانه
           </Button>
           <Button variant="brand" fullWidth onClick={publishNow} isLoading={isPublishing}>
             اشتراک‌گذاری
