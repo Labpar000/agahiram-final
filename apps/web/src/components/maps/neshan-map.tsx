@@ -93,6 +93,8 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
             attributionControl: false,
             interactive,
             transformRequest,
+            /* Keep pinch/drag on the map instead of scrolling the page (Safari). */
+            cooperativeGestures: false,
             /* Persian map needs Persian fonts to actually display labels.
              * Neshan's style ships glyphs that already cover this, but if a
              * font block is missing we fall back to a sensible alternative. */
@@ -158,7 +160,12 @@ export const NeshanMap = forwardRef<NeshanMapHandle, NeshanMapProps>(function Ne
         className,
       )}
     >
-      <div ref={containerRef} className="absolute inset-0" aria-label="نقشه" role="application" />
+      <div
+        ref={containerRef}
+        className="absolute inset-0 touch-none overscroll-contain"
+        aria-label="نقشه"
+        role="application"
+      />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 opacity-45"

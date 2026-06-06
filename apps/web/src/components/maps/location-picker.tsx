@@ -219,7 +219,7 @@ export function LocationPicker({
         ) : null}
       </div>
 
-      <div className="relative">
+      <div className="relative touch-none overscroll-contain">
         <NeshanMap
           ref={mapRef}
           center={center}

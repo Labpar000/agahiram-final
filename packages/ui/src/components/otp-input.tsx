@@ -41,7 +41,10 @@ export function OtpInput({
   );
 
   React.useEffect(() => {
-    if (autoFocus) inputRef.current?.focus();
+    if (!autoFocus) return;
+    // iOS Safari often ignores immediate focus after a step transition.
+    const t = window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
+    return () => window.clearTimeout(t);
   }, [autoFocus]);
 
   React.useEffect(() => {
@@ -70,9 +73,10 @@ export function OtpInput({
     >
       <input
         ref={inputRef}
-        type="text"
+        type="tel"
         inputMode="numeric"
         autoComplete="one-time-code"
+        enterKeyHint="done"
         pattern="[0-9]*"
         maxLength={length}
         value={sanitized}

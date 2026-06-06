@@ -388,18 +388,18 @@ export default function SettingsPage() {
         <Card>
           <CardContent className="!p-5">
             <div className="flex items-center gap-4">
-              <label className="relative cursor-pointer">
+              <label className="relative inline-flex cursor-pointer">
                 <Avatar size="lg" ring="brand" verified={user?.isVerified ?? false}>
                   {user?.avatar ? <AvatarImage src={user.avatar} alt="" /> : null}
                   <AvatarFallback>{(user?.username ?? '?').slice(0, 2)}</AvatarFallback>
                 </Avatar>
-                <span className="absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full bg-foreground text-background shadow-md">
+                <span className="pointer-events-none absolute -bottom-1 -end-1 grid size-7 place-items-center rounded-full bg-foreground text-background shadow-md">
                   <IgGallery className="size-4" strokeWidth={1.75} aria-hidden />
                 </span>
                 <input
                   type="file"
                   accept="image/*"
-                  className="sr-only"
+                  className="absolute inset-0 z-10 cursor-pointer opacity-0 [font-size:0]"
                   disabled={avatarUploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];

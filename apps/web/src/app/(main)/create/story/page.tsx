@@ -36,6 +36,12 @@ import { buildStoryPublishRequest } from '@/features/stories/story-publish-reque
 import { parseStoryTextDraft } from '@/features/stories/story-text-draft';
 import { StoryCamera, type CapturedMedia } from '@/features/stories/camera/story-camera';
 import { StoryLayoutCollage } from '@/features/stories/camera/story-layout-collage';
+import {
+  isVideoFile,
+  resolveContentType,
+  resolveFileExtension,
+  resolveVideoUploadType,
+} from '@/lib/normalize-image-file';
 type Step = 'pick' | 'camera' | 'layout' | 'edit' | 'previewBatch';
 
 type SessionPrefs = {
@@ -83,10 +89,14 @@ export default function CreateStoryPage() {
   const uploadBlob = async (file: File | Blob, fileName: string, contentType: string) => {
     const isVideo = contentType.startsWith('video/');
     const allowed = isVideo ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
-    if (!(allowed as readonly string[]).includes(contentType)) {
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+    const allowedVideoByExt = isVideo && ['mp4', 'mov', 'webm', 'quicktime'].includes(ext);
+    if (!(allowed as readonly string[]).includes(contentType) && !allowedVideoByExt) {
       throw new Error('فرمت فایل پشتیبانی نمی‌شود');
     }
-    const extension = fileName.split('.').pop()?.toLowerCase() ?? (isVideo ? 'webm' : 'jpg');
+    const extension = resolveFileExtension(
+      file instanceof File ? file : new File([file], fileName, { type: contentType }),
+    );
     const presign = await apiClient.post<{ uploadUrl: string; key: string }>('/media/presign', {
       folder: 'stories',
       fileName,
@@ -229,8 +239,8 @@ export default function CreateStoryPage() {
   });
 
   const handleFile = async (file: File) => {
-    const contentType = file.type || 'application/octet-stream';
-    const isVideo = contentType.startsWith('video/');
+    const isVideo = isVideoFile(file);
+    const contentType = isVideo ? resolveVideoUploadType(file) : resolveContentType(file);
     const allowed = isVideo ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
     if (!(allowed as readonly string[]).includes(contentType)) {
       toast.error('فرمت فایل پشتیبانی نمی‌شود');
@@ -407,18 +417,21 @@ export default function CreateStoryPage() {
               <Button variant="outline" fullWidth onClick={() => setStep('layout')}>
                 کلاژ
               </Button>
-              <label className="flex flex-1 cursor-pointer items-center justify-center rounded-lg border border-border py-2 text-sm font-medium">
+              <label className="relative flex min-h-11 flex-1 cursor-pointer items-center justify-center rounded-lg border border-border py-2 text-sm font-medium">
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
-                  className="hidden"
+                  accept="image/*,video/mp4,video/quicktime,video/webm"
+                  className="absolute inset-0 z-10 cursor-pointer opacity-0 [font-size:0]"
                   disabled={uploading}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) void handleFile(file);
+                    e.target.value = '';
                   }}
                 />
-                {uploading ? <Spinner size="sm" /> : 'گالری'}
+                <span className="pointer-events-none">
+                  {uploading ? <Spinner size="sm" /> : 'گالری'}
+                </span>
               </label>
             </div>
             {slides.length >= MAX_STORY_SLIDES_PER_BATCH ? (

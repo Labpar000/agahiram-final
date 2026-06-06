@@ -38,8 +38,8 @@ export default function MainLayout({
           </TabShell>
         </MainViewport>
         <FeedSpeculationRules />
-        <BottomNav />
       </div>
+      <BottomNav />
     </div>
   );
 }

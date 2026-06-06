@@ -29,11 +29,6 @@ import {
   Input,
   Label,
   Progress,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   Spinner,
   Textarea,
   toast,
@@ -43,6 +38,13 @@ import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ImageEditor } from '@/components/image-editor';
+import { ResponsiveSelect } from '@/components/responsive-select';
+import {
+  normalizeImageFile,
+  resolveContentType,
+  resolveFileExtension,
+  resolveVideoUploadType,
+} from '@/lib/normalize-image-file';
 import { CityLocationPicker } from '@/components/search-filters';
 import type { PickedLocation } from '@/components/maps/location-picker';
 
@@ -233,15 +235,27 @@ export default function CreatePage() {
 
   const uploadSingle = async (file: File): Promise<boolean> => {
     try {
-      const extension = getFileExtension(file);
-      const contentType = file.type || getContentTypeFromExtension(extension);
+      const extension = resolveFileExtension(file);
+      const contentType = resolveContentType(file);
       const isVideo = contentType.startsWith('video/');
 
       const allowed = isVideo ? ALLOWED_VIDEO_TYPES : ALLOWED_IMAGE_TYPES;
-      if (!(allowed as readonly string[]).includes(contentType)) {
+      const allowedByExt =
+        !isVideo && ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif'].includes(extension);
+      const allowedVideoByExt = isVideo && ['mp4', 'mov', 'webm', 'quicktime'].includes(extension);
+      if (
+        !(allowed as readonly string[]).includes(contentType) &&
+        !allowedByExt &&
+        !allowedVideoByExt
+      ) {
         toast.error(`فرمت «${file.name}» پشتیبانی نمی‌شود`);
         return false;
       }
+      const uploadType = (allowed as readonly string[]).includes(contentType)
+        ? contentType
+        : isVideo
+          ? resolveVideoUploadType(file)
+          : 'image/jpeg';
 
       const maxBytes = isVideo ? MAX_VIDEO_UPLOAD_BYTES : MAX_IMAGE_UPLOAD_BYTES;
       if (file.size > maxBytes) {
@@ -252,7 +266,7 @@ export default function CreatePage() {
 
       const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
         '/media/presign',
-        { folder: 'posts', fileName: file.name, contentType, extension },
+        { folder: 'posts', fileName: file.name, contentType: uploadType, extension },
       );
       if (!presign.success || !presign.data) {
         toast.error('خطا در دریافت لینک آپلود');
@@ -264,7 +278,7 @@ export default function CreatePage() {
         label: file.name,
         url: presign.data.uploadUrl,
         file,
-        contentType,
+        contentType: uploadType,
       });
       setUploadProgress(100);
       if (!ok) {
@@ -303,10 +317,13 @@ export default function CreatePage() {
     }
     const images: File[] = [];
     const videos: File[] = [];
-    for (const f of Array.from(files)) {
-      const ct = f.type || getContentTypeFromExtension(getFileExtension(f));
-      if (ct.startsWith('video/')) videos.push(f);
-      else images.push(f);
+    for (const raw of Array.from(files)) {
+      const ct = resolveContentType(raw);
+      if (ct.startsWith('video/')) {
+        videos.push(raw);
+      } else {
+        images.push(await normalizeImageFile(raw));
+      }
     }
 
     if (videos.length > 0) {
@@ -474,21 +491,27 @@ export default function CreatePage() {
                 >
                   <input
                     type="file"
-                    accept="image/*,video/mp4,video/webm"
+                    accept="image/*,video/mp4,video/quicktime,video/webm"
                     multiple
-                    onChange={(e) => e.target.files && void handleFiles(e.target.files)}
-                    className="absolute inset-0 cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      const picked = e.target.files;
+                      if (picked) void handleFiles(picked);
+                      e.target.value = '';
+                    }}
+                    className="absolute inset-0 z-10 cursor-pointer opacity-0 [font-size:0]"
                     disabled={uploading}
                   />
-                  {uploading ? (
-                    <Spinner size="md" />
-                  ) : (
-                    <IgImagePlus
-                      className="size-7 text-muted-foreground group-hover/upload:text-primary"
-                      aria-hidden
-                    />
-                  )}
-                  <span className="absolute bottom-2 text-[11px] text-muted-foreground">
+                  <div className="pointer-events-none relative z-0 flex flex-col items-center gap-1">
+                    {uploading ? (
+                      <Spinner size="md" />
+                    ) : (
+                      <IgImagePlus
+                        className="size-7 text-muted-foreground group-hover/upload:text-primary"
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                  <span className="pointer-events-none absolute bottom-2 z-0 text-[11px] text-muted-foreground">
                     {uploading
                       ? uploadProgress > 0
                         ? `در حال آپلود ${toFa(uploadProgress)}٪`
@@ -614,21 +637,13 @@ export default function CreatePage() {
                       {a.label}
                     </Label>
                     {a.type === 'select' ? (
-                      <Select
+                      <ResponsiveSelect
+                        id={a.key}
                         value={attributes[a.key] ?? ''}
                         onValueChange={(v) => setAttributes({ ...attributes, [a.key]: v })}
-                      >
-                        <SelectTrigger id={a.key}>
-                          <SelectValue placeholder="انتخاب کنید" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {a.options.map((o) => (
-                            <SelectItem key={o} value={o}>
-                              {o}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        placeholder="انتخاب کنید"
+                        options={a.options}
+                      />
                     ) : a.type === 'bool' ? (
                       <div className="grid grid-cols-2 gap-2">
                         {['دارد', 'ندارد'].map((v) => (

@@ -100,7 +100,12 @@ export function PostCard({
   const [burst, setBurst] = useState(0);
   const lastTapRef = useRef(0);
 
-  const [emblaRef, embla] = useEmblaCarousel({ direction: 'rtl', loop: false, align: 'start' });
+  const [emblaRef, embla] = useEmblaCarousel({
+    direction: 'rtl',
+    loop: false,
+    align: 'start',
+    dragThreshold: 12,
+  });
   const [activeIndex, setActiveIndex] = useState(0);
 
   // "Seen" indicator: backend marks `viewedByMe` for authenticated users; for
@@ -377,11 +382,19 @@ export function PostCard({
                     post={post}
                     className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                     onClick={(e: MouseEvent<HTMLAnchorElement>) => {
-                      if (Date.now() - lastTapRef.current < 320) {
+                      const now = Date.now();
+                      if (now - lastTapRef.current < 320) {
                         e.preventDefault();
                         return;
                       }
+                      lastTapRef.current = now;
+                      e.preventDefault();
                       markViewedLocally();
+                      window.setTimeout(() => {
+                        if (lastTapRef.current === now) {
+                          router.push(`/post/${post.id}`);
+                        }
+                      }, 320);
                     }}
                   >
                     <Image

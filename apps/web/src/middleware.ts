@@ -17,7 +17,13 @@ export function middleware(req: NextRequest) {
 
   if (PUBLIC_AUTH.some((p) => pathname.startsWith(p)) && hasSession && pathname === '/login') {
     const url = req.nextUrl.clone();
-    url.pathname = '/feed';
+    const redirect = url.searchParams.get('redirect');
+    url.searchParams.delete('redirect');
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      url.pathname = redirect;
+    } else {
+      url.pathname = '/feed';
+    }
     return NextResponse.redirect(url);
   }
 

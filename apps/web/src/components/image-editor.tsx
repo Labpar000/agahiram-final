@@ -226,7 +226,10 @@ export function ImageEditor({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="max-w-2xl" showClose={false}>
+      <DialogContent
+        className="dialog-mobile-sheet max-h-[min(92svh,48rem)] max-w-2xl overflow-y-auto overscroll-contain p-4 sm:p-6"
+        showClose={false}
+      >
         <DialogTitle className="sr-only">ویرایش تصویر</DialogTitle>
         <DialogDescription className="sr-only">
           برش، چرخش و تنظیم روشنایی تصویر قبل از آپلود
@@ -246,11 +249,12 @@ export function ImageEditor({
 
           <div
             ref={stageRef}
-            className="relative mx-auto aspect-square w-full max-h-[60vh] select-none overflow-hidden rounded-xl bg-black"
+            className="relative mx-auto aspect-square w-full max-h-[min(60svh,28rem)] touch-none select-none overflow-hidden rounded-xl bg-black"
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
             onPointerCancel={onPointerUp}
+            style={{ touchAction: 'none' }}
           >
             {src ? (
               /* eslint-disable-next-line @next/next/no-img-element */

@@ -149,6 +149,7 @@ function Inner() {
                 dir="ltr"
                 inputMode="numeric"
                 autoComplete="tel"
+                autoFocus
                 placeholder="شماره موبایل"
                 value={phone}
                 onChange={(e) =>

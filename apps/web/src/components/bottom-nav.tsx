@@ -40,7 +40,6 @@ export function BottomNav() {
   const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const router = useRouter();
   const qc = useQueryClient();
-  const isAuthenticated = useAuthStore((s) => !!s.user);
   const myUsername = useAuthStore((s) => s.user?.username);
   const myAvatar = useAuthStore((s) => s.user?.avatar);
   const prevPath = useRef(pathname);
@@ -49,18 +48,11 @@ export function BottomNav() {
     (href: string) => {
       const tab = TAB_PREFETCH[href];
       if (!tab) return;
-      const target =
-        href === '/profile'
-          ? !isAuthenticated
-            ? '/login'
-            : myUsername
-              ? `/profile/${myUsername}`
-              : '/onboarding'
-          : href;
+      const target = href === '/profile' ? '/profile' : href;
       void router.prefetch(target);
       import('@/lib/tab-prefetch').then((m) => m.prefetchMainTab(qc, tab, myUsername ?? null));
     },
-    [qc, router, myUsername, isAuthenticated],
+    [qc, router, myUsername],
   );
 
   useEffect(() => {
@@ -85,14 +77,10 @@ export function BottomNav() {
       {items.map((item) => {
         const { href, label, Icon, filledWhenActive } = item;
         const useAvatar = 'useAvatar' in item && item.useAvatar;
+        // Use server-resolved /profile when username isn't hydrated yet — avoids
+        // client auth races that briefly linked to /login while cookies were valid.
         const resolvedHref =
-          href === '/profile'
-            ? !isAuthenticated
-              ? '/login'
-              : myUsername
-                ? `/profile/${myUsername}`
-                : '/onboarding'
-            : href;
+          href === '/profile' ? (myUsername ? `/profile/${myUsername}` : '/profile') : href;
         const active =
           href === '/feed'
             ? pathname === '/' || pathname === '/feed'
@@ -103,12 +91,13 @@ export function BottomNav() {
         const showAvatar = useAvatar && myUsername;
 
         return (
-          <li key={href} className="contents">
+          <li key={href} className="flex min-h-[var(--ig-action)] items-stretch justify-center">
             <Link
               href={resolvedHref}
               aria-current={active ? 'page' : undefined}
               aria-label={label}
               prefetch
+              scroll={href === '/profile' ? false : undefined}
               onPointerEnter={() => warmTab(href)}
               onFocus={() => warmTab(href)}
               className={tabLinkClass(active)}

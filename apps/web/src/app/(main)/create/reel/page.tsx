@@ -16,6 +16,11 @@ import {
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
+import {
+  isVideoFile,
+  resolveFileExtension,
+  resolveVideoUploadType,
+} from '@/lib/normalize-image-file';
 
 export default function CreateReelPage() {
   const router = useRouter();
@@ -30,8 +35,10 @@ export default function CreateReelPage() {
   const [uploading, setUploading] = useState(false);
 
   const onPick = async (f: File) => {
-    if (!(ALLOWED_VIDEO_TYPES as readonly string[]).includes(f.type)) {
-      toast.error('فقط ویدیو MP4 پشتیبانی می‌شود');
+    const contentType = resolveVideoUploadType(f);
+    const extension = resolveFileExtension(f);
+    if (!isVideoFile(f)) {
+      toast.error('فرمت ویدیو پشتیبانی نمی‌شود');
       return;
     }
     if (f.size > MAX_VIDEO_UPLOAD_BYTES) {
@@ -57,15 +64,15 @@ export default function CreateReelPage() {
       const presign = await apiClient.post<{ uploadUrl: string; key: string }>('/media/presign', {
         folder: 'reels',
         fileName: f.name,
-        contentType: f.type,
-        extension: 'mp4',
+        contentType,
+        extension,
       });
       if (!presign.success || !presign.data) throw new Error('خطا در آپلود');
       const ok = await uploadFile({
         label: 'آپلود ریل',
         url: presign.data.uploadUrl,
         file: f,
-        contentType: f.type,
+        contentType,
       });
       if (!ok) throw new Error('آپلود ناموفق');
       const confirm = await apiClient.post('/media/confirm', { key: presign.data.key });
@@ -130,24 +137,27 @@ export default function CreateReelPage() {
       </div>
       <div className="p-4">
         {!preview ? (
-          <label className="grid aspect-[9/16] max-w-xs cursor-pointer place-items-center rounded-2xl border border-dashed border-border bg-muted">
+          <label className="relative grid aspect-[9/16] max-w-xs cursor-pointer place-items-center rounded-2xl border border-dashed border-border bg-muted">
             <input
               type="file"
-              accept="video/mp4"
-              className="hidden"
+              accept="video/mp4,video/quicktime,video/webm"
+              className="absolute inset-0 z-10 cursor-pointer opacity-0 [font-size:0]"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (f) void onPick(f);
+                e.target.value = '';
               }}
             />
-            {uploading ? (
-              <Spinner />
-            ) : (
-              <span className="flex flex-col items-center gap-2 text-muted-foreground">
-                <IgGallery className="size-10" strokeWidth={1.5} aria-hidden />
-                <span className="text-sm">انتخاب ویدیو از گالری</span>
-              </span>
-            )}
+            <div className="pointer-events-none flex flex-col items-center gap-2 text-muted-foreground">
+              {uploading ? (
+                <Spinner />
+              ) : (
+                <>
+                  <IgGallery className="size-10" strokeWidth={1.5} aria-hidden />
+                  <span className="text-sm">انتخاب ویدیو از گالری</span>
+                </>
+              )}
+            </div>
           </label>
         ) : (
           <div className="space-y-4">

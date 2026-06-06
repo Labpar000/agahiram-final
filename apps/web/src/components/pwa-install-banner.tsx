@@ -41,15 +41,22 @@ export function PwaInstallBanner() {
   if (!visible || !deferred) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-[calc(var(--bottom-nav)+var(--safe-bottom)+0.5rem)] z-50 flex items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-floating">
-      <img src="/icons/icon-192.png" alt="" className="size-12 rounded-xl" />
-      <div className="min-w-0 flex-1">
+    <div
+      className="pointer-events-none fixed inset-x-3 z-30 flex items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-floating max-md:mx-2"
+      style={{
+        bottom: 'calc(var(--bottom-nav) + var(--safe-bottom) + 1rem)',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+      }}
+    >
+      <img src="/icons/icon-192.png" alt="" className="pointer-events-auto size-12 rounded-xl" />
+      <div className="pointer-events-auto min-w-0 flex-1">
         <p className="text-sm font-semibold">افزودن به صفحه اصلی</p>
-        <p className="text-xs text-muted-foreground">دسترسی سریع‌تر به آگهی‌گرام</p>
+        <p className="text-xs text-muted-foreground">دسترسی سریع‌تر به آگهیرام</p>
       </div>
       <Button
         size="sm"
         variant="brand"
+        className="pointer-events-auto shrink-0"
         onClick={async () => {
           await deferred.prompt();
           setVisible(false);
@@ -60,6 +67,7 @@ export function PwaInstallBanner() {
       <Button
         size="sm"
         variant="ghost"
+        className="pointer-events-auto shrink-0"
         onClick={() => {
           localStorage.setItem(DISMISS_KEY, '1');
           setVisible(false);

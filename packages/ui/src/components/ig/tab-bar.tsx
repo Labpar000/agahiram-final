@@ -19,8 +19,10 @@ export type IgTabBarProps = {
 
 const tabLinkClass = (active?: boolean) =>
   cn(
-    'relative flex h-full items-center justify-center tap-none transition-all duration-150',
+    'relative flex min-h-[var(--ig-action)] w-full min-w-0 items-center justify-center tap-none transition-all duration-150',
+    'touch-manipulation select-none',
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+    'active:opacity-80',
     active ? 'scale-100 text-foreground' : 'scale-[0.96] text-muted-foreground',
   );
 
@@ -35,7 +37,7 @@ export function IgTabBar({ children, className, columns = 5 }: IgTabBarProps) {
       )}
     >
       <ul
-        className="mx-auto grid h-[var(--bottom-nav)] max-w-2xl items-start pt-2"
+        className="mx-auto grid min-h-[var(--bottom-nav)] max-w-2xl items-stretch px-1 pt-1"
         style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {children}
