@@ -35,7 +35,7 @@ type TabShellProps = {
   profile: React.ReactNode;
 };
 
-/** Parallel slots can lag on first client nav — fall back to `children` for the active tab. */
+/** Parallel slots can lag on first client nav — fall back to routed `children` for the active tab only. */
 function TabSlot({
   visible,
   slot,
@@ -43,9 +43,9 @@ function TabSlot({
 }: {
   visible: boolean;
   slot: React.ReactNode;
-  fallback: React.ReactNode;
+  fallback?: React.ReactNode;
 }) {
-  const content = visible && slot == null ? fallback : slot;
+  const content = visible ? (slot ?? fallback ?? null) : slot;
   return (
     <div className={visible ? 'block' : 'hidden'} aria-hidden={!visible}>
       {content}
@@ -109,11 +109,31 @@ export function TabShell({ children, feed, explore, reels, messages, profile }: 
 
   return (
     <>
-      <TabSlot visible={active === 'feed'} slot={feed} fallback={routed} />
-      <TabSlot visible={active === 'explore'} slot={explore} fallback={routed} />
-      <TabSlot visible={active === 'reels'} slot={reels} fallback={routed} />
-      <TabSlot visible={active === 'messages'} slot={messages} fallback={routed} />
-      <TabSlot visible={active === 'profile'} slot={profile} fallback={routed} />
+      <TabSlot
+        visible={active === 'feed'}
+        slot={feed}
+        fallback={active === 'feed' ? routed : undefined}
+      />
+      <TabSlot
+        visible={active === 'explore'}
+        slot={explore}
+        fallback={active === 'explore' ? routed : undefined}
+      />
+      <TabSlot
+        visible={active === 'reels'}
+        slot={reels}
+        fallback={active === 'reels' ? routed : undefined}
+      />
+      <TabSlot
+        visible={active === 'messages'}
+        slot={messages}
+        fallback={active === 'messages' ? routed : undefined}
+      />
+      <TabSlot
+        visible={active === 'profile'}
+        slot={profile}
+        fallback={active === 'profile' ? routed : undefined}
+      />
     </>
   );
 }

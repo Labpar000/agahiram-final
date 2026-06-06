@@ -9,7 +9,7 @@ export default async function MyProfilePage() {
   const res = await serverApi<AuthMe>('/auth/me');
 
   if (!res.success || !res.data) {
-    redirect('/login');
+    redirect('/login?redirect=/profile');
   }
 
   if (!res.data.username) {

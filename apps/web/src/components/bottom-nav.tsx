@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, type MouseEvent } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
@@ -40,6 +40,8 @@ export function BottomNav() {
   const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const router = useRouter();
   const qc = useQueryClient();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
   const myUsername = useAuthStore((s) => s.user?.username);
   const myName = useAuthStore((s) => s.user?.name);
   const myAvatar = useAuthStore((s) => s.user?.avatar);
@@ -78,10 +80,17 @@ export function BottomNav() {
       {items.map((item) => {
         const { href, label, Icon, filledWhenActive } = item;
         const useAvatar = 'useAvatar' in item && item.useAvatar;
-        // Use server-resolved /profile when username isn't hydrated yet — avoids
-        // client auth races that briefly linked to /login while cookies were valid.
+        // Prefer direct username route; defer to /profile while auth hydrates; otherwise login.
         const resolvedHref =
-          href === '/profile' ? (myUsername ? `/profile/${myUsername}` : '/profile') : href;
+          href === '/profile'
+            ? myUsername
+              ? `/profile/${myUsername}`
+              : isLoading
+                ? '/profile'
+                : !isAuthenticated
+                  ? '/login?redirect=/profile'
+                  : '/profile'
+            : href;
         const active =
           href === '/feed'
             ? pathname === '/' || pathname === '/feed'
@@ -91,19 +100,6 @@ export function BottomNav() {
         const filled = filledWhenActive && active;
         const showAvatar = useAvatar && myUsername;
 
-        const handleProfileClick =
-          href === '/profile'
-            ? (e: MouseEvent<HTMLAnchorElement>) => {
-                if (pathname === resolvedHref) {
-                  e.preventDefault();
-                  return;
-                }
-                // Explicit push keeps @profile slot in sync on client tab switches.
-                e.preventDefault();
-                router.push(resolvedHref, { scroll: false });
-              }
-            : undefined;
-
         return (
           <li key={href} className="flex min-h-[var(--ig-action)] items-stretch justify-center">
             <Link
@@ -112,7 +108,6 @@ export function BottomNav() {
               aria-label={label}
               prefetch
               scroll={href === '/profile' ? false : undefined}
-              onClick={handleProfileClick}
               onPointerEnter={() => warmTab(href)}
               onFocus={() => warmTab(href)}
               className={tabLinkClass(active)}
