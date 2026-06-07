@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -60,7 +60,7 @@ const LocationPicker = dynamic(
 );
 
 type Step = 0 | 1 | 2 | 3 | 4;
-const STEP_LABELS = ['عکس و ویدیو', 'دسته‌بندی', 'مشخصات', 'عنوان و قیمت', 'موقعیت'];
+const STEP_LABELS = ['موقعیت', 'دسته‌بندی', 'عکس و ویدیو', 'عنوان و قیمت', 'مشخصات'];
 const MAX_MEDIA = 10;
 
 interface Category {
@@ -113,6 +113,67 @@ export default function CreatePage() {
   const [editorFile, setEditorFile] = useState<File | null>(null);
   const [editorQueue, setEditorQueue] = useState<File[]>([]);
 
+  // Track whether auto-advance already fired so going back to a completed step
+  // doesn't immediately re-trigger it.
+  const autoAdvancedRef = useRef<Record<Step, boolean>>({
+    0: false,
+    1: false,
+    2: false,
+    3: false,
+    4: false,
+  });
+
+  const advance = useCallback(() => {
+    if (step < 4) {
+      autoAdvancedRef.current[step] = false;
+      setStep((step + 1) as Step);
+    }
+  }, [step]);
+
+  const goBack = useCallback(() => {
+    if (step === 0) {
+      router.back();
+    } else {
+      const prev = (step - 1) as Step;
+      autoAdvancedRef.current[step] = false;
+      autoAdvancedRef.current[prev] = false;
+      setStep(prev);
+    }
+  }, [step, router]);
+
+  // ---- Auto-advance: Step 0 (city) ----
+  useEffect(() => {
+    if (step === 0 && !!cityId && !autoAdvancedRef.current[0]) {
+      autoAdvancedRef.current[0] = true;
+      const t = setTimeout(() => advance(), 400);
+      return () => clearTimeout(t);
+    }
+  }, [step, cityId, advance]);
+
+  // ---- Auto-advance: Step 1 (category leaf) ----
+  useEffect(() => {
+    if (
+      step === 1 &&
+      !!categoryId &&
+      !!category &&
+      (!category.children || category.children.length === 0) &&
+      !autoAdvancedRef.current[1]
+    ) {
+      autoAdvancedRef.current[1] = true;
+      const t = setTimeout(() => advance(), 400);
+      return () => clearTimeout(t);
+    }
+  }, [step, categoryId, category, advance]);
+
+  // ---- Auto-advance: Step 2 (media) ----
+  useEffect(() => {
+    if (step === 2 && media.length > 0 && !uploading && !autoAdvancedRef.current[2]) {
+      autoAdvancedRef.current[2] = true;
+      const t = setTimeout(() => advance(), 500);
+      return () => clearTimeout(t);
+    }
+  }, [step, media.length, uploading, advance]);
+
   // Restore draft on mount
   useEffect(() => {
     try {
@@ -126,15 +187,14 @@ export default function CreatePage() {
       if (draft.cityId) setCityId(draft.cityId);
       if (draft.provinceId) setProvinceId(draft.provinceId);
       if (draft.attributes && typeof draft.attributes === 'object') setAttributes(draft.attributes);
-      // Don't restore categoryId here as it requires the full category tree to be loaded
     } catch {
       /* ignore */
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Save draft whenever form fields change
   useEffect(() => {
-    if (step === 0 && media.length === 0 && !title && !categoryId) return; // don't save empty draft
+    if (step === 0 && !cityId && !title && !categoryId) return;
     const draft = {
       title,
       description,
@@ -164,24 +224,6 @@ export default function CreatePage() {
       });
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const last = localStorage.getItem('agahiram_last_city_id');
-        if (!last) return;
-        const r = await apiClient.get<{ id: string; provinceId: string }>(
-          `/locations/city/${last}`,
-        );
-        if (r.success && r.data) {
-          setCityId(r.data.id);
-          setProvinceId(r.data.provinceId);
-        }
-      } catch {
-        /* ignore */
-      }
-    })();
-  }, []);
 
   const {
     data: cats,
@@ -335,7 +377,6 @@ export default function CreatePage() {
     }
 
     if (images.length > 0) {
-      // Show editor for first image; rest queue up.
       setEditorFile(images[0]!);
       setEditorQueue(images.slice(1));
     }
@@ -355,7 +396,6 @@ export default function CreatePage() {
 
   const onEditorCancel = () => {
     setEditorFile(null);
-    // Drop the rest of the queue too on cancel — user can re-pick.
     setEditorQueue([]);
   };
 
@@ -391,8 +431,6 @@ export default function CreatePage() {
       } catch {
         /* ignore */
       }
-      // Optimistically prepend new post to all caches so images appear immediately
-      // without requiring a page refresh.
       const enrichedPost = { ...post, status: post.status ?? PostStatus.PENDING_REVIEW };
       prependFeedPost(qc, enrichedPost);
       prependExplorePost(qc, enrichedPost);
@@ -408,14 +446,17 @@ export default function CreatePage() {
   });
 
   const stepValid = () => {
-    if (step === 0) return media.length > 0;
+    if (step === 0) return !!cityId;
     if (step === 1) return !!categoryId && !!category;
-    if (step === 2)
-      return (category?.attributes ?? [])
-        .filter((a) => a.required && a.key !== 'price')
-        .every((a) => !!attributes[a.key]);
+    if (step === 2) return media.length > 0;
     if (step === 3) return title.length >= 3 && (priceType !== 'fixed' || !!price);
-    if (step === 4) return !!cityId;
+    if (step === 4) {
+      const requiredAttrs = (category?.attributes ?? []).filter(
+        (a) => a.required && a.key !== 'price',
+      );
+      if (requiredAttrs.length === 0) return true;
+      return requiredAttrs.every((a) => !!attributes[a.key]);
+    }
     return false;
   };
 
@@ -425,11 +466,19 @@ export default function CreatePage() {
     ? selectedParent.children
     : rootCategories;
 
+  // Only show fixed bottom bar on steps that require explicit user action
+  const showBottomBar = step >= 3;
+
   return (
     <div
       className="bg-background"
-      style={{ paddingBottom: 'calc(var(--bottom-nav) + var(--safe-bottom) + 4.5rem)' }}
+      style={{
+        paddingBottom: showBottomBar
+          ? 'calc(var(--bottom-nav) + var(--safe-bottom) + 4.5rem)'
+          : 'calc(var(--bottom-nav) + var(--safe-bottom) + 1rem)',
+      }}
     >
+      {/* Header */}
       <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <IconButton
@@ -442,7 +491,7 @@ export default function CreatePage() {
               )
             }
             variant="ghost"
-            onClick={() => (step === 0 ? router.back() : setStep((step - 1) as Step))}
+            onClick={goBack}
           />
           <div className="flex-1">
             <div className="flex items-baseline justify-between gap-2">
@@ -450,90 +499,63 @@ export default function CreatePage() {
               <span className="text-ig-meta">مرحله {toFa(step + 1)} از ۵</span>
             </div>
             <Progress className="mt-1.5 h-0.5" tone="brand" value={((step + 1) / 5) * 100} />
+            {/* Step dots */}
+            <div className="mt-1.5 flex justify-center gap-1" aria-hidden>
+              {([0, 1, 2, 3, 4] as Step[]).map((s) => (
+                <div
+                  key={s}
+                  className={cn(
+                    'h-1.5 rounded-full transition-all duration-300',
+                    s === step
+                      ? 'w-4 bg-primary'
+                      : s < step
+                        ? 'w-1.5 bg-primary/50'
+                        : 'w-1.5 bg-muted-foreground/25',
+                  )}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-2xl space-y-5 p-4">
+        {/* ──── Step 0: City ──── */}
         {step === 0 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
-            <h2 className="text-h3 font-bold tracking-tight">عکس و ویدیو</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              حداکثر {toFa(MAX_MEDIA)} مورد می‌توانید اضافه کنید
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              ابعاد پیشنهادی: پست ۱۰۸۰×۱۰۸۰ پیکسل، استوری ۱۰۸۰×۱۹۲۰ پیکسل
-            </p>
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-              {media.map((m, i) => (
-                <div
-                  key={i}
-                  className="relative aspect-square overflow-hidden rounded-xl bg-muted ring-1 ring-border"
-                >
-                  {m.type === 'video' ? (
-                    <video src={m.preview} className="size-full object-cover" muted playsInline />
-                  ) : (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={m.preview} alt="" className="size-full object-cover" />
-                  )}
-                  <button
-                    type="button"
-                    aria-label="حذف"
-                    onClick={() => {
-                      const item = media[i];
-                      if (item?.preview) URL.revokeObjectURL(item.preview);
-                      setMedia((arr) => arr.filter((_, j) => j !== i));
-                    }}
-                    className="absolute end-1 top-1 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                  >
-                    <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
-                  </button>
-                </div>
-              ))}
-              {media.length < MAX_MEDIA && (
-                <label
-                  className={cn(
-                    'group/upload relative grid aspect-square cursor-pointer place-items-center rounded-xl border-2 border-dashed text-center transition-[background-color,border-color,transform] focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-surface',
-                    uploading
-                      ? 'border-primary bg-accent/40'
-                      : 'border-border hover:border-primary hover:bg-accent/30 active:scale-[0.98]',
-                  )}
-                >
-                  <input
-                    type="file"
-                    accept="image/*,video/mp4,video/quicktime,video/webm"
-                    multiple
-                    onChange={(e) => {
-                      const picked = e.target.files;
-                      if (picked) void handleFiles(picked);
-                      e.target.value = '';
-                    }}
-                    className="absolute inset-0 z-10 cursor-pointer opacity-0 [font-size:0]"
-                    disabled={uploading}
-                  />
-                  <div className="pointer-events-none relative z-0 flex flex-col items-center gap-1">
-                    {uploading ? (
-                      <Spinner size="md" />
-                    ) : (
-                      <IgImagePlus
-                        className="size-7 text-muted-foreground group-hover/upload:text-primary"
-                        aria-hidden
-                      />
-                    )}
-                  </div>
-                  <span className="pointer-events-none absolute bottom-2 z-0 text-[11px] text-muted-foreground">
-                    {uploading
-                      ? uploadProgress > 0
-                        ? `در حال آپلود ${toFa(uploadProgress)}٪`
-                        : 'در حال آپلود'
-                      : 'افزودن'}
-                  </span>
-                </label>
-              )}
+            <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
+              <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما کجاست؟</p>
+            <div className="mt-4 max-h-[min(24rem,65svh)] overflow-hidden rounded-2xl border border-border">
+              <CityLocationPicker
+                embedded
+                currentCityId={cityId || undefined}
+                currentProvinceId={provinceId || undefined}
+                onPickProvince={(p) => {
+                  setProvinceId(p.id);
+                  setCityId('');
+                }}
+                onPickCity={(c, p) => {
+                  setCityId(c.id);
+                  setProvinceId(p.id);
+                  try {
+                    localStorage.setItem('agahiram_last_city_id', c.id);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                onPickProvinceOnly={(p) => setProvinceId(p.id)}
+                onClear={() => {
+                  setProvinceId('');
+                  setCityId('');
+                }}
+              />
             </div>
           </section>
         )}
 
+        {/* ──── Step 1: Category ──── */}
         {step === 1 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
@@ -630,63 +652,98 @@ export default function CreatePage() {
           </section>
         )}
 
+        {/* ──── Step 2: Media ──── */}
         {step === 2 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
-            <h2 className="text-h3 font-bold tracking-tight">مشخصات</h2>
+            <h2 className="text-h3 font-bold tracking-tight">عکس و ویدیو</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {category?.attributes?.length
-                ? 'ویژگی‌های زیر را پر کنید'
-                : 'این دسته ویژگی خاصی ندارد — مرحله بعد را بزنید'}
+              حداکثر {toFa(MAX_MEDIA)} مورد می‌توانید اضافه کنید
             </p>
-            <div className="mt-4 space-y-3">
-              {category?.attributes
-                .filter((a) => a.key !== 'price')
-                .map((a) => (
-                  <div key={a.id} className="space-y-2">
-                    <Label htmlFor={a.key} required={a.required}>
-                      {a.label}
-                    </Label>
-                    {a.type === 'select' ? (
-                      <ResponsiveSelect
-                        id={a.key}
-                        value={attributes[a.key] ?? ''}
-                        onValueChange={(v) => setAttributes({ ...attributes, [a.key]: v })}
-                        placeholder="انتخاب کنید"
-                        options={a.options}
-                      />
-                    ) : a.type === 'bool' ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        {['دارد', 'ندارد'].map((v) => (
-                          <button
-                            key={v}
-                            type="button"
-                            onClick={() => setAttributes({ ...attributes, [a.key]: v })}
-                            className={cn(
-                              'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
-                              attributes[a.key] === v
-                                ? 'border-primary bg-accent text-accent-foreground'
-                                : 'border-input hover:bg-muted',
-                            )}
-                          >
-                            {v}
-                          </button>
-                        ))}
-                      </div>
+            <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+              {media.map((m, i) => (
+                <div
+                  key={i}
+                  className="relative aspect-square overflow-hidden rounded-xl bg-muted ring-1 ring-border"
+                >
+                  {m.type === 'video' ? (
+                    <video src={m.preview} className="size-full object-cover" muted playsInline />
+                  ) : (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={m.preview} alt="" className="size-full object-cover" />
+                  )}
+                  <button
+                    type="button"
+                    aria-label="حذف"
+                    onClick={() => {
+                      const item = media[i];
+                      if (item?.preview) URL.revokeObjectURL(item.preview);
+                      setMedia((arr) => arr.filter((_, j) => j !== i));
+                    }}
+                    className="absolute end-1 top-1 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                  >
+                    <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
+                  </button>
+                </div>
+              ))}
+              {media.length < MAX_MEDIA && (
+                <label
+                  className={cn(
+                    'group/upload relative grid aspect-square cursor-pointer place-items-center rounded-xl border-2 border-dashed text-center transition-[background-color,border-color,transform] focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-surface',
+                    uploading
+                      ? 'border-primary bg-accent/40'
+                      : 'border-border hover:border-primary hover:bg-accent/30 active:scale-[0.98]',
+                  )}
+                >
+                  <input
+                    type="file"
+                    accept="image/*,video/mp4,video/quicktime,video/webm"
+                    multiple
+                    onChange={(e) => {
+                      const picked = e.target.files;
+                      if (picked) void handleFiles(picked);
+                      e.target.value = '';
+                    }}
+                    className="absolute inset-0 z-10 cursor-pointer opacity-0 [font-size:0]"
+                    disabled={uploading}
+                  />
+                  <div className="pointer-events-none relative z-0 flex flex-col items-center gap-1">
+                    {uploading ? (
+                      <Spinner size="md" />
                     ) : (
-                      <Input
-                        id={a.key}
-                        type={a.type === 'number' ? 'number' : 'text'}
-                        inputMode={a.type === 'number' ? 'numeric' : 'text'}
-                        value={attributes[a.key] ?? ''}
-                        onChange={(e) => setAttributes({ ...attributes, [a.key]: e.target.value })}
+                      <IgImagePlus
+                        className="size-7 text-muted-foreground group-hover/upload:text-primary"
+                        aria-hidden
                       />
                     )}
                   </div>
-                ))}
+                  <span className="pointer-events-none absolute bottom-2 z-0 text-[11px] text-muted-foreground">
+                    {uploading
+                      ? uploadProgress > 0
+                        ? `در حال آپلود ${toFa(uploadProgress)}٪`
+                        : 'در حال آپلود'
+                      : 'افزودن'}
+                  </span>
+                </label>
+              )}
             </div>
+            {/* Manual continue if auto-advance was blocked (user navigated back) */}
+            {media.length > 0 && !uploading && (
+              <div className="mt-5">
+                <Button
+                  fullWidth
+                  size="lg"
+                  variant="brand"
+                  onClick={() => advance()}
+                  className="text-base font-bold"
+                >
+                  ادامه
+                </Button>
+              </div>
+            )}
           </section>
         )}
 
+        {/* ──── Step 3: Title + Price ──── */}
         {step === 3 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
             <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
@@ -774,7 +831,7 @@ export default function CreatePage() {
                       ) : priceSuggestion?.suggestedPrice ? (
                         <div className="space-y-0.5">
                           <p className="font-semibold text-foreground">
-                            بازه پیشنهادی:{' '}
+                            بازه پیشنها��ی:{' '}
                             {priceSuggestion.minPrice != null && priceSuggestion.maxPrice != null
                               ? `${formatPersianPrice(priceSuggestion.minPrice)} تا ${formatPersianPrice(priceSuggestion.maxPrice)}`
                               : formatPersianPrice(priceSuggestion.suggestedPrice)}
@@ -794,56 +851,64 @@ export default function CreatePage() {
           </section>
         )}
 
+        {/* ──── Step 4: Attributes (Final) ──── */}
         {step === 4 && (
           <section className="rounded-2xl border border-border bg-surface p-4 shadow-card">
-            <h2 className="flex items-center gap-2 text-h3 font-bold tracking-tight">
-              <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما در کجاست؟</p>
-            <div className="mt-4 max-h-[min(24rem,65svh)] overflow-hidden rounded-2xl border border-border">
-              <CityLocationPicker
-                embedded
-                currentCityId={cityId || undefined}
-                currentProvinceId={provinceId || undefined}
-                onPickProvince={(p) => {
-                  setProvinceId(p.id);
-                  setCityId('');
-                }}
-                onPickCity={(c, p) => {
-                  setCityId(c.id);
-                  setProvinceId(p.id);
-                  try {
-                    localStorage.setItem('agahiram_last_city_id', c.id);
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-                onPickProvinceOnly={(p) => setProvinceId(p.id)}
-                onClear={() => {
-                  setProvinceId('');
-                  setCityId('');
-                }}
-              />
+            <h2 className="text-h3 font-bold tracking-tight">مشخصات</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {category?.attributes?.filter((a) => a.required && a.key !== 'price').length
+                ? 'ویژگی‌های ضروری را پر کنید'
+                : 'این دسته ویژگی ضروری خاصی ندارد'}
+            </p>
+            <div className="mt-4 space-y-3">
+              {category?.attributes
+                ?.filter((a) => a.required && a.key !== 'price')
+                .map((a) => (
+                  <div key={a.id} className="space-y-2">
+                    <Label htmlFor={a.key} required={a.required}>
+                      {a.label}
+                    </Label>
+                    {a.type === 'select' ? (
+                      <ResponsiveSelect
+                        id={a.key}
+                        value={attributes[a.key] ?? ''}
+                        onValueChange={(v) => setAttributes({ ...attributes, [a.key]: v })}
+                        placeholder="انتخاب کنید"
+                        options={a.options}
+                      />
+                    ) : a.type === 'bool' ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {['دارد', 'ندارد'].map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() => setAttributes({ ...attributes, [a.key]: v })}
+                            className={cn(
+                              'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                              attributes[a.key] === v
+                                ? 'border-primary bg-accent text-accent-foreground'
+                                : 'border-input hover:bg-muted',
+                            )}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <Input
+                        id={a.key}
+                        type={a.type === 'number' ? 'number' : 'text'}
+                        inputMode={a.type === 'number' ? 'numeric' : 'text'}
+                        value={attributes[a.key] ?? ''}
+                        onChange={(e) => setAttributes({ ...attributes, [a.key]: e.target.value })}
+                      />
+                    )}
+                  </div>
+                ))}
             </div>
 
-            {cityId ? (
-              <div className="space-y-2">
-                <Label>موقعیت دقیق روی نقشه (اختیاری)</Label>
-                <p className="text-[11px] text-muted-foreground">
-                  نقشه را جابه‌جا کنید تا پین روی محل دقیق آگهی قرار گیرد. این کمک می‌کند خریداران
-                  فاصله را ببینند.
-                </p>
-                <LocationPicker
-                  value={pickedLocation}
-                  onChange={setPickedLocation}
-                  hideExact={hideExactLocation}
-                  onHideExactChange={setHideExactLocation}
-                  defaultCenter={cityCenter}
-                />
-              </div>
-            ) : null}
-
-            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+            {/* Preview card */}
+            <div className="mt-5 rounded-2xl border border-border bg-muted/40 p-4">
               <h3 className="text-sm font-semibold">پیش‌نمایش</h3>
               <p className="mt-1 text-sm">{title || '—'}</p>
               <p className="text-sm font-bold gradient-text-brand">
@@ -853,34 +918,40 @@ export default function CreatePage() {
                     ? 'تماس بگیرید'
                     : formatPersianPrice(price ? Number(price) : null)}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">دسته: {category?.name ?? '—'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {category?.name ?? '—'} &middot;{' '}
+                {selectedCity ? `${selectedCity.name}` : cityId ? '—' : 'مشخص نشده'}
+              </p>
             </div>
           </section>
         )}
       </div>
 
-      <div
-        className="fixed inset-x-0 z-50 border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
-        style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
-      >
-        <div className="mx-auto max-w-2xl">
-          <Button
-            fullWidth
-            size="lg"
-            variant="brand"
-            disabled={!stepValid() || submit.isPending}
-            isLoading={submit.isPending}
-            onClick={() => (step < 4 ? setStep((step + 1) as Step) : submit.mutate())}
-            rightIcon={
-              step < 4 ? (
-                <IgChevron direction="left" className="size-5 rtl:rotate-180" aria-hidden />
-              ) : undefined
-            }
-          >
-            {step < 4 ? 'ادامه' : 'ثبت آگهی'}
-          </Button>
+      {/* Fixed bottom bar — only on steps that require explicit user action */}
+      {showBottomBar && (
+        <div
+          className="fixed inset-x-0 z-50 border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
+          style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
+        >
+          <div className="mx-auto max-w-2xl">
+            <Button
+              fullWidth
+              size="lg"
+              variant="brand"
+              disabled={!stepValid() || submit.isPending}
+              isLoading={submit.isPending}
+              onClick={() => (step === 3 ? advance() : submit.mutate())}
+              rightIcon={
+                step === 3 ? (
+                  <IgChevron direction="left" className="size-5 rtl:rotate-180" aria-hidden />
+                ) : undefined
+              }
+            >
+              {step === 3 ? 'ادامه' : 'ثبت آگهی'}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
       {editorFile ? (
         <ImageEditor
           file={editorFile}
@@ -891,26 +962,6 @@ export default function CreatePage() {
       ) : null}
     </div>
   );
-}
-
-function getFileExtension(file: File) {
-  const fromName = file.name.split('.').pop()?.toLowerCase();
-  if (fromName) return fromName;
-  return file.type.split('/').pop()?.toLowerCase() ?? 'bin';
-}
-
-function getContentTypeFromExtension(extension: string) {
-  const types: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-    gif: 'image/gif',
-    mp4: 'video/mp4',
-    mov: 'video/quicktime',
-    quicktime: 'video/quicktime',
-  };
-  return types[extension] ?? 'application/octet-stream';
 }
 
 function toFa(n: number) {

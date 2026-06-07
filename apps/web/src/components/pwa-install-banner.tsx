@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@agahiram/ui';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -26,6 +26,7 @@ export function PwaInstallBanner() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosMode, setIosMode] = useState(false);
+  const timerRef = useRef<number>(0);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -38,27 +39,34 @@ export function PwaInstallBanner() {
     const visits = Number(localStorage.getItem(VISIT_KEY) ?? '0') + 1;
     localStorage.setItem(VISIT_KEY, String(visits));
 
-    // iOS shows guidance immediately (no deferred prompt); Chromium waits for BIP
     if (ios && visits >= 3) {
-      const timer = window.setTimeout(() => setVisible(true), 120_000);
-      return () => window.clearTimeout(timer);
+      timerRef.current = window.setTimeout(() => {
+        if (!localStorage.getItem(DISMISS_KEY)) setVisible(true);
+      }, 120_000);
+      return () => window.clearTimeout(timerRef.current);
     }
 
-    const timer = window.setTimeout(() => {
-      if (visits >= 3) setVisible(true);
+    timerRef.current = window.setTimeout(() => {
+      if (visits >= 3 && !localStorage.getItem(DISMISS_KEY)) setVisible(true);
     }, 120_000);
 
     const onBip = (e: Event) => {
       e.preventDefault();
       setDeferred(e as BeforeInstallPromptEvent);
-      if (visits >= 3) setVisible(true);
+      if (visits >= 3 && !localStorage.getItem(DISMISS_KEY)) setVisible(true);
     };
     window.addEventListener('beforeinstallprompt', onBip);
     return () => {
-      window.clearTimeout(timer);
+      window.clearTimeout(timerRef.current);
       window.removeEventListener('beforeinstallprompt', onBip);
     };
   }, []);
+
+  const dismiss = () => {
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    localStorage.setItem(DISMISS_KEY, '1');
+    setVisible(false);
+  };
 
   // Chromium: only show when deferred prompt is available
   // iOS: show whenever visible (deferred is always null on iOS)
@@ -88,10 +96,7 @@ export function PwaInstallBanner() {
           size="sm"
           variant="ghost"
           className="pointer-events-auto shrink-0"
-          onClick={() => {
-            localStorage.setItem(DISMISS_KEY, '1');
-            setVisible(false);
-          }}
+          onClick={dismiss}
         >
           بستن
         </Button>
@@ -112,10 +117,7 @@ export function PwaInstallBanner() {
             size="sm"
             variant="ghost"
             className="pointer-events-auto shrink-0"
-            onClick={() => {
-              localStorage.setItem(DISMISS_KEY, '1');
-              setVisible(false);
-            }}
+            onClick={dismiss}
           >
             بعداً
           </Button>
