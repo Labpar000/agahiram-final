@@ -212,8 +212,8 @@ jobs:
         run: |
           set -euo pipefail
           # shellcheck disable=SC2086
-          bash scripts/export-images.sh "$IMAGE_REGISTRY" "$IMAGE_TAG" /tmp/agahiram-images.tar.gz $BUILD_SERVICES \
-            | tee /tmp/agahiram-images.sha256
+          bash scripts/export-images.sh "$IMAGE_REGISTRY" "$IMAGE_TAG" /tmp/agahiram-images.tar.gz $BUILD_SERVICES
+          sha256sum /tmp/agahiram-images.tar.gz | awk '{print $1}' > /tmp/agahiram-images.sha256
 
       - name: Deploy (SCP images + transfer on VPS)
         env:
@@ -234,20 +234,18 @@ jobs:
           fi
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" "chmod +x /tmp/remote-deploy.sh"
 
-          DEPLOY_MODE=transfer
-          EXTRA_IMAGES=()
+          IMAGES_ENV=""
           if [[ -n "${BUILD_SERVICES// /}" && -f /tmp/agahiram-images.tar.gz ]]; then
-            EXTRA_IMAGES+=(IMAGES_TARBALL='/tmp/agahiram-images.tar.gz')
-            EXTRA_IMAGES+=(IMAGES_SHA256="$(cat /tmp/agahiram-images.sha256)")
+            IMAGES_ENV="IMAGES_TARBALL=/tmp/agahiram-images.tar.gz IMAGES_SHA256='$(cat /tmp/agahiram-images.sha256)'"
           fi
 
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
-            "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=$DEPLOY_MODE \
+            "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=transfer \
              IMAGE_REGISTRY='$IMAGE_REGISTRY' IMAGE_TAG='$IMAGE_TAG' \
              BUILD_SERVICES='$BUILD_SERVICES' CONFIG_ONLY='$CONFIG_ONLY' NEED_BUILD='$NEED_BUILD' \
              CONFIG_TARBALL='/tmp/agahiram-config.tar.gz' \
              CONFIG_SHA256='$(cat /tmp/agahiram-config.sha256)' \
-             ${EXTRA_IMAGES[*]} \
+             $IMAGES_ENV \
              bash /tmp/remote-deploy.sh"
 
       - name: Cleanup SSH key
