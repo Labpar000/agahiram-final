@@ -173,7 +173,7 @@ jobs:
     if: >
       needs.scope.outputs.need_deploy == 'true' &&
       (needs.scope.outputs.need_build != 'true' || needs.build.result == 'success')
-    timeout-minutes: 15
+    timeout-minutes: 25
     environment:
       name: production
       url: https://${{ vars.PRODUCTION_DOMAIN || 'alooche.com' }}
@@ -201,15 +201,26 @@ jobs:
           bash scripts/package-config.sh /tmp/agahiram-config.tar.gz
           sha256sum /tmp/agahiram-config.tar.gz | awk '{print $1}' > /tmp/agahiram-config.sha256
 
-      - name: Deploy via SSH (pull mode — VPS pulls images from GHCR)
+      - name: Log in to GHCR (runner)
+        if: needs.scope.outputs.build_services != ''
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Export images for VPS transfer
+        if: needs.scope.outputs.build_services != ''
+        env:
+          BUILD_SERVICES: ${{ needs.scope.outputs.build_services }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2086
+          bash scripts/export-images.sh "$IMAGE_REGISTRY" "$IMAGE_TAG" /tmp/agahiram-images.tar.gz $BUILD_SERVICES \
+            | tee /tmp/agahiram-images.sha256
+
+      - name: Deploy (SCP images + transfer on VPS)
         env:
           SSH_COMMON_OPTS: -i ~/.ssh/agahiram_deploy_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ServerAliveInterval=15 -o ServerAliveCountMax=60
           BUILD_SERVICES: ${{ needs.scope.outputs.build_services }}
           CONFIG_ONLY: ${{ needs.scope.outputs.config_only }}
           NEED_BUILD: ${{ needs.scope.outputs.need_build }}
-          # GHCR_PULL_TOKEN: long-lived PAT with read:packages (preferred).
-          # Falls back to GITHUB_TOKEN which is valid for the duration of this job.
-          GHCR_TOKEN: ${{ secrets.GHCR_PULL_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           HOST="${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}"
@@ -217,16 +228,26 @@ jobs:
           scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-config.tar.gz "$HOST:/tmp/agahiram-config.tar.gz"
           scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-config.sha256 "$HOST:/tmp/agahiram-config.sha256"
           scp $SSH_COMMON_OPTS -P "$SSH_PORT" scripts/remote-deploy.sh "$HOST:/tmp/remote-deploy.sh"
+          if [[ -n "${BUILD_SERVICES// /}" && -f /tmp/agahiram-images.tar.gz ]]; then
+            scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.tar.gz "$HOST:/tmp/agahiram-images.tar.gz"
+            scp $SSH_COMMON_OPTS -P "$SSH_PORT" /tmp/agahiram-images.sha256 "$HOST:/tmp/agahiram-images.sha256"
+          fi
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" "chmod +x /tmp/remote-deploy.sh"
 
+          DEPLOY_MODE=transfer
+          EXTRA_IMAGES=()
+          if [[ -n "${BUILD_SERVICES// /}" && -f /tmp/agahiram-images.tar.gz ]]; then
+            EXTRA_IMAGES+=(IMAGES_TARBALL='/tmp/agahiram-images.tar.gz')
+            EXTRA_IMAGES+=(IMAGES_SHA256="$(cat /tmp/agahiram-images.sha256)")
+          fi
+
           ssh $SSH_COMMON_OPTS -p "$SSH_PORT" "$HOST" \
-            "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=pull \
+            "env APP_DIR='$APP_DIR' DOMAIN='$PRODUCTION_DOMAIN' DEPLOY_MODE=$DEPLOY_MODE \
              IMAGE_REGISTRY='$IMAGE_REGISTRY' IMAGE_TAG='$IMAGE_TAG' \
              BUILD_SERVICES='$BUILD_SERVICES' CONFIG_ONLY='$CONFIG_ONLY' NEED_BUILD='$NEED_BUILD' \
              CONFIG_TARBALL='/tmp/agahiram-config.tar.gz' \
              CONFIG_SHA256='$(cat /tmp/agahiram-config.sha256)' \
-             GHCR_TOKEN='$GHCR_TOKEN' GHCR_USER='${{ github.repository_owner }}' \
-             GHCR_DNS_IP='${{ vars.GHCR_DNS_IP }}' \
+             ${EXTRA_IMAGES[*]} \
              bash /tmp/remote-deploy.sh"
 
       - name: Cleanup SSH key
