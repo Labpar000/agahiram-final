@@ -93,15 +93,17 @@ function ManagedStoryVideo({
     autoplayWhenActive: autoPlay,
   });
 
-  const setRef = useCallback(mergeVideoRef(videoRef, onVideoRef), [onVideoRef]);
+  const setRef = useCallback(mergeVideoRef(videoRef, onVideoRef), [videoRef, onVideoRef]);
 
   return (
     <MediaVideoFrame
       ref={setRef}
       fit={fit}
+      autoPlay={autoPlay && active}
       muted={muted}
       className={className}
       preload="metadata"
+      playsInline
     />
   );
 }

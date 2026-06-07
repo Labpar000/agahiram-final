@@ -292,8 +292,7 @@ export function StoryOverlayCanvas({
         <button
           key={`st-${i}`}
           type="button"
-          className="absolute z-[2] min-h-10 min-w-10 -translate-x-1/2 -translate-y-1/2 opacity-0"
-          aria-hidden
+          className="absolute z-[2] min-h-10 min-w-10 -translate-x-1/2 -translate-y-1/2"
           style={{
             left: `${(s.x ?? 0.5) * 100}%`,
             top: `${(s.y ?? 0.5) * 100}%`,

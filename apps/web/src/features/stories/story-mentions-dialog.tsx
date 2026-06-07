@@ -6,6 +6,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   Input,
@@ -48,6 +49,9 @@ export function StoryMentionsDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>افزودن منشن</DialogTitle>
+          <DialogDescription>
+            نام کاربری‌هایی که می‌خواهید منشن کنید، با ویرگول وارد کنید.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <Label htmlFor="mentions">نام کاربری‌ها (با ویرگول جدا کنید)</Label>

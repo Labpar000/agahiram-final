@@ -7,6 +7,7 @@ import {
   Button,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   Input,
@@ -51,6 +52,7 @@ export function ShareStoryDmDialog({
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>ارسال استوری در پیام</DialogTitle>
+          <DialogDescription>استوری را برای کاربر مورد نظر ارسال کنید.</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           <Input

@@ -5,7 +5,9 @@ import { cn } from '@agahiram/shared';
 
 const HOLD_MS = 220;
 
-/** IG tap zones: sides navigate, hold anywhere pauses without skipping. */
+/** Instagram-spec tap zones: left 30% = prev, right 70% = next.
+ *  Hold anywhere pauses playback; release resumes.
+ *  No separate "pause" zone — Instagram doesn't have one. */
 export function StoryViewerTapZones({
   onPrev,
   onNext,
@@ -18,11 +20,13 @@ export function StoryViewerTapZones({
   className?: string;
 }) {
   const downAtRef = useRef(0);
+  const downXRef = useRef(0);
   const heldRef = useRef(false);
 
   const bindHold = () => ({
-    onPointerDown: () => {
+    onPointerDown: (e: React.PointerEvent) => {
       downAtRef.current = Date.now();
+      downXRef.current = e.clientX;
       heldRef.current = false;
       onPauseChange(true);
     },
@@ -50,19 +54,15 @@ export function StoryViewerTapZones({
       <button
         type="button"
         aria-label="استوری قبلی"
-        className="h-full w-1/3 cursor-w-resize bg-transparent rtl:cursor-e-resize"
+        className="h-full bg-transparent"
+        style={{ width: '30%' }}
         {...bindNav(onPrev)}
       />
       <button
         type="button"
-        aria-label="مکث"
-        className="h-full w-1/3 bg-transparent"
-        {...bindHold()}
-      />
-      <button
-        type="button"
         aria-label="استوری بعدی"
-        className="h-full w-1/3 cursor-e-resize bg-transparent rtl:cursor-w-resize"
+        className="h-full bg-transparent"
+        style={{ width: '70%' }}
         {...bindNav(onNext)}
       />
     </div>

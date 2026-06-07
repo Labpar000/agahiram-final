@@ -115,11 +115,11 @@ export function VerificationCard({
           </div>
         ) : null}
       </div>
-      {!isApproved && !isPending && onSubmit && (
+      {!isApproved && !isPending && !needsDocument && onSubmit && (
         <button
           type="button"
           onClick={onSubmit}
-          disabled={isLoading || isUploading}
+          disabled={isLoading}
           className={cn(
             'shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
             'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -128,6 +128,11 @@ export function VerificationCard({
         >
           {isLoading ? 'در حال ارسال…' : 'ارسال درخواست'}
         </button>
+      )}
+      {needsDocument && !isApproved && !isPending && !onUpload && (
+        <span className="shrink-0 rounded-lg bg-muted px-3 py-1.5 text-xs text-muted-foreground">
+          نیاز به مدرک
+        </span>
       )}
     </div>
   );
