@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { IgChevron } from '@agahiram/ui';
+import { IconButton, IgArrowBack, IgChevron } from '@agahiram/ui';
 import { Button, Card, CardContent, Input, Label, LoadingState, toast } from '@agahiram/ui';
 import {
   formatPersianNumber,
@@ -132,6 +132,14 @@ function Inner() {
   return (
     <Card className="overflow-hidden rounded-sm border border-border shadow-none">
       <CardContent className="!p-4">
+        <div className="mb-2">
+          <IconButton
+            aria-label="بازگشت"
+            icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
+            variant="ghost"
+            onClick={() => router.back()}
+          />
+        </div>
         <div className="flex flex-col items-center gap-2 pb-4 pt-2 text-center">
           <h1 className="text-xl font-semibold tracking-tight">آگهیرام</h1>
           <p className="text-xs text-muted-foreground">ورود با شماره موبایل</p>

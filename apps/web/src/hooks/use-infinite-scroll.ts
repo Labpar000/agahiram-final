@@ -19,7 +19,7 @@ export function useInfiniteScroll({
   hasMore,
   isFetching,
   fetchNextPage,
-  rootMargin = '0px',
+  rootMargin = '200px',
   threshold = 0,
   disabled = false,
 }: UseInfiniteScrollOptions) {

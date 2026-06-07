@@ -132,14 +132,23 @@ export default function CreatePage() {
 
   const goBack = useCallback(() => {
     if (step === 0) {
+      // If a city was already selected, clear it so the user can pick a new one
+      // instead of being forced out of the page. Only navigate away if no city
+      // has ever been picked (true first visit).
+      if (cityId) {
+        setCityId('');
+        setProvinceId('');
+        autoAdvancedRef.current[0] = false;
+        return;
+      }
       router.back();
-    } else {
-      const prev = (step - 1) as Step;
-      autoAdvancedRef.current[step] = false;
-      autoAdvancedRef.current[prev] = false;
-      setStep(prev);
+      return;
     }
-  }, [step, router]);
+    const prev = (step - 1) as Step;
+    autoAdvancedRef.current[step] = false;
+    autoAdvancedRef.current[prev] = false;
+    setStep(prev);
+  }, [step, router, cityId]);
 
   // ---- Auto-advance: Step 0 (city) ----
   useEffect(() => {

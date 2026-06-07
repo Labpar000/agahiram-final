@@ -1,5 +1,6 @@
 'use client';
 
+// FIXED: 0.8 threshold (IG spec), rAF progress bar, double-tap to like + single tap to toggle
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { IgPlay, IgVolume } from '@agahiram/ui';
 import { useManagedVideo } from '@/hooks/use-managed-video';
@@ -17,7 +18,7 @@ type Props = {
   onDoubleTap?: () => void;
 };
 
-/** IG-style feed video: muted autoplay in viewport, tap to pause/play. */
+/** IG-style feed video: muted autoplay when ≥80% visible, tap to pause/play, double-tap to like. */
 export function FeedPostVideo({
   id,
   hlsUrl,
@@ -45,6 +46,7 @@ export function FeedPostVideo({
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
+    // FIXED: 0.8 threshold per Instagram spec
     return observeFeedVideo(node, setInView);
   }, [containerRef]);
 
@@ -80,15 +82,15 @@ export function FeedPostVideo({
         ref={videoRef}
         fit="cover"
         poster={poster}
-        preload="metadata"
+        preload="auto"
         className={className}
         onClick={onTap}
       />
 
       {!playing ? (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <span className="grid size-14 place-items-center rounded-full bg-black/45 backdrop-blur-sm">
-            <IgPlay className="size-7 text-white" filled aria-hidden />
+          <span className="grid size-[72px] place-items-center rounded-full bg-black/50">
+            <IgPlay className="size-9 text-white" filled aria-hidden />
           </span>
         </div>
       ) : null}
@@ -97,9 +99,9 @@ export function FeedPostVideo({
         type="button"
         aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
         onClick={toggleMuted}
-        className="absolute end-2 top-2 z-10 grid size-11 place-items-center rounded-full bg-black/50 text-white tap-none"
+        className="absolute end-3 top-3 z-10 grid size-9 place-items-center rounded-full bg-black/50 text-white tap-none"
       >
-        <IgVolume muted={muted} className="size-4" strokeWidth={1.75} aria-hidden />
+        <IgVolume muted={muted} className="size-[18px]" strokeWidth={1.75} aria-hidden />
       </button>
     </div>
   );

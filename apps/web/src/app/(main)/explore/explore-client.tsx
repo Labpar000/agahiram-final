@@ -1,9 +1,16 @@
 'use client';
 
+// FIXED: Instagram-spec explore grid:
+// - 3-column grid with 2px gap
+// - Featured 2×2 cells at positions 7n+3 and 7n+7
+// - Desktop hover video preview (300ms delay, autoplay muted, pause on leave)
+// - 18px video indicator icon
+// - Tile-shaped loading skeletons
+// - Infinite scroll with 200px rootMargin (via useInfiniteScroll default)
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
@@ -105,7 +112,7 @@ export function ExploreClient({
   }, []);
 
   const hashtagStoryTag = useMemo(() => {
-    const m = debouncedQ.match(/^#([\w\u0600-\u06FF]+)/);
+    const m = debouncedQ.match(/^#([\w؀-ۿ]+)/);
     return m?.[1] ?? null;
   }, [debouncedQ]);
 
@@ -271,9 +278,16 @@ export function ExploreClient({
       </div>
 
       {isLoading && !data ? (
-        <div className="ig-grid-gap grid grid-cols-3">
+        // FIXED: Tile-shaped skeletons matching the 2px grid
+        <div className="grid grid-cols-3 gap-[2px]">
           {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-none bg-surface" shimmer={false} />
+            <Skeleton
+              key={i}
+              className={`aspect-square rounded-none bg-neutral-800 ${
+                (i + 1) % 7 === 3 || (i + 1) % 7 === 0 ? 'col-span-2 row-span-2' : ''
+              }`}
+              shimmer
+            />
           ))}
         </div>
       ) : isError ? (
@@ -336,10 +350,13 @@ export function ExploreClient({
               {debouncedQ ? (
                 <h2 className="border-b border-border px-3 py-2 text-sm font-semibold">آگهی‌ها</h2>
               ) : null}
-              <div className="ig-grid-gap grid grid-cols-3">
-                {posts.map((p) => (
-                  <ExploreTile key={p.id} post={p} />
-                ))}
+              {/* FIXED: Instagram-spec 3-col grid, 2px gap, featured 2×2 cells */}
+              <div className="grid grid-cols-3 gap-[2px]">
+                {posts.map((p, i) => {
+                  const idx = i + 1; // 1-based index
+                  const isFeatured = idx % 7 === 3 || idx % 7 === 0;
+                  return <ExploreTile key={p.id} post={p} featured={isFeatured} />;
+                })}
               </div>
             </>
           ) : null}
@@ -368,33 +385,94 @@ export function ExploreClient({
   );
 }
 
-function ExploreTile({ post }: { post: PostSummary }) {
+// FIXED: Full Instagram-spec Explore tile with hover video preview, featured cell support, 18px video icon
+function ExploreTile({ post, featured = false }: { post: PostSummary; featured?: boolean }) {
   const media = post.media[0];
   const isVideo = media?.type === 'video';
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
+
+  const onMouseEnter = useCallback(() => {
+    if (!isVideo || !videoRef.current) return;
+    hoverTimerRef.current = window.setTimeout(() => {
+      const v = videoRef.current;
+      if (v && v.readyState >= 2) {
+        v.muted = true;
+        v.playsInline = true;
+        void v.play().catch(() => {});
+      }
+    }, 300);
+  }, [isVideo]);
+
+  const onMouseLeave = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    const v = videoRef.current;
+    if (v) {
+      v.pause();
+      v.currentTime = 0;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    };
+  }, []);
+
+  const tileClassName = featured
+    ? 'cv-tile group relative block overflow-hidden bg-neutral-900 col-span-2 row-span-2 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
+    : 'cv-tile group relative block aspect-square overflow-hidden bg-neutral-900 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
+
   return (
     <PostLink
       postId={post.id}
       post={post}
       aria-label={`${post.title}، ${formatPersianPrice(post.price)}`}
-      className="cv-tile group relative block aspect-square overflow-hidden bg-surface tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      className={tileClassName}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       {media ? (
-        <Image
-          src={media.thumbnailUrl ?? media.url}
-          alt=""
-          fill
-          sizes="(max-width: 640px) 33vw, 200px"
-          className="object-cover transition-transform duration-300 group-hover:scale-105"
-        />
+        <>
+          <Image
+            src={media.thumbnailUrl ?? media.url}
+            alt=""
+            fill
+            sizes={featured ? '(max-width: 640px) 66vw, 400px' : '(max-width: 640px) 33vw, 200px'}
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            // FIXED: When video loads, hide placeholder image so the <video> shows through
+            style={videoReady && isVideo ? { opacity: 0 } : undefined}
+          />
+
+          {/* FIXED: Desktop hover video preview — autoplays muted after 300ms delay */}
+          {isVideo && media.url ? (
+            <video
+              ref={videoRef}
+              src={media.url}
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 size-full object-cover"
+              onCanPlay={() => setVideoReady(true)}
+              onLoadedMetadata={() => setVideoReady(true)}
+              style={{ pointerEvents: 'none' }}
+            />
+          ) : null}
+        </>
       ) : (
-        <div className="grid size-full place-items-center bg-surface-muted p-2 text-center text-xs text-muted-foreground">
+        <div className="grid size-full place-items-center bg-neutral-800 p-2 text-center text-xs text-muted-foreground">
           بدون رسانه
         </div>
       )}
 
+      {/* FIXED: 18px video indicator (IG spec) */}
       {isVideo ? (
         <IgPlay
-          className="absolute start-1.5 top-1.5 size-4 text-white drop-shadow-md"
+          className="absolute start-[6px] top-[6px] size-[18px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
           filled
           strokeWidth={1.75}
           aria-hidden

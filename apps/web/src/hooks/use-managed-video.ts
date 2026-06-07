@@ -1,8 +1,9 @@
 'use client';
 
+// FIXED: rAF-based progress tracking + proper cleanup + reelAutoplay fix
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { videoPlaybackController, type VideoPlaybackKind } from '@/lib/video-playback-controller';
-import { setupVideoSource } from '@/lib/video-playback';
+import { setupVideoSource, trackVideoProgress } from '@/lib/video-playback';
 
 type UseManagedVideoOptions = {
   id: string;
@@ -12,9 +13,7 @@ type UseManagedVideoOptions = {
   active?: boolean;
   loop?: boolean;
   muted?: boolean;
-  /** When true, active feed item auto-plays via controller. */
   autoplayWhenActive?: boolean;
-  /** Reels page drives playback via activeIndex — avoid duplicate requestPlay. */
   reelAutoplay?: boolean;
 };
 
@@ -33,6 +32,10 @@ export function useManagedVideo({
   const containerRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const cleanupSourceRef = useRef<(() => void) | undefined>(undefined);
+  const cleanupTrackingRef = useRef<(() => void) | undefined>(undefined);
+  const activeRef = useRef(active);
+  activeRef.current = active;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -50,8 +53,38 @@ export function useManagedVideo({
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !active) return;
-    return setupVideoSource(video, hlsUrl ?? undefined, mp4Url ?? undefined);
+
+    // Cleanup previous source setup
+    cleanupSourceRef.current?.();
+    cleanupSourceRef.current = setupVideoSource(video, hlsUrl ?? undefined, mp4Url ?? undefined);
+
+    return () => {
+      cleanupSourceRef.current?.();
+      cleanupSourceRef.current = undefined;
+    };
   }, [active, hlsUrl, mp4Url, id]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // FIXED: rAF-based progress tracking instead of timeupdate for buttery-smooth progress bar
+    if (active) {
+      cleanupTrackingRef.current?.();
+      const stop = trackVideoProgress(video, (ratio) => {
+        if (activeRef.current) setProgress(ratio);
+      });
+      cleanupTrackingRef.current = stop;
+    } else {
+      cleanupTrackingRef.current?.();
+      cleanupTrackingRef.current = undefined;
+    }
+
+    return () => {
+      cleanupTrackingRef.current?.();
+      cleanupTrackingRef.current = undefined;
+    };
+  }, [id, active]);
 
   useEffect(() => {
     if (!active) {
@@ -65,6 +98,7 @@ export function useManagedVideo({
         }
       }
       setPlaying(false);
+      setProgress(0);
       return;
     }
     const shouldAutoplay = kind === 'reel' ? reelAutoplay : autoplayWhenActive;
@@ -72,16 +106,6 @@ export function useManagedVideo({
       void videoPlaybackController.requestPlay(id, { resetUserPaused: true });
     }
   }, [active, id, autoplayWhenActive, reelAutoplay, kind]);
-
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const onTime = () => {
-      if (video.duration) setProgress(video.currentTime / video.duration);
-    };
-    video.addEventListener('timeupdate', onTime);
-    return () => video.removeEventListener('timeupdate', onTime);
-  }, [id, active]);
 
   const togglePlay = useCallback(() => {
     videoPlaybackController.togglePlay(id);

@@ -2,8 +2,8 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import { Button, IgCheck, IgPlus, Spinner } from '@agahiram/ui';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button, IconButton, IgArrowBack, IgCheck, IgPlus, Spinner } from '@agahiram/ui';
 import { useAuthStore } from '@/lib/auth-store';
 
 export default function CreateSuccessPage() {
@@ -21,12 +21,21 @@ export default function CreateSuccessPage() {
 }
 
 function CreateSuccessInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const postId = searchParams.get('id');
   const username = useAuthStore((s) => s.user?.username);
 
   return (
     <div className="flex min-h-[calc(100dvh-var(--header-height)-var(--bottom-nav))] flex-col items-center justify-center bg-background px-6 py-12 text-center">
+      <div className="self-start mb-4">
+        <IconButton
+          aria-label="بازگشت"
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
+          variant="ghost"
+          onClick={() => router.back()}
+        />
+      </div>
       <span className="grid size-16 place-items-center rounded-full bg-success/15 text-success">
         <IgCheck className="size-9" strokeWidth={2} aria-hidden />
       </span>

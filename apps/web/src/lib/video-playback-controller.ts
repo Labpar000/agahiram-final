@@ -149,9 +149,16 @@ class VideoPlaybackControllerImpl {
     }
   }
 
+  private toggleGate = new Map<string, number>();
+
   togglePlay(id: string) {
     const entry = this.videos.get(id);
     if (!entry) return;
+    // FIXED: Debounce rapid toggles (250ms gate) to prevent jank from double-tap
+    const last = this.toggleGate.get(id) ?? 0;
+    if (Date.now() - last < 250) return;
+    this.toggleGate.set(id, Date.now());
+
     if (entry.video.paused) {
       entry.userPaused = false;
       void this.requestPlay(id);

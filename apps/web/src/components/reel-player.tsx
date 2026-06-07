@@ -1,11 +1,21 @@
 'use client';
 
+// FIXED: Complete Instagram-spec reel player redesign:
+// - rAF-based progress bar (no CSS transition)
+// - Play/pause icon that fades in/out on tap (opacity transition, 72px circle)
+// - Mute button always visible (top-right) with global localStorage state
+// - Scrubbing: drag on progress bar pauses video, seeks live, resumes on release
+// - Top + bottom gradient overlays (z-index: 2)
+// - Audio track name + spinning vinyl icon in info overlay
+// - Action icons: 28px per IG spec, 20px gap
+// - Username/caption at bottom-left, safe-area aware
+// - prefers-reduced-motion respected for animations
 import * as React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import type { ReelItem } from '@agahiram/shared';
 import { cn, formatPersianNumber, formatPersianPrice, formatPhoneFa } from '@agahiram/shared';
 import {
@@ -14,11 +24,13 @@ import {
   AvatarImage,
   Button,
   HeartBurst,
+  IgBookmark,
   IgComment,
   IgCopy,
   IgHeart,
   IgMusic,
   IgOptions,
+  IgPause,
   IgPhone,
   IgPin,
   IgPlay,
@@ -36,7 +48,6 @@ import { endUserSession } from '@/lib/logout-session';
 import { runEngagementAction } from '@/lib/inp';
 import { useManagedVideo } from '@/hooks/use-managed-video';
 import { getReelsMutedPreference, setReelsMutedPreference } from '@/lib/video-playback';
-import { MediaVideoFrame } from '@/components/media-video-frame';
 import { ReelCommentSheet } from '@/components/reel-comment-sheet';
 import { ReportDialog } from '@/components/report-dialog';
 
@@ -49,6 +60,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   }, [qc]);
   const likeMutation = useLikePost();
   const saveMutation = useSavePost();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const lastTapRef = useRef(0);
   const videoId = `reel-${reel.id}`;
 
@@ -61,6 +73,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const me = useAuthStore((s) => s.user);
   const isOwnReel = me?.id === reel.user.id;
 
+  // FIXED: reelAutoplay enabled — parent page drives active via IntersectionObserver
   const { videoRef, containerRef, playing, progress, togglePlay, seek } = useManagedVideo({
     id: videoId,
     kind: 'reel',
@@ -69,8 +82,71 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     active,
     loop: true,
     muted,
-    reelAutoplay: false,
+    reelAutoplay: true,
   });
+
+  // Play/pause icon fade — show on state change, hide after 500ms
+  const [showPlayIcon, setShowPlayIcon] = useState(false);
+  const iconTimerRef = useRef<number | null>(null);
+  const wasPlayingRef = useRef(playing);
+
+  useEffect(() => {
+    if (wasPlayingRef.current !== playing) {
+      wasPlayingRef.current = playing;
+      setShowPlayIcon(true);
+      if (iconTimerRef.current) window.clearTimeout(iconTimerRef.current);
+      iconTimerRef.current = window.setTimeout(() => setShowPlayIcon(false), 500);
+    }
+    return () => {
+      if (iconTimerRef.current) window.clearTimeout(iconTimerRef.current);
+    };
+  }, [playing]);
+
+  // FIXED: Scrubbing state — pause video during drag
+  const [scrubbing, setScrubbing] = useState(false);
+  const scrubRef = useRef<HTMLDivElement>(null);
+
+  const onScrubStart = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      const video = videoRef.current;
+      if (video && !video.paused) {
+        video.pause();
+      }
+      setScrubbing(true);
+      const bar = scrubRef.current;
+      if (bar) {
+        const rect = bar.getBoundingClientRect();
+        seek((e.clientX - rect.left) / rect.width);
+      }
+    },
+    [seek, videoRef],
+  );
+
+  const onScrubMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!scrubbing) return;
+      const bar = scrubRef.current;
+      if (bar) {
+        const rect = bar.getBoundingClientRect();
+        seek((e.clientX - rect.left) / rect.width);
+      }
+    },
+    [scrubbing, seek],
+  );
+
+  const onScrubEnd = useCallback(
+    (e: React.PointerEvent) => {
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      setScrubbing(false);
+      const video = videoRef.current;
+      if (video && playing) {
+        void video.play();
+      }
+    },
+    [playing, videoRef],
+  );
 
   const { data: authorProfile } = useQuery({
     queryKey: ['profile', reel.user.username],
@@ -217,27 +293,62 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     togglePlay();
   }, [onLikeToggle, togglePlay]);
 
-  const toggleMuted = useCallback(() => {
-    setMuted((m) => {
-      const next = !m;
-      setReelsMutedPreference(next);
-      if (videoRef.current) videoRef.current.muted = next;
-      return next;
-    });
-  }, [videoRef]);
+  const toggleMuted = useCallback(
+    (e?: React.MouseEvent) => {
+      e?.stopPropagation();
+      setMuted((m) => {
+        const next = !m;
+        setReelsMutedPreference(next);
+        if (videoRef.current) videoRef.current.muted = next;
+        return next;
+      });
+    },
+    [videoRef],
+  );
+
+  // Build audio track label from reel metadata
+  const audioLabel = 'صدای اصلی';
+  const audioArtist = reel.user.username ? ` · @${reel.user.username}` : '';
 
   return (
     <div ref={containerRef} className="relative h-full min-h-0 w-full snap-start bg-black">
-      <MediaVideoFrame
+      {/* z-index 0: Video */}
+      <video
         ref={videoRef}
-        fit="cover"
-        preload="metadata"
+        playsInline
+        preload="auto"
+        poster={reel.media[0]?.thumbnailUrl ?? undefined}
+        className="absolute inset-0 size-full object-cover select-none [-webkit-touch-callout:none]"
         onClick={onVideoTap}
         onError={() => setVideoError(true)}
-        className="select-none [-webkit-touch-callout:none]"
-        poster={reel.media[0]?.thumbnailUrl ?? undefined}
       />
 
+      {/* z-index 1: Tap zone — transparent overlay for click handling */}
+      <div className="absolute inset-0 z-[1]" onClick={onVideoTap} aria-hidden />
+
+      {/* z-index 2: Gradient overlays */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-[2] h-[15%] bg-gradient-to-b from-black/30 to-transparent"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[40%] bg-gradient-to-t from-black/90 via-black/50 to-transparent"
+        aria-hidden
+      />
+
+      {/* z-index 3: UI elements (info, actions, mute, progress) */}
+
+      {/* Mute button — always visible top-right */}
+      <button
+        type="button"
+        aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
+        onClick={toggleMuted}
+        className="absolute end-4 top-4 z-[3] grid size-9 place-items-center rounded-full bg-black/50 text-white backdrop-blur-sm tap-none"
+      >
+        <IgVolume muted={muted} className="size-[18px]" strokeWidth={1.75} aria-hidden />
+      </button>
+
+      {/* Video error overlay */}
       {videoError ? (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black/80 p-6 text-center text-white">
           <p className="text-sm">بارگذاری ویدیو ناموفق بود</p>
@@ -255,28 +366,11 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         </div>
       ) : null}
 
-      {!playing && !videoError ? (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <span className="grid size-20 place-items-center rounded-full bg-black/40 backdrop-blur-sm">
-            <IgPlay className="size-10 text-white" filled aria-hidden />
-          </span>
-          <button
-            type="button"
-            aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleMuted();
-            }}
-            className="pointer-events-auto absolute start-4 top-4 grid size-11 place-items-center rounded-full bg-black/45 text-white backdrop-blur-sm tap-none"
-          >
-            <IgVolume muted={muted} className="size-5" strokeWidth={1.75} aria-hidden />
-          </button>
-        </div>
-      ) : null}
-
-      <HeartBurst trigger={burst} size={140} />
-
-      <div className="reel-side-rail">
+      {/* FIXED: Action buttons — right side rail, 28px icons, 20px gap */}
+      <div
+        className="absolute bottom-[80px] end-3 z-[3] flex flex-col items-center gap-5"
+        style={{ paddingBottom: 'var(--safe-bottom, 0px)' }}
+      >
         <Link href={`/profile/${reel.user.username}`} className="relative mb-0 block">
           <Avatar size="sm" className="size-10 ring-2 ring-white">
             {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
@@ -296,7 +390,6 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                 e.preventDefault();
                 const nowFollowing = !following;
                 setFollowing(nowFollowing);
-                // Also patch the profile cache for consistency across views
                 qc.setQueryData(
                   ['profile', reel.user.username],
                   (old: Record<string, unknown> | undefined) =>
@@ -315,7 +408,6 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                   ? await apiClient.delete(`/users/${reel.user.username}/follow`)
                   : await apiClient.post(`/users/${reel.user.username}/follow`);
                 if (!r.success) {
-                  // Rollback on error
                   setFollowing(following);
                   qc.setQueryData(
                     ['profile', reel.user.username],
@@ -360,11 +452,11 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           <motion.span
             key={String(liked)}
             initial={{ scale: 1 }}
-            animate={{ scale: liked ? [1, 1.3, 1] : 1 }}
-            transition={{ duration: 0.32, ease: [0.34, 1.56, 0.64, 1] }}
+            animate={liked ? { scale: [1, 1.4, 1] } : { scale: 1 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: [0.34, 1.56, 0.64, 1] }}
             className="inline-flex"
           >
-            <IgHeart className="reel-action-icon" filled={liked} />
+            <IgHeart className="size-7" filled={liked} />
           </motion.span>
         </RailButton>
 
@@ -373,105 +465,159 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           label={reel.commentsCount > 0 ? formatPersianNumber(reel.commentsCount) : undefined}
           onClick={() => setCommentsOpen(true)}
         >
-          <IgComment className="reel-action-icon" strokeWidth={2} />
+          <IgComment className="size-7" strokeWidth={1.5} />
         </RailButton>
 
         <RailButton ariaLabel="اشتراک‌گذاری" onClick={() => void onShare()}>
-          <IgShare2026 className="reel-action-icon" strokeWidth={2} />
+          <IgShare2026 className="size-7" strokeWidth={1.5} />
+        </RailButton>
+
+        <RailButton ariaLabel={saved ? 'حذف از ذخیره‌ها' : 'ذخیره'} onClick={() => onSaveToggle()}>
+          <motion.span
+            key={String(saved)}
+            initial={{ scale: 1 }}
+            animate={saved ? { scale: [1, 1.3, 1] } : { scale: 1 }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.25, ease: 'easeOut' }}
+            className="inline-flex"
+          >
+            <IgBookmark className="size-7" filled={saved} />
+          </motion.span>
         </RailButton>
 
         <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
-          <IgOptions className="reel-action-icon-wide" strokeWidth={2} />
+          <IgOptions className="size-7" strokeWidth={1.5} />
         </RailButton>
 
         <RailButton ariaLabel="موسیقی">
-          <IgMusic className="reel-action-icon" strokeWidth={2} />
+          <IgMusic className="size-7" strokeWidth={1.5} />
         </RailButton>
       </div>
 
-      <div className="reel-bottom-stack pb-3">
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/90 via-black/50 to-transparent"
-          aria-hidden
-        />
-        <div className="relative flex flex-col gap-1.5 pb-1">
-          <Link
-            href={`/profile/${reel.user.username}`}
-            className="inline-flex w-fit items-center gap-1.5 tap-none"
-          >
-            <span className="text-sm font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-              {reel.user.username}
-            </span>
-            {reel.user.isVerified ? <IgVerified className="size-3.5 shrink-0" aria-hidden /> : null}
-          </Link>
-          <h3
+      {/* FIXED: Info overlay — bottom-left with audio track + spinning vinyl */}
+      <div
+        className="absolute bottom-[80px] start-3 end-[60px] z-[3] flex flex-col gap-1.5 text-white"
+        style={{ paddingBottom: 'var(--safe-bottom, 0px)' }}
+      >
+        <Link
+          href={`/profile/${reel.user.username}`}
+          className="inline-flex w-fit items-center gap-1.5 tap-none"
+        >
+          <span className="text-[15px] font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            {reel.user.username}
+          </span>
+          {reel.user.isVerified ? <IgVerified className="size-3.5 shrink-0" aria-hidden /> : null}
+        </Link>
+        <h3
+          className={cn(
+            'text-sm font-normal leading-snug drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]',
+            expanded ? '' : 'line-clamp-2',
+          )}
+          onClick={() => setExpanded((e) => !e)}
+        >
+          {reel.title}
+        </h3>
+
+        {/* FIXED: Audio track row with spinning vinyl icon */}
+        <div className="flex items-center gap-2">
+          <span
             className={cn(
-              'text-sm font-normal leading-snug drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]',
-              expanded ? '' : 'line-clamp-2',
+              'grid size-[34px] shrink-0 place-items-center rounded-full bg-neutral-700',
+              !prefersReducedMotion && playing && 'animate-spin',
             )}
-            onClick={() => setExpanded((e) => !e)}
+            style={
+              prefersReducedMotion || !playing
+                ? { animationDuration: '3s', animationTimingFunction: 'linear' }
+                : { animation: 'spin 3s linear infinite' }
+            }
           >
-            {reel.title}
-          </h3>
-          {reel.city?.name ? (
-            <p className="inline-flex items-center gap-1 text-xs text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-              <IgPin className="size-3 shrink-0" strokeWidth={2} aria-hidden />
-              {reel.city.name}
-            </p>
-          ) : null}
-          <p className="text-sm font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
-            {formatPersianPrice(reel.price)}
+            <IgMusic className="size-4" strokeWidth={1.75} aria-hidden />
+          </span>
+          <span className="text-[13px] font-normal truncate drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            {audioLabel}
+            {audioArtist}
+          </span>
+        </div>
+
+        {reel.city?.name ? (
+          <p className="inline-flex items-center gap-1 text-xs text-white/90 drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+            <IgPin className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+            {reel.city.name}
           </p>
-          <div className="mt-0.5 inline-flex flex-wrap gap-1.5">
-            <Button
-              variant={contactRevealed ? 'outline' : 'secondary'}
-              size="sm"
-              leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
-              className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
-              onClick={() => void onContact()}
-              aria-live="polite"
-            >
-              {contactRevealed ? (
-                <span dir="ltr" className="font-mono tracking-wide">
-                  {formatPhoneFa(contactPhone ?? '')}
-                </span>
-              ) : (
-                'تماس'
-              )}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
-              className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
-              onClick={() => void onSendMessage()}
-              isLoading={messaging}
-              aria-label="ارسال پیام به فروشنده"
-            >
-              پیام
-            </Button>
-          </div>
+        ) : null}
+        <p className="text-sm font-semibold drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
+          {formatPersianPrice(reel.price)}
+        </p>
+        <div className="mt-0.5 inline-flex flex-wrap gap-1.5">
+          <Button
+            variant={contactRevealed ? 'outline' : 'secondary'}
+            size="sm"
+            leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
+            className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
+            onClick={() => void onContact()}
+            aria-live="polite"
+          >
+            {contactRevealed ? (
+              <span dir="ltr" className="font-mono tracking-wide">
+                {formatPhoneFa(contactPhone ?? '')}
+              </span>
+            ) : (
+              'تماس'
+            )}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
+            className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
+            onClick={() => void onSendMessage()}
+            isLoading={messaging}
+            aria-label="ارسال پیام به فروشنده"
+          >
+            پیام
+          </Button>
         </div>
       </div>
 
+      {/* FIXED: Progress bar — 2px height, rAF-driven, supports drag scrubbing */}
       <div
-        className="reel-progress"
+        ref={scrubRef}
+        className="absolute inset-x-0 bottom-0 z-[5] h-[3px] cursor-pointer bg-white/25"
         role="progressbar"
         aria-valuenow={Math.round(progress * 100)}
         aria-valuemin={0}
         aria-valuemax={100}
-        onPointerDown={(e) => {
-          const bar = e.currentTarget;
-          const rect = bar.getBoundingClientRect();
-          seek((e.clientX - rect.left) / rect.width);
-        }}
+        onPointerDown={onScrubStart}
+        onPointerMove={onScrubMove}
+        onPointerUp={onScrubEnd}
+        onPointerCancel={onScrubEnd}
+        style={{ touchAction: 'none' }}
       >
         <div
-          className="h-full bg-white transition-[width] duration-150"
-          style={{ width: `${progress * 100}%` }}
+          className="h-full bg-white"
+          style={{ width: `${progress * 100}%`, transition: 'none' }}
         />
       </div>
 
+      {/* FIXED: Play/pause icon — centered, 72px circle, fades in/out */}
+      <div
+        className={cn(
+          'pointer-events-none absolute inset-0 z-[4] flex items-center justify-center transition-opacity duration-150 ease-out',
+          showPlayIcon ? 'opacity-100' : 'opacity-0',
+        )}
+        aria-hidden
+      >
+        <span className="grid size-[72px] place-items-center rounded-full bg-black/50">
+          {playing ? (
+            <IgPause className="size-9 text-white" filled aria-hidden />
+          ) : (
+            <IgPlay className="size-9 text-white" filled aria-hidden />
+          )}
+        </span>
+      </div>
+
+      <HeartBurst trigger={burst} size={140} />
+
+      {/* Drawers & dialogs */}
       <ReelCommentSheet
         postId={reel.id}
         open={commentsOpen}
@@ -495,16 +641,6 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
             className="mb-8 w-full max-w-sm rounded-t-2xl bg-surface p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
-              onClick={() => {
-                setMoreOpen(false);
-                void onSaveToggle();
-              }}
-            >
-              {saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
-            </button>
             <button
               type="button"
               className="flex w-full min-h-11 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted"
@@ -557,9 +693,11 @@ function RailButton({
       onClick={onClick}
       className="inline-flex flex-col items-center gap-1 tap-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
     >
-      <span className="grid size-8 place-items-center">{children}</span>
+      <span className="grid size-8 place-items-center text-white drop-shadow-[0_0_3px_rgba(0,0,0,0.5)]">
+        {children}
+      </span>
       {label ? (
-        <span className="text-center text-[11px] font-semibold leading-none tracking-[0.01375rem] drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]">
+        <span className="text-center text-[13px] font-medium leading-none drop-shadow-[0_0_3px_rgba(0,0,0,0.3)]">
           {label}
         </span>
       ) : null}

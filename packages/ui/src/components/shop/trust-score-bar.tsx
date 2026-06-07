@@ -14,12 +14,34 @@ const MAX_SCORE = 1200;
 
 export interface TrustScoreBarProps {
   score: number;
-  tier: TrustTierValue;
+  tier?: TrustTierValue;
   showLabels?: boolean;
+  compact?: boolean;
   className?: string;
 }
 
-export function TrustScoreBar({ score, showLabels = true, className }: TrustScoreBarProps) {
+export function TrustScoreBar({
+  score,
+  showLabels = true,
+  compact = false,
+  className,
+}: TrustScoreBarProps) {
+  if (compact) {
+    const cTier = [...TIERS].reverse().find((t) => score >= t.threshold) ?? TIERS[0];
+    return (
+      <div className={cn('flex items-center gap-1.5', className)}>
+        <div className={cn('h-2 w-14 overflow-hidden rounded-full bg-muted')}>
+          <div
+            className={cn('h-full rounded-full transition-all duration-500', cTier.color)}
+            style={{ width: `${Math.min((score / MAX_SCORE) * 100, 100)}%` }}
+          />
+        </div>
+        <span className="text-[10px] font-medium text-muted-foreground tabular-nums">
+          {score.toLocaleString('fa-IR')}
+        </span>
+      </div>
+    );
+  }
   const pct = Math.min((score / MAX_SCORE) * 100, 100);
 
   const currentTier = [...TIERS].reverse().find((t) => score >= t.threshold) ?? TIERS[0];

@@ -25,6 +25,7 @@ import {
   IgLogout,
   IgMoon,
   IgShield,
+  IgShop,
   IgUser,
   IgWallet,
   IconButton,
@@ -75,6 +76,15 @@ interface BlockedUser {
   avatar: string | null;
   isVerified: boolean;
 }
+
+const TRUST_TIER_FA: Record<string, string> = {
+  UNVERIFIED: 'تایید نشده',
+  BASIC: 'پایه',
+  STANDARD: 'استاندارد',
+  VERIFIED: 'تایید شده',
+  TRUSTED: 'قابل اعتماد',
+  PREMIUM: 'پریمیوم',
+};
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -485,6 +495,21 @@ export default function SettingsPage() {
               ذخیره تغییرات
             </Button>
           </div>
+        </Section>
+
+        <Section
+          title="فروشگاه و احراز هویت"
+          icon={<IgShop className="size-5" strokeWidth={1.75} aria-hidden />}
+        >
+          <Link
+            href="/settings/shop"
+            className="-mx-2 -my-1 flex items-center justify-between rounded-xl px-2 py-2.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <span className="text-sm font-medium">مدیریت فروشگاه</span>
+            <span className="text-xs text-muted-foreground">
+              ایجاد فروشگاه، تأیید مدارک، امتیاز اعتماد
+            </span>
+          </Link>
         </Section>
 
         <Section title="ظاهر" icon={<IgMoon className="size-5" strokeWidth={1.75} aria-hidden />}>

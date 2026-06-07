@@ -73,7 +73,8 @@ export function BottomNav() {
     });
   }, [pathname]);
 
-  if (hideOnStoryViewer) return null;
+  // FIXED: Hide bottom nav on reels for full-screen immersive experience
+  if (hideOnStoryViewer || pathname === '/reels') return null;
 
   return (
     <IgTabBar>

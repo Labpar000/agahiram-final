@@ -59,6 +59,53 @@ export class UsersService {
     };
   }
 
+  async getUserShopProfile(username: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { username },
+      select: {
+        id: true,
+        isBusiness: true,
+        shop: {
+          select: {
+            slug: true,
+            name: true,
+            shopType: true,
+            trustScore: true,
+            trustTier: true,
+            isActive: true,
+            verifications: {
+              select: { id: true, type: true, status: true },
+            },
+          },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    if (!user.shop) return { hasShop: false };
+
+    const verifications = user.shop.verifications;
+    const totalTypes = 7; // PHONE, NATIONAL_ID, BUSINESS_LICENSE, COMPANY_REG, ENAMAD, ADDRESS, BANK_ACCOUNT
+
+    return {
+      hasShop: true,
+      shop: {
+        slug: user.shop.slug,
+        name: user.shop.name,
+        shopType: user.shop.shopType,
+        trustScore: user.shop.trustScore,
+        trustTier: user.shop.trustTier,
+        isActive: user.shop.isActive,
+      },
+      verifications: {
+        total: totalTypes,
+        approved: verifications.filter((v) => v.status === 'APPROVED').length,
+        pending: verifications.filter((v) => v.status === 'PENDING' || v.status === 'UNDER_REVIEW')
+          .length,
+      },
+    };
+  }
+
   async getProfileByUsername(username: string, viewerId?: string) {
     const user = await this.prisma.user.findUnique({
       where: { username },

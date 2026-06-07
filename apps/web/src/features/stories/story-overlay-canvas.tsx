@@ -71,9 +71,6 @@ function drawLayer(ctx: CanvasRenderingContext2D, w: number, h: number, layer: S
       ctx.shadowColor = layer.color;
       ctx.shadowBlur = 12;
     }
-    if (layer.animation === 'bounce') {
-      ctx.scale(1.05, 1.05);
-    }
     ctx.fillText(layer.text, 0, 0);
     ctx.restore();
   } else if (layer.type === 'sticker') {
@@ -388,8 +385,6 @@ export function StoryOverlayTools({
   const [textInput, setTextInput] = useState('');
   const [font, setFont] = useState<StoryTextFont>('classic');
   const [align, setAlign] = useState<'left' | 'center' | 'right'>('center');
-  const [textBg, setTextBg] = useState(false);
-  const [animation, setAnimation] = useState<'none' | 'typewriter' | 'bounce'>('none');
 
   const addText = () => {
     if (!textInput.trim()) return;
@@ -403,8 +398,6 @@ export function StoryOverlayTools({
         color,
         font,
         align,
-        bgColor: textBg ? 'rgba(0,0,0,0.55)' : undefined,
-        animation,
         scale: 1,
       },
     ]);
@@ -472,14 +465,15 @@ export function StoryOverlayTools({
 
       {tool === 'text' ? (
         <div className="space-y-2">
-          {/* FIXED: inline text editing — typing automatically adds a live-updating
-              text layer on the canvas so the user sees exactly what they're creating. */}
+          {/* FIXED: Instagram-style inline text editing.
+              User types in the input, and the text appears live on the canvas.
+              No animation/bg options — removed per user request.
+              When user taps "تثبیت متن" the layer is finalized. */}
           <Input
             value={textInput}
             onChange={(e) => {
               const v = e.target.value;
               setTextInput(v);
-              // Live preview: add or update a temporary text layer
               if (v.trim()) {
                 const liveLayer: StoryOverlayLayer = {
                   type: 'text',
@@ -488,29 +482,27 @@ export function StoryOverlayTools({
                   y: 0.45,
                   color,
                   font,
-                  align,
-                  bgColor: textBg ? 'rgba(0,0,0,0.55)' : undefined,
-                  animation,
+                  align: align as 'left' | 'center' | 'right',
                   scale: 1,
                 };
-                const idx = layers.findIndex((l, i) => l.type === 'text' && i === selectedIndex);
-                if (selectedIndex !== null && idx === selectedIndex) {
-                  onLayersChange(layers.map((l, i) => (i === selectedIndex ? liveLayer : l)));
+                // Update existing live text layer or add new one
+                const textLayerIndices = layers
+                  .map((l, i) => (l.type === 'text' ? i : -1))
+                  .filter((i) => i >= 0);
+                if (textLayerIndices.length > 0) {
+                  const lastIdx = textLayerIndices[textLayerIndices.length - 1]!;
+                  onLayersChange(layers.map((l, i) => (i === lastIdx ? liveLayer : l)));
                 } else {
-                  const prev = layers.filter(
-                    (_, i) => i < layers.length && layers[i]?.type === 'text',
-                  );
-                  if (prev.length > 0) {
-                    const lastIdx = layers.lastIndexOf(prev[prev.length - 1]!);
-                    onLayersChange(layers.map((l, i) => (i === lastIdx ? liveLayer : l)));
-                  } else {
-                    onLayersChange([...layers, liveLayer]);
-                    onSelectIndex(layers.length);
-                  }
+                  onLayersChange([...layers, liveLayer]);
+                  onSelectIndex(layers.length);
                 }
+              } else {
+                // Remove live text layer when input is cleared
+                onLayersChange(layers.filter((l) => l.type !== 'text'));
+                onSelectIndex(null);
               }
             }}
-            placeholder="متن را تایپ کنید — زنده روی تصویر می‌بینید"
+            placeholder="روی تصویر کلیک کنید و متن را بنویسید..."
           />
           <div className="flex flex-wrap gap-1">
             {FONTS.map((f) => (
@@ -542,19 +534,6 @@ export function StoryOverlayTools({
               </button>
             ))}
           </div>
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={textBg} onChange={(e) => setTextBg(e.target.checked)} />
-            پس‌زمینه متن
-          </label>
-          <select
-            className="w-full rounded-lg border border-border bg-background px-2 py-1 text-xs"
-            value={animation}
-            onChange={(e) => setAnimation(e.target.value as typeof animation)}
-          >
-            <option value="none">بدون انیمیشن</option>
-            <option value="bounce">پرش</option>
-            <option value="typewriter">تایپ</option>
-          </select>
           <Button size="sm" variant="secondary" onClick={addText}>
             تثبیت متن
           </Button>

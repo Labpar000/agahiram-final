@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Award } from 'lucide-react';
+import { Award, Shield, ShoppingBag } from 'lucide-react';
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -44,6 +44,41 @@ import { useAuth } from '@/hooks/useAuth';
 import { AdStatusBadge } from '@/components/ad-status-badge';
 import { ProfileHighlights } from '@/components/profile-highlights';
 import { ReportDialog } from '@/components/report-dialog';
+
+interface ShopProfileInfo {
+  hasShop: boolean;
+  shop?: {
+    slug: string;
+    name: string;
+    shopType: string;
+    trustScore: number;
+    trustTier: string;
+    isActive: boolean;
+  };
+  verifications?: {
+    total: number;
+    approved: number;
+    pending: number;
+  };
+}
+
+const TRUST_TIER_LABELS: Record<string, string> = {
+  UNVERIFIED: 'تایید نشده',
+  BASIC: 'پایه',
+  STANDARD: 'استاندارد',
+  VERIFIED: 'تایید شده',
+  TRUSTED: 'قابل اعتماد',
+  PREMIUM: 'پریمیوم',
+};
+
+const TRUST_TIER_COLORS: Record<string, string> = {
+  UNVERIFIED: 'bg-muted text-muted-foreground',
+  BASIC: 'bg-blue-100 text-blue-700',
+  STANDARD: 'bg-green-100 text-green-700',
+  VERIFIED: 'bg-emerald-100 text-emerald-700',
+  TRUSTED: 'bg-amber-100 text-amber-700',
+  PREMIUM: 'bg-purple-100 text-purple-700',
+};
 
 export interface Profile {
   id: string;
@@ -90,6 +125,17 @@ export function ProfileClient({ username }: { username: string }) {
       assertSuccess(await apiClient.get<UserReputation>(`/users/${username}/reputation`)),
     enabled: !!profile,
     staleTime: 60_000,
+  });
+
+  // Shop info — fetch for both own profile (to show CTA/progress) and others (to show trust badge)
+  const { data: shopInfo } = useQuery({
+    queryKey: ['profile', username, 'shop-info'],
+    queryFn: async () => {
+      const r = await apiClient.get<ShopProfileInfo>(`/users/${username}/shop-profile`);
+      return r.data ?? { hasShop: false };
+    },
+    enabled: !!profile,
+    staleTime: 30_000,
   });
 
   const karmaBadge = reputation ? karmaTier(reputation.karma) : null;
@@ -279,8 +325,80 @@ export function ProfileClient({ username }: { username: string }) {
               {profile.bio}
             </p>
           ) : null}
-          <ProfileMetaChips profile={profile} />
+          <ProfileMetaChips profile={profile} shopInfo={shopInfo} />
         </div>
+
+        {/* Seller / Shop CTA Section */}
+        {isMe && !shopInfo?.hasShop ? (
+          <div className="mt-3 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50/50 p-3 dark:border-amber-700 dark:bg-amber-950/20">
+            <div className="flex items-start gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-900 dark:text-amber-400">
+                <ShoppingBag className="size-5" strokeWidth={1.75} aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                  فروشگاه خود را بسازید
+                </p>
+                <p className="mt-0.5 text-xs text-amber-700/80 dark:text-amber-400/80">
+                  با ایجاد فروشگاه، اعتماد خریداران را جلب کنید و آگهی‌های خود را حرفه‌ای‌تر نمایش
+                  دهید.
+                </p>
+                <Button
+                  asChild
+                  size="sm"
+                  variant="brand"
+                  className="mt-2 h-8 rounded-lg text-xs font-bold"
+                >
+                  <Link href="/settings/shop">همین حالا شروع کنید</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {isMe && shopInfo?.hasShop && shopInfo.shop ? (
+          <div className="mt-3 rounded-xl border border-border bg-surface-elevated p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <Shield className="size-4" strokeWidth={1.75} aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">{shopInfo.shop.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {TRUST_TIER_LABELS[shopInfo.shop.trustTier] ?? shopInfo.shop.trustTier}
+                    {' · '}
+                    امتیاز {formatPersianNumber(shopInfo.shop.trustScore)}
+                  </p>
+                </div>
+              </div>
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="shrink-0 h-8 rounded-lg text-xs"
+              >
+                <Link href="/settings/shop">مدیریت فروشگاه</Link>
+              </Button>
+            </div>
+            {shopInfo.verifications ? (
+              <div className="mt-2.5 flex items-center gap-2">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{
+                      width: `${shopInfo.verifications.total > 0 ? (shopInfo.verifications.approved / shopInfo.verifications.total) * 100 : 0}%`,
+                    }}
+                  />
+                </div>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  {formatPersianNumber(shopInfo.verifications.approved)} از{' '}
+                  {formatPersianNumber(shopInfo.verifications.total)} تایید
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="flex gap-2">
           {isMe ? (
@@ -439,11 +557,25 @@ export function ProfileClient({ username }: { username: string }) {
   );
 }
 
-function ProfileMetaChips({ profile }: { profile: Profile }) {
+function ProfileMetaChips({
+  profile,
+  shopInfo,
+}: {
+  profile: Profile;
+  shopInfo?: ShopProfileInfo | null;
+}) {
   if (!profile.isBusiness) return null;
+  const tier = shopInfo?.shop?.trustTier ?? 'UNVERIFIED';
+  const tierLabel = TRUST_TIER_LABELS[tier] ?? tier;
+  const tierColor = TRUST_TIER_COLORS[tier] ?? TRUST_TIER_COLORS.UNVERIFIED!;
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
       <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">فروشگاه</span>
+      {shopInfo?.shop ? (
+        <span className={cn('text-ig-meta rounded-full px-2 py-0.5 font-medium', tierColor)}>
+          {tierLabel}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -99,6 +99,12 @@ export class UsersController {
   }
 
   @Public()
+  @Get(':username/shop-profile')
+  async shopProfile(@Param('username') username: string) {
+    return this.usersService.getUserShopProfile(username);
+  }
+
+  @Public()
   @Get(':username')
   async getProfile(@Param('username') username: string, @CurrentUser('sub') viewerId?: string) {
     return this.usersService.getProfileByUsername(username, viewerId);

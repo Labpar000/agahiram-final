@@ -103,22 +103,23 @@ export function setupVideoSource(
   };
 }
 
+// FIXED: localStorage instead of sessionStorage — persists across tabs/sessions like Instagram
 const REELS_MUTE_KEY = 'reels_muted';
 
 export function getReelsMutedPreference(): boolean {
-  if (typeof sessionStorage === 'undefined') return true;
-  return sessionStorage.getItem(REELS_MUTE_KEY) !== '0';
+  if (typeof localStorage === 'undefined') return true;
+  return localStorage.getItem(REELS_MUTE_KEY) !== '0';
 }
 
 export function setReelsMutedPreference(muted: boolean) {
   try {
-    sessionStorage.setItem(REELS_MUTE_KEY, muted ? '1' : '0');
+    localStorage.setItem(REELS_MUTE_KEY, muted ? '1' : '0');
   } catch {
     /* ignore */
   }
 }
 
-/** Feed card: report when ≥60% visible in viewport. */
+/** Feed card: report when ≥80% visible in viewport (Instagram threshold). */
 export function observeFeedVideo(
   container: HTMLElement,
   onVisibleChange: (visible: boolean) => void,
@@ -127,10 +128,64 @@ export function observeFeedVideo(
     (entries) => {
       const entry = entries[0];
       if (!entry) return;
-      onVisibleChange(entry.isIntersecting && entry.intersectionRatio >= 0.6);
+      onVisibleChange(entry.isIntersecting && entry.intersectionRatio >= 0.8);
     },
-    { threshold: [0, 0.6, 1] },
+    { threshold: [0, 0.8, 1] },
   );
   obs.observe(container);
   return () => obs.disconnect();
+}
+
+// FIXED: Reels IntersectionObserver with 0.8 threshold for active detection
+export function observeReelItem(
+  container: HTMLElement,
+  onActiveChange: (active: boolean) => void,
+): () => void {
+  if (typeof IntersectionObserver === 'undefined') {
+    onActiveChange(true);
+    return () => {};
+  }
+  const obs = new IntersectionObserver(
+    (entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      onActiveChange(entry.isIntersecting && entry.intersectionRatio >= 0.8);
+    },
+    { threshold: [0, 0.8, 1], rootMargin: '0px' },
+  );
+  obs.observe(container);
+  return () => obs.disconnect();
+}
+
+// FIXED: rAF-based progress tracking for buttery-smooth progress bars
+export function trackVideoProgress(
+  video: HTMLVideoElement,
+  onProgress: (ratio: number) => void,
+): () => void {
+  let rafId = 0;
+  const tick = () => {
+    if (video.duration && !Number.isNaN(video.duration)) {
+      onProgress(video.currentTime / video.duration);
+    }
+    rafId = requestAnimationFrame(tick);
+  };
+  const onPlay = () => {
+    rafId = requestAnimationFrame(tick);
+  };
+  const onPause = () => cancelAnimationFrame(rafId);
+  const onEnded = () => {
+    cancelAnimationFrame(rafId);
+    onProgress(1);
+  };
+
+  video.addEventListener('play', onPlay);
+  video.addEventListener('pause', onPause);
+  video.addEventListener('ended', onEnded);
+
+  return () => {
+    cancelAnimationFrame(rafId);
+    video.removeEventListener('play', onPlay);
+    video.removeEventListener('pause', onPause);
+    video.removeEventListener('ended', onEnded);
+  };
 }

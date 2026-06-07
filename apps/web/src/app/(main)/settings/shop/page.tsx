@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2, CheckCircle2, Loader2, ShoppingBag, Store, User } from 'lucide-react';
 import {
@@ -8,6 +9,8 @@ import {
   Button,
   Card,
   CardContent,
+  IconButton,
+  IgArrowBack,
   Input,
   Label,
   Spinner,
@@ -17,8 +20,10 @@ import {
   toast,
 } from '@agahiram/ui';
 import type { TrustTierValue, VerificationTypeValue, VerificationStatusValue } from '@agahiram/ui';
+import { formatPersianNumber } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useUploadManager } from '@/lib/upload-manager';
 
 type ShopTypeKey = 'PERSONAL' | 'ONLINE_STORE' | 'PHYSICAL_STORE' | 'BRAND';
 
@@ -258,6 +263,7 @@ function ShopCreationWizard({ onCreated }: { onCreated: () => void }) {
 
 function ShopDashboard({ shop }: { shop: ShopData }) {
   const qc = useQueryClient();
+  const { uploadFile } = useUploadManager();
 
   const verificationsQuery = useQuery({
     queryKey: ['my-verifications'],
@@ -268,8 +274,11 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
   });
 
   const submitMutation = useMutation({
-    mutationFn: async (type: string) => {
-      const r = await apiClient.post('/verifications/submit', { type });
+    mutationFn: async ({ type, documentKeys }: { type: string; documentKeys?: string[] }) => {
+      const r = await apiClient.post('/verifications/submit', {
+        type,
+        documents: documentKeys?.length ? documentKeys : undefined,
+      });
       if (!r.success) throw new Error(r.error ?? 'خطا');
     },
     onSuccess: () => {
@@ -279,7 +288,39 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+
+  const handleDocumentUpload = async (type: string, file: File) => {
+    setUploadingType(type);
+    try {
+      const presign = await apiClient.post<{ uploadUrl: string; key: string; publicUrl: string }>(
+        '/media/presign',
+        { folder: 'temp', fileName: file.name, contentType: file.type },
+      );
+      if (!presign.success || !presign.data) {
+        toast.error('خطا در دریافت لینک آپلود');
+        return;
+      }
+      await uploadFile({
+        label: file.name,
+        url: presign.data.uploadUrl,
+        file,
+        contentType: file.type,
+      });
+      await apiClient.post('/media/confirm', { key: presign.data.key });
+      await submitMutation.mutateAsync({ type, documentKeys: [presign.data.key] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingType(null);
+    }
+  };
+
   const verificationMap = new Map((verificationsQuery.data ?? []).map((v) => [v.type, v.status]));
+  const approvedCount = (verificationsQuery.data ?? []).filter(
+    (v) => v.status === 'APPROVED',
+  ).length;
+  const totalTypes = VERIFICATION_TYPES.length;
 
   return (
     <div className="space-y-6">
@@ -299,6 +340,22 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
         </CardContent>
       </Card>
 
+      {/* Verification progress tracker */}
+      <div className="rounded-xl border border-border bg-surface-elevated p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold">پیشرفت احراز هویت</span>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatPersianNumber(approvedCount)} از {formatPersianNumber(totalTypes)} تایید
+          </span>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-500"
+            style={{ width: `${totalTypes > 0 ? (approvedCount / totalTypes) * 100 : 0}%` }}
+          />
+        </div>
+      </div>
+
       <div>
         <h3 className="font-semibold mb-3">مرکز تأییدیه</h3>
         <p className="text-sm text-muted-foreground mb-4">
@@ -317,8 +374,12 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
                   key={type}
                   type={type}
                   status={status}
-                  onSubmit={() => submitMutation.mutate(type)}
-                  isLoading={submitMutation.isPending && submitMutation.variables === type}
+                  onSubmit={() => submitMutation.mutate({ type })}
+                  onUpload={(file) => {
+                    void handleDocumentUpload(type, file);
+                  }}
+                  isUploading={uploadingType === type}
+                  isLoading={submitMutation.isPending && submitMutation.variables?.type === type}
                 />
               );
             })
@@ -330,6 +391,7 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
 }
 
 export default function ShopSettingsPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -365,11 +427,19 @@ export default function ShopSettingsPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
-      <div className="mb-6">
-        <h1 className="text-xl font-bold">فروشگاه من</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {shopQuery.data ? 'مدیریت فروشگاه و تأییدیه‌ها' : 'فروشگاه جدید ایجاد کنید'}
-        </p>
+      <div className="flex items-center gap-3 mb-6">
+        <IconButton
+          aria-label="بازگشت"
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
+          variant="ghost"
+          onClick={() => router.back()}
+        />
+        <div>
+          <h1 className="text-xl font-bold">فروشگاه من</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {shopQuery.data ? 'مدیریت فروشگاه و تأییدیه‌ها' : 'فروشگاه جدید ایجاد کنید'}
+          </p>
+        </div>
       </div>
 
       {shopQuery.data ? (

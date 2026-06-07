@@ -2,9 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Globe, MapPin, Phone } from 'lucide-react';
 import {
+  IconButton,
+  IgArrowBack,
   ShopHeader,
   TrustScoreBar,
   Tabs,
@@ -67,6 +70,7 @@ function formatPrice(price: number | null, priceType: string) {
 }
 
 export function ShopPageClient({ shop }: { shop: ShopData }) {
+  const router = useRouter();
   const [tab, setTab] = useState('posts');
 
   const postsQuery = useQuery({
@@ -80,6 +84,14 @@ export function ShopPageClient({ shop }: { shop: ShopData }) {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <div className="flex items-center gap-3">
+        <IconButton
+          aria-label="بازگشت"
+          icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
+          variant="ghost"
+          onClick={() => router.back()}
+        />
+      </div>
       <ShopHeader
         name={shop.name}
         slug={shop.slug}

@@ -43,6 +43,8 @@ export interface VerificationCardProps {
   type: VerificationTypeValue;
   status?: VerificationStatusValue;
   onSubmit?: () => void;
+  onUpload?: (file: File) => void;
+  isUploading?: boolean;
   isLoading?: boolean;
   className?: string;
 }
@@ -51,6 +53,8 @@ export function VerificationCard({
   type,
   status = null,
   onSubmit,
+  onUpload,
+  isUploading,
   isLoading,
   className,
 }: VerificationCardProps) {
@@ -58,6 +62,11 @@ export function VerificationCard({
   const statusConfig = status ? STATUS_CONFIG[status] : null;
   const isApproved = status === 'APPROVED';
   const isPending = status === 'PENDING' || status === 'UNDER_REVIEW';
+  const needsDocument =
+    type === 'NATIONAL_ID' ||
+    type === 'BUSINESS_LICENSE' ||
+    type === 'COMPANY_REG' ||
+    type === 'ENAMAD';
 
   return (
     <div
@@ -85,12 +94,32 @@ export function VerificationCard({
           )}
         </div>
         <p className="text-xs text-muted-foreground mt-1">{config.description}</p>
+        {needsDocument && !isApproved && !isPending && onUpload ? (
+          <div className="mt-2">
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUpload(f);
+                e.target.value = '';
+              }}
+              className="text-xs"
+              disabled={isUploading}
+            />
+            {isUploading ? (
+              <span className="mt-1 block text-[10px] text-muted-foreground">
+                در حال آپلود مدرک…
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       {!isApproved && !isPending && onSubmit && (
         <button
           type="button"
           onClick={onSubmit}
-          disabled={isLoading}
+          disabled={isLoading || isUploading}
           className={cn(
             'shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors',
             'bg-primary text-primary-foreground hover:bg-primary/90',

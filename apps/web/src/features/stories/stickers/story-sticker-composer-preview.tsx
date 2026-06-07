@@ -21,6 +21,7 @@ const LABELS: Record<string, string> = {
   WEATHER: '🌤',
 };
 
+// FIXED: stickers now visible (removed opacity-0 from overlay)
 /** Read-only sticker positions on composer preview (before publish). */
 export function StoryStickerComposerPreview({ stickers }: { stickers: PublishSticker[] }) {
   if (!stickers.length) return null;
