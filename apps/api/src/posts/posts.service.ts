@@ -115,8 +115,8 @@ export class PostsService {
         expiresAt,
         media: {
           create: input.mediaKeys.map((m) => ({
-            url: this.minio.getPublicUrl(m.key),
-            thumbnailUrl: m.type === 'image' ? this.minio.getPublicUrl(m.key) : null,
+            url: m.key,
+            thumbnailUrl: m.type === 'image' ? m.key : null,
             type: m.type,
             order: m.order,
           })),
@@ -209,8 +209,8 @@ export class PostsService {
           input.mediaKeys.length > 0 && {
             media: {
               create: input.mediaKeys.map((m) => ({
-                url: this.minio.getPublicUrl(m.key),
-                thumbnailUrl: m.type === 'image' ? this.minio.getPublicUrl(m.key) : null,
+                url: m.key,
+                thumbnailUrl: m.type === 'image' ? m.key : null,
                 type: m.type,
                 order: m.order,
               })),

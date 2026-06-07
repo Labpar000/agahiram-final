@@ -527,7 +527,7 @@ export default function CreatePage() {
               <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما کجاست؟</p>
-            <div className="mt-4 max-h-[min(24rem,65svh)] overflow-hidden rounded-2xl border border-border">
+            <div className="mt-4 h-[min(28rem,70svh)] overflow-hidden rounded-2xl border border-border">
               <CityLocationPicker
                 embedded
                 currentCityId={cityId || undefined}

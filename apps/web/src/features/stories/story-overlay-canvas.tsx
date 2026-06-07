@@ -19,7 +19,21 @@ const FONTS: Array<{ id: StoryTextFont; label: string }> = [
   { id: 'script', label: 'خطی' },
 ];
 
-const COLORS = ['#ffffff', '#000000', '#f43f5e', '#22c55e', '#3b82f6', '#eab308'];
+// FIXED: expanded color palette for text/drawing (12 colors)
+const COLORS = [
+  '#ffffff',
+  '#000000',
+  '#f43f5e',
+  '#e11d48', // reds
+  '#22c55e',
+  '#16a34a', // greens
+  '#3b82f6',
+  '#2563eb', // blues
+  '#eab308',
+  '#ca8a04', // yellows
+  '#a855f7',
+  '#9333ea', // purples
+];
 const EMOJI_STICKERS = ['😀', '🔥', '⭐', '💯', '🎉', '❤️'];
 
 function fontCss(font: StoryTextFont, size = 24): string {
@@ -458,10 +472,45 @@ export function StoryOverlayTools({
 
       {tool === 'text' ? (
         <div className="space-y-2">
+          {/* FIXED: inline text editing — typing automatically adds a live-updating
+              text layer on the canvas so the user sees exactly what they're creating. */}
           <Input
             value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-            placeholder="متن استوری"
+            onChange={(e) => {
+              const v = e.target.value;
+              setTextInput(v);
+              // Live preview: add or update a temporary text layer
+              if (v.trim()) {
+                const liveLayer: StoryOverlayLayer = {
+                  type: 'text',
+                  text: v.trim(),
+                  x: 0.5,
+                  y: 0.45,
+                  color,
+                  font,
+                  align,
+                  bgColor: textBg ? 'rgba(0,0,0,0.55)' : undefined,
+                  animation,
+                  scale: 1,
+                };
+                const idx = layers.findIndex((l, i) => l.type === 'text' && i === selectedIndex);
+                if (selectedIndex !== null && idx === selectedIndex) {
+                  onLayersChange(layers.map((l, i) => (i === selectedIndex ? liveLayer : l)));
+                } else {
+                  const prev = layers.filter(
+                    (_, i) => i < layers.length && layers[i]?.type === 'text',
+                  );
+                  if (prev.length > 0) {
+                    const lastIdx = layers.lastIndexOf(prev[prev.length - 1]!);
+                    onLayersChange(layers.map((l, i) => (i === lastIdx ? liveLayer : l)));
+                  } else {
+                    onLayersChange([...layers, liveLayer]);
+                    onSelectIndex(layers.length);
+                  }
+                }
+              }
+            }}
+            placeholder="متن را تایپ کنید — زنده روی تصویر می‌بینید"
           />
           <div className="flex flex-wrap gap-1">
             {FONTS.map((f) => (
@@ -507,7 +556,7 @@ export function StoryOverlayTools({
             <option value="typewriter">تایپ</option>
           </select>
           <Button size="sm" variant="secondary" onClick={addText}>
-            افزودن متن
+            تثبیت متن
           </Button>
         </div>
       ) : null}
@@ -524,9 +573,38 @@ export function StoryOverlayTools({
 
       {tool === 'draw' ? (
         <div className="space-y-2">
-          <Button size="sm" variant="outline" onClick={clearDrawLayers}>
-            پاک کردن همه نقاشی‌ها
-          </Button>
+          {/* FIXED: add undo button for drawing — removes last draw path */}
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const drawLayers = layers
+                  .map((l, i) => (l.type === 'draw' ? i : -1))
+                  .filter((i) => i >= 0);
+                if (drawLayers.length === 0) return;
+                const lastIdx = drawLayers[drawLayers.length - 1]!;
+                const lastLayer = layers[lastIdx];
+                if (lastLayer?.type === 'draw' && lastLayer.paths.length > 1) {
+                  onLayersChange(
+                    layers.map((l, i) =>
+                      i === lastIdx
+                        ? { ...l, type: 'draw' as const, paths: lastLayer.paths.slice(0, -1) }
+                        : l,
+                    ),
+                  );
+                } else {
+                  onLayersChange(layers.filter((_, i) => i !== lastIdx));
+                }
+                onSelectIndex(null);
+              }}
+            >
+              ↶ برگشت
+            </Button>
+            <Button size="sm" variant="outline" onClick={clearDrawLayers}>
+              پاک کردن همه
+            </Button>
+          </div>
           <div className="flex flex-wrap gap-1">
             {(
               [

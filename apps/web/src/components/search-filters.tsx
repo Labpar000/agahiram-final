@@ -788,12 +788,7 @@ export function CityLocationPicker({
   }
 
   return (
-    <div
-      className={cn(
-        'flex min-h-0 flex-col',
-        embedded ? 'max-h-[min(20rem,60svh)]' : 'h-full min-h-0 flex-1',
-      )}
-    >
+    <div className={cn('flex min-h-0 flex-col', embedded ? 'h-full' : 'h-full min-h-0 flex-1')}>
       <div className="shrink-0 border-b border-border bg-surface/95 p-3">
         <Input
           type="search"

@@ -32,7 +32,7 @@ export function StoryProgressBar({
         return (
           <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
             <div
-              className="h-full rounded-full bg-white transition-[width] duration-75 ease-linear"
+              className="h-full rounded-full bg-white transition-[width] duration-[0.15s] ease-linear"
               style={{ width: `${fill * 100}%` }}
             />
           </div>

@@ -159,13 +159,14 @@ function StoryViewerContent({ params }: { params: Promise<{ userId: string }> })
   const overlay = parseStoryOverlay(current?.overlayJson);
   const mediaFilterCss = getStoryFilterCss(overlay);
 
+  // FIXED: viewers list now fetched eagerly for owners (live viewer count in footer)
   const viewersQuery = useQuery({
     queryKey: ['story-viewers', current?.id],
     queryFn: async () => {
       const r = await apiClient.get<ViewerListResponse>(`/stories/${current!.id}/views`);
       return r.data ?? { count: 0, viewers: [] };
     },
-    enabled: isOwner && insightsOpen && !!current,
+    enabled: isOwner && !!current,
   });
 
   const storyInsightsQuery = useQuery({
