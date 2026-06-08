@@ -524,7 +524,11 @@ export default function VerificationDetailPage({ params }: { params: Promise<{ i
           }
         }}
       >
-        <DialogContent size="full" className="bg-black/95 border-none !p-0">
+        <DialogContent
+          size="xl"
+          showClose={false}
+          className="bg-black/95 border-none !p-0 max-w-none h-screen w-screen !left-0 !top-0 !translate-x-0 !translate-y-0 rounded-none"
+        >
           <DialogHeader className="sr-only">
             <DialogTitle>نمایش سند</DialogTitle>
           </DialogHeader>
