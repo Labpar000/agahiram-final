@@ -1,5 +1,6 @@
 /* Single source of truth: design tokens live in @agahiram/ui */
 @import '@agahiram/ui/styles/tokens.css';
+@import 'react-instagram-stories/styles.css';
 
 /* Scan both this app and the shared UI package for class names */
 @source "../**/*.{ts,tsx}";
