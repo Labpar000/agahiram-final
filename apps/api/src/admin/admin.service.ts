@@ -18,7 +18,6 @@ import { MeiliService } from '../search/meili.service';
 import { AuditLogService, type AuditContext } from './audit-log.service';
 import { StoriesService } from '../stories/stories.service';
 import { MinioService } from '../media/minio.service';
-import { MediaAccessService } from '../media/media-access.service';
 
 const DAY_MS = 86_400_000;
 
@@ -78,7 +77,6 @@ export class AdminService {
     private readonly audit: AuditLogService,
     private readonly stories: StoriesService,
     private readonly minio: MinioService,
-    private readonly mediaAccess: MediaAccessService,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
   ) {}
 
