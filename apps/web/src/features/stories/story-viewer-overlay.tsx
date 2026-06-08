@@ -1,16 +1,27 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type PointerEvent, type ReactNode, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@agahiram/shared';
 
-/** Full-viewport story overlay — portaled to body to escape transformed layout ancestors. */
+/**
+ * Full-viewport story overlay — portaled to body.
+ * Handles swipe-down-to-close gesture natively for smooth 60fps.
+ */
 export function StoryViewerOverlay({
   children,
   className,
+  style,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
 }: {
   children: ReactNode;
   className?: string;
+  style?: CSSProperties;
+  onPointerDown?: (e: PointerEvent<HTMLDivElement>) => void;
+  onPointerMove?: (e: PointerEvent<HTMLDivElement>) => void;
+  onPointerUp?: (e: PointerEvent<HTMLDivElement>) => void;
 }) {
   const [mounted, setMounted] = useState(false);
 
@@ -30,7 +41,12 @@ export function StoryViewerOverlay({
         paddingBottom: 'var(--safe-bottom)',
         paddingLeft: 'env(safe-area-inset-left, 0px)',
         paddingRight: 'env(safe-area-inset-right, 0px)',
+        ...style,
       }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       {children}
     </div>,

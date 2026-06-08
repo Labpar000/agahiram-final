@@ -8,7 +8,7 @@ installSerwist({
   clientsClaim: true,
   skipWaiting: true,
   cleanupOutdatedCaches: true,
-  navigationPreload: true,
+  navigationPreload: false,
 });
 
 /* eslint-disable @typescript-eslint/no-explicit-any, no-var */
@@ -145,25 +145,23 @@ self.addEventListener(
     if (data?.conversationId) url = `/messages/${data.conversationId}`;
 
     event.waitUntil(
-      self.clients
-        .matchAll({ type: 'window' })
-        .then(
-          (
-            clients: readonly {
-              focus: () => void;
-              url: string;
-              postMessage: (msg: unknown) => void;
-            }[],
-          ) => {
-            const existing = clients.find((c) => c.url.includes(self.registration.scope));
-            if (existing) {
-              existing.focus();
-              existing.postMessage({ type: 'NOTIFICATION_CLICK', url });
-            } else {
-              self.clients.openWindow(url);
-            }
-          },
-        ),
+      self.clients.matchAll({ type: 'window' }).then(
+        (
+          clients: readonly {
+            focus: () => void;
+            url: string;
+            postMessage: (msg: unknown) => void;
+          }[],
+        ) => {
+          const existing = clients.find((c) => c.url.includes(self.registration.scope));
+          if (existing) {
+            existing.focus();
+            existing.postMessage({ type: 'NOTIFICATION_CLICK', url });
+          } else {
+            self.clients.openWindow(url);
+          }
+        },
+      ),
     );
   },
 );

@@ -110,8 +110,11 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const voice = useVoiceRecorder(sendVoiceRecording);
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const h = el.scrollHeight;
     requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+      el.scrollTo({ top: h, behavior: 'smooth' });
     });
   }, [messages.length]);
 

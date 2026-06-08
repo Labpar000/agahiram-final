@@ -17,6 +17,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { MeiliService } from '../search/meili.service';
 import { AuditLogService, type AuditContext } from './audit-log.service';
 import { StoriesService } from '../stories/stories.service';
+import { MinioService } from '../media/minio.service';
+import { MediaAccessService } from '../media/media-access.service';
 
 const DAY_MS = 86_400_000;
 
@@ -75,6 +77,8 @@ export class AdminService {
     private readonly meili: MeiliService,
     private readonly audit: AuditLogService,
     private readonly stories: StoriesService,
+    private readonly minio: MinioService,
+    private readonly mediaAccess: MediaAccessService,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
   ) {}
 
@@ -187,7 +191,15 @@ export class AdminService {
     });
     const hasMore = posts.length > limit;
     return {
-      data: posts.slice(0, limit),
+      data: posts.slice(0, limit).map((p) => ({
+        ...p,
+        media: p.media.map((m) => ({
+          ...m,
+          url: this.minio.toServedUrl(m.url) ?? m.url,
+          thumbnailUrl: this.minio.toServedUrl(m.thumbnailUrl),
+          hlsUrl: this.minio.toServedUrl(m.hlsUrl),
+        })),
+      })),
       nextCursor: hasMore ? (posts[limit - 1]?.id ?? null) : null,
       hasMore,
     };
@@ -245,7 +257,15 @@ export class AdminService {
       }),
     ]);
     return {
-      data,
+      data: data.map((p) => ({
+        ...p,
+        media: p.media.map((m) => ({
+          ...m,
+          url: this.minio.toServedUrl(m.url) ?? m.url,
+          thumbnailUrl: this.minio.toServedUrl(m.thumbnailUrl),
+          hlsUrl: this.minio.toServedUrl(m.hlsUrl),
+        })),
+      })),
       page,
       pageSize,
       total,
@@ -282,7 +302,15 @@ export class AdminService {
       },
     });
     if (!post) throw new NotFoundException('آگهی یافت نشد');
-    return post;
+    return {
+      ...post,
+      media: post.media.map((m) => ({
+        ...m,
+        url: this.minio.toServedUrl(m.url) ?? m.url,
+        thumbnailUrl: this.minio.toServedUrl(m.thumbnailUrl),
+        hlsUrl: this.minio.toServedUrl(m.hlsUrl),
+      })),
+    };
   }
 
   async approve(id: string, ctx: AuditContext) {

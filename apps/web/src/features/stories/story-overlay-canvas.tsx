@@ -169,12 +169,16 @@ export function StoryOverlayCanvas({
     if (!canvas || typeof ResizeObserver === 'undefined') return;
     const parent = canvas.parentElement;
     if (!parent) return;
+    let rid = 0;
     const ro = new ResizeObserver(() => {
-      const rect = parent.getBoundingClientRect();
-      if (rect.width < 1 || rect.height < 1) return;
-      canvas.width = Math.round(rect.width);
-      canvas.height = Math.round(rect.height);
-      redraw();
+      cancelAnimationFrame(rid);
+      rid = requestAnimationFrame(() => {
+        const rect = parent.getBoundingClientRect();
+        if (rect.width < 1 || rect.height < 1) return;
+        canvas.width = Math.round(rect.width);
+        canvas.height = Math.round(rect.height);
+        redraw();
+      });
     });
     ro.observe(parent);
     return () => ro.disconnect();

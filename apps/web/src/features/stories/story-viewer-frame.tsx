@@ -3,9 +3,9 @@
 import type { ReactNode } from 'react';
 import { StoryProgressBar } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
-import { StoryViewerOverlay } from '@/features/stories/story-viewer-overlay';
 
-/** IG story viewer frame — full-screen mobile, rounded card on desktop. */
+/** IG story viewer frame — exact Instagram dimensions and layout.
+ *  9:16 aspect ratio, black bg, gradient overlays top + bottom. */
 export function StoryViewerFrame({
   segmentCount,
   activeIndex,
@@ -13,7 +13,6 @@ export function StoryViewerFrame({
   header,
   footer,
   children,
-  onSwipeDown,
   className,
 }: {
   segmentCount: number;
@@ -26,51 +25,56 @@ export function StoryViewerFrame({
   className?: string;
 }) {
   return (
-    <StoryViewerOverlay className="grid place-items-center">
+    <div
+      className={cn(
+        'relative mx-auto h-dvh w-full max-w-[420px] overflow-hidden bg-black',
+        'sm:aspect-[9/16] sm:h-auto sm:max-h-[min(100dvh,920px)] sm:rounded-2xl sm:ring-1 sm:ring-white/10',
+        className,
+      )}
+    >
+      {/* Top gradient fade — IG spec: 120px from top */}
       <div
-        onPointerDown={(e) => {
-          if (!onSwipeDown || e.clientY > 80) return;
-          const startY = e.clientY;
-          const onUp = (ev: PointerEvent) => {
-            if (ev.clientY - startY > 72) onSwipeDown();
-            window.removeEventListener('pointerup', onUp);
-          };
-          window.addEventListener('pointerup', onUp);
+        className="pointer-events-none absolute inset-x-0 top-0 z-[6] h-32"
+        style={{
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)',
         }}
-        className="grid size-full place-items-center"
-      >
+        aria-hidden
+      />
+
+      {/* Bottom gradient fade — IG spec: ~200px from bottom for reply bar */}
+      {footer ? null : (
         <div
-          className={cn(
-            'relative h-full max-h-svh w-full max-w-[420px] overflow-hidden bg-black',
-            'sm:aspect-[9/16] sm:h-auto sm:max-h-[min(100svh,920px)] sm:rounded-2xl sm:ring-1 sm:ring-white/10',
-            className,
-          )}
-        >
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 z-[6] h-32 bg-gradient-to-b from-black/60 to-transparent"
-            aria-hidden
-          />
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[6] h-32"
+          style={{
+            background: 'linear-gradient(0deg, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0) 100%)',
+          }}
+          aria-hidden
+        />
+      )}
 
-          <div className="absolute inset-x-2 top-[calc(var(--safe-top)+0.375rem)] z-20">
-            <StoryProgressBar
-              segments={segmentCount}
-              activeIndex={activeIndex}
-              progress={progress}
-              className="gap-[3px] px-1"
-            />
-          </div>
-
-          <div className="absolute inset-x-0 top-[calc(var(--safe-top)+1.25rem)] z-20 px-3">
-            {header}
-          </div>
-
-          <div className="relative size-full">{children}</div>
-
-          {footer ? (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">{footer}</div>
-          ) : null}
-        </div>
+      {/* Progress bar — 2px from top edge after safe area */}
+      <div
+        className="absolute inset-x-0 z-20 px-1.5"
+        style={{ top: 'calc(var(--safe-top, 0px) + 0.25rem)' }}
+      >
+        <StoryProgressBar segments={segmentCount} activeIndex={activeIndex} progress={progress} />
       </div>
-    </StoryViewerOverlay>
+
+      {/* Header — right below progress bar */}
+      <div
+        className="absolute inset-x-0 z-20 px-3"
+        style={{ top: 'calc(var(--safe-top, 0px) + 1.125rem)' }}
+      >
+        {header}
+      </div>
+
+      {/* Content — full size, behind everything */}
+      <div className="absolute inset-0 z-0">{children}</div>
+
+      {/* Footer */}
+      {footer ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">{footer}</div>
+      ) : null}
+    </div>
   );
 }

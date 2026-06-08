@@ -358,6 +358,9 @@ importers:
       react-hook-form:
         specifier: ^7.56.4
         version: 7.76.1(react@19.2.6)
+      react-instagram-stories:
+        specifier: ^1.1.1
+        version: 1.1.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       socket.io-client:
         specifier: ^4.8.1
         version: 4.8.3
@@ -5250,6 +5253,12 @@ packages:
     engines: {node: '>=18.0.0'}
     peerDependencies:
       react: ^16.8.0 || ^17 || ^18 || ^19
+
+  react-instagram-stories@1.1.1:
+    resolution: {integrity: sha512-vB0B2Lfom+ScQnEUnC6Grl/AP6APQDhXc+qTCbE/arr+xXqcL29eSCKVtc5P3hcXdi8ariHqkKh0xjONs9H07g==}
+    peerDependencies:
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   react-remove-scroll-bar@2.3.8:
     resolution: {integrity: sha512-9r+yi9+mgU33AKcj6IbT9oRCO78WriSj6t/cF8DWBZJ9aOGPOTEDvdUDz1FwKim7QXWwmHqtdHnRJfhAxEG46Q==}
@@ -10813,6 +10822,11 @@ snapshots:
   react-hook-form@7.76.1(react@19.2.6):
     dependencies:
       react: 19.2.6
+
+  react-instagram-stories@1.1.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
+    dependencies:
+      react: 19.2.6
+      react-dom: 19.2.6(react@19.2.6)
 
   react-remove-scroll-bar@2.3.8(@types/react@19.2.15)(react@19.2.6):
     dependencies:

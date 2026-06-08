@@ -10,6 +10,7 @@ import { AdminGateway } from './admin.gateway';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { SearchModule } from '../search/search.module';
 import { StoriesModule } from '../stories/stories.module';
+import { MediaModule } from '../media/media.module';
 import { getJwtSecret } from '../config/secrets';
 
 @Module({
@@ -17,6 +18,7 @@ import { getJwtSecret } from '../config/secrets';
     NotificationsModule,
     SearchModule,
     StoriesModule,
+    MediaModule,
     JwtModule.register({ secret: getJwtSecret() }),
     BullModule.registerQueue(
       { name: BULL_QUEUES.SEARCH_INDEX },

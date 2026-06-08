@@ -1,15 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
+import { useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { SOCKET_EVENTS, cn, formatPersianNumber } from '@agahiram/shared';
-import { ErrorState, Skeleton, STORY_INNER, StoryTray, StoryTrayItem } from '@agahiram/ui';
+import { AvatarList } from 'react-instagram-stories';
+import type { User } from 'react-instagram-stories';
+import { SOCKET_EVENTS } from '@agahiram/shared';
+import { ErrorState, Skeleton } from '@agahiram/ui';
 import { apiClient, assertSuccess } from '@/lib/api';
 import { connectStoriesSocket } from '@/lib/stories-socket';
-import { useAuthStore } from '@/lib/auth-store';
-import { YourStoryTrayCell } from '@/features/stories/your-story-tray-cell';
 
 interface StoryGroup {
   userId: string;
@@ -26,12 +24,8 @@ interface StoryGroup {
   viewerCount?: number;
 }
 
-const linkClass =
-  'group flex w-[4.625rem] shrink-0 flex-col items-center tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface';
-
 export function StoryBar() {
   const qc = useQueryClient();
-  const me = useAuthStore((s) => s.user);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['stories', 'feed'],
     queryFn: async () => assertSuccess(await apiClient.get<StoryGroup[]>('/stories/feed')),
@@ -48,7 +42,15 @@ export function StoryBar() {
     };
   }, [qc]);
 
-  const myStoryGroup = (data ?? []).find((g) => g.isMe);
+  const handleAvatarClick = useCallback(
+    (index: number) => {
+      const users = mapGroups(data ?? []);
+      const user = users[index];
+      if (!user) return;
+      window.location.href = `/stories/${user.id}`;
+    },
+    [data],
+  );
 
   if (isError) {
     return (
@@ -58,100 +60,45 @@ export function StoryBar() {
     );
   }
 
-  return (
-    <StoryTray>
-      <li>
-        <YourStoryTrayCell
-          userId={myStoryGroup?.userId ?? me?.id ?? ''}
-          hasStories={!!myStoryGroup}
-          hasUnviewed={false}
-          avatarUrl={me?.avatar}
-          username={me?.username}
-        />
-      </li>
+  if (isLoading) {
+    return (
+      <div className="border-b border-[var(--ig-tab-border)] bg-surface px-3 py-4">
+        <div className="flex gap-3">
+          {Array.from({ length: 7 }).map((_, i) => (
+            <div key={i} className="flex w-[4.625rem] shrink-0 flex-col items-center gap-2">
+              <Skeleton className="size-[4.625rem] rounded-full" />
+              <Skeleton className="h-3 w-12 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
-      {isLoading
-        ? Array.from({ length: 6 }).map((_, i) => (
-            <li key={i}>
-              <StorySkeleton />
-            </li>
-          ))
-        : (data ?? [])
-            .filter((g) => !g.isMe)
-            .map((g) => (
-              <li key={g.userId}>
-                <StoryItem group={g} />
-              </li>
-            ))}
-    </StoryTray>
-  );
-}
-
-function StoryItem({ group }: { group: StoryGroup }) {
-  const showViewerCount = !!group.isMe && (group.viewerCount ?? 0) > 0;
-  const latest = group.stories[group.stories.length - 1];
-  const ringMedia = latest?.thumbnailUrl ?? latest?.mediaUrl;
-
-  const ringImage = ringMedia ? (
-    <Image
-      src={ringMedia}
-      alt=""
-      width={68}
-      height={68}
-      className={cn(STORY_INNER, 'rounded-full object-cover')}
-    />
-  ) : group.user.avatar ? (
-    <Image
-      src={group.user.avatar}
-      alt=""
-      width={68}
-      height={68}
-      className={cn(STORY_INNER, 'rounded-full object-cover')}
-    />
-  ) : (
-    <span
-      className={cn(
-        STORY_INNER,
-        'grid place-items-center rounded-full bg-muted text-xs font-medium text-muted-foreground',
-      )}
-      aria-hidden
-    >
-      {(group.user.username ?? '?').slice(0, 2)}
-    </span>
-  );
-
-  const badge = showViewerCount ? (
-    <span
-      aria-label={`${group.viewerCount} بازدید`}
-      className="absolute -bottom-0.5 -end-0.5 inline-flex items-center gap-0.5 rounded-full bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background ring-2 ring-surface"
-    >
-      {formatPersianNumber(group.viewerCount!)}
-    </span>
-  ) : undefined;
+  const users = mapGroups(data ?? []);
+  if (users.length === 0) return null;
 
   return (
-    <Link
-      href={`/stories/${group.userId}`}
-      aria-label={`استوری ${group.user.username ?? ''}${group.hasUnviewed ? ' (دیده‌نشده)' : ''}`}
-      className={linkClass}
-    >
-      <StoryTrayItem
-        variant="story"
-        hasUnviewed={group.hasUnviewed}
-        label={group.isMe ? 'استوری شما' : (group.user.username ?? 'کاربر')}
-        ringImage={ringImage}
-        badge={badge}
-        className="transition-transform group-active:scale-95"
-      />
-    </Link>
-  );
-}
-
-function StorySkeleton() {
-  return (
-    <div className="flex w-[4.625rem] shrink-0 flex-col items-center">
-      <Skeleton className="size-[4.625rem] rounded-full" />
-      <Skeleton className="mt-1.5 h-3 w-12 rounded-full" />
+    <div className="border-b border-[var(--ig-tab-border)] bg-surface">
+      <AvatarList users={users} onAvatarClick={handleAvatarClick} />
     </div>
   );
+}
+
+function mapGroups(groups: StoryGroup[]): User[] {
+  return groups
+    .filter((g) => !g.isMe)
+    .map((g) => ({
+      id: g.userId,
+      username: g.user.username ?? 'کاربر',
+      avatarUrl: g.user.avatar ?? '',
+      hasUnreadStories: g.hasUnviewed,
+      stories: g.stories.map((s) => ({
+        id: s.id,
+        type: 'image' as const,
+        src: s.thumbnailUrl ?? s.mediaUrl,
+        duration: 5000,
+        alt: '',
+      })),
+    }));
 }

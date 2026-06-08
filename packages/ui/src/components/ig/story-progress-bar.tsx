@@ -12,7 +12,7 @@ export type StoryProgressBarProps = {
   className?: string;
 };
 
-/** IG story progress segments (Figma Indicators / Stories). */
+/** IG story progress bar — 2px height, 2px gap, 1px radius (exact Instagram spec). */
 export function StoryProgressBar({
   progress = 0,
   segments = 1,
@@ -21,7 +21,7 @@ export function StoryProgressBar({
 }: StoryProgressBarProps) {
   return (
     <div
-      className={cn('flex gap-1 px-2', className)}
+      className={cn('flex gap-[2px] px-1.5', className)}
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
@@ -30,9 +30,9 @@ export function StoryProgressBar({
       {Array.from({ length: segments }).map((_, i) => {
         const fill = i < activeIndex ? 1 : i > activeIndex ? 0 : Math.min(1, Math.max(0, progress));
         return (
-          <div key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/30">
+          <div key={i} className="h-[2px] flex-1 overflow-hidden rounded-[1px] bg-white/30">
             <div
-              className="h-full rounded-full bg-white transition-[width] duration-[0.15s] ease-linear"
+              className="h-full rounded-[1px] bg-white will-change-[width]"
               style={{ width: `${fill * 100}%` }}
             />
           </div>
