@@ -83,7 +83,27 @@ sync_database_url_env() {
   log "synced DATABASE_URL from POSTGRES_* credentials"
 }
 
+align_postgres_password_with_env() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  local user pass pass_sql
+  user="$(read_env_var POSTGRES_USER)"
+  pass="$(read_env_var POSTGRES_PASSWORD)"
+  [[ -n "$user" && -n "$pass" ]] || return 0
+  if ! docker ps --format '{{.Names}}' | grep -qx 'agahiram-postgres'; then
+    log "postgres container not running — skipping password alignment"
+    return 0
+  fi
+  pass_sql="${pass//\'/\'\'}"
+  if docker exec agahiram-postgres psql -U "$user" -d postgres -c \
+    "ALTER USER \"${user}\" PASSWORD '${pass_sql}';" >/dev/null 2>&1; then
+    log "aligned postgres role password with POSTGRES_PASSWORD in .env"
+  else
+    log "could not align postgres password (continuing with migrate)"
+  fi
+}
+
 run_db_migrate_and_seed() {
+  align_postgres_password_with_env
   sync_database_url_env
   local db_url
   db_url="$(database_url_from_env)"
