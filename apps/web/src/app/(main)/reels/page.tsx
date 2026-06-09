@@ -141,13 +141,6 @@ export default function ReelsPage() {
           <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
         </button>
         <span className="text-sm font-semibold drop-shadow-md">ریلز</span>
-        <Link
-          href="/explore"
-          aria-label="جستجو"
-          className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/40 tap-none"
-        >
-          <IgSearch className="size-5" strokeWidth={1.75} aria-hidden />
-        </Link>
       </div>
 
       <div

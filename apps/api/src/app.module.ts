@@ -33,6 +33,7 @@ import { PushModule } from './push/push.module';
 import { HealthModule } from './health/health.module';
 import { ShopsModule } from './shops/shops.module';
 import { VerificationsModule } from './verifications/verifications.module';
+import { AdsModule } from './ads/ads.module';
 
 @Module({
   imports: [
@@ -88,6 +89,7 @@ import { VerificationsModule } from './verifications/verifications.module';
     HealthModule,
     ShopsModule,
     VerificationsModule,
+    AdsModule,
   ],
   providers: [
     {

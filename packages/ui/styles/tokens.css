@@ -439,8 +439,8 @@
   /* Frosted-glass header / bottom nav */
   .glass {
     background-color: color-mix(in oklch, var(--surface) 78%, transparent);
-    backdrop-filter: saturate(1.6) blur(14px);
-    -webkit-backdrop-filter: saturate(1.6) blur(14px);
+    backdrop-filter: saturate(1.6) blur(4px);
+    -webkit-backdrop-filter: saturate(1.6) blur(4px);
     border-color: var(--border-subtle);
   }
   .glass-strong {

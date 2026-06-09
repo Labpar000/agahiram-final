@@ -3,12 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, CheckCircle2, Loader2, ShoppingBag, Store, User } from 'lucide-react';
+import { CheckCircle2, Loader2, Trash2 } from 'lucide-react';
 import {
   Badge,
   Button,
   Card,
   CardContent,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   IconButton,
   IgArrowBack,
   Input,
@@ -24,32 +30,6 @@ import { formatPersianNumber } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useUploadManager } from '@/lib/upload-manager';
-
-type ShopTypeKey = 'PERSONAL' | 'ONLINE_STORE' | 'PHYSICAL_STORE' | 'BRAND';
-
-const SHOP_TYPES: Array<{
-  key: ShopTypeKey;
-  label: string;
-  description: string;
-  icon: React.ComponentType<{ className?: string }>;
-}> = [
-  { key: 'PERSONAL', label: 'فروشنده شخصی', description: 'برای فروش اقلام شخصی', icon: User },
-  {
-    key: 'ONLINE_STORE',
-    label: 'فروشگاه آنلاین',
-    description: 'فروشگاه اینترنتی',
-    icon: ShoppingBag,
-  },
-  { key: 'PHYSICAL_STORE', label: 'فروشگاه فیزیکی', description: 'با آدرس فیزیکی', icon: Store },
-  { key: 'BRAND', label: 'برند', description: 'برند یا شرکت ثبت‌شده', icon: Building2 },
-];
-
-const SHOP_TYPE_LABELS: Record<ShopTypeKey, string> = {
-  PERSONAL: 'فروشنده شخصی',
-  ONLINE_STORE: 'فروشگاه آنلاین',
-  PHYSICAL_STORE: 'فروشگاه فیزیکی',
-  BRAND: 'برند',
-};
 
 interface VerificationStatus {
   id: string;
@@ -79,8 +59,6 @@ const VERIFICATION_TYPES: VerificationTypeValue[] = [
 ];
 
 function ShopCreationWizard({ onCreated }: { onCreated: () => void }) {
-  const [step, setStep] = useState(1);
-  const [shopType, setShopType] = useState<ShopTypeKey | null>(null);
   const [form, setForm] = useState({
     slug: '',
     name: '',
@@ -92,9 +70,8 @@ function ShopCreationWizard({ onCreated }: { onCreated: () => void }) {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!shopType) throw new Error('نوع فروشگاه را انتخاب کنید');
       const r = await apiClient.post('/shops', {
-        shopType,
+        shopType: 'SHOP',
         slug: form.slug,
         name: form.name,
         description: form.description || undefined,
@@ -113,157 +90,81 @@ function ShopCreationWizard({ onCreated }: { onCreated: () => void }) {
   });
 
   return (
-    <div className="max-w-lg mx-auto space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        {[1, 2].map((s) => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={`size-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                step >= s ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}
-            >
-              {step > s ? <CheckCircle2 className="size-4" /> : s}
-            </div>
-            {s < 2 && <div className={`h-px w-12 ${step > s ? 'bg-primary' : 'bg-muted'}`} />}
-          </div>
-        ))}
+    <div className="max-w-lg mx-auto space-y-5">
+      <div>
+        <h2 className="text-lg font-bold">اطلاعات فروشگاه</h2>
+        <p className="text-sm text-muted-foreground mt-1">مشخصات فروشگاه خود را وارد کنید</p>
       </div>
 
-      {step === 1 && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-bold">نوع فروشگاه را انتخاب کنید</h2>
-            <p className="text-sm text-muted-foreground mt-1">این انتخاب بعداً قابل تغییر است</p>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            {SHOP_TYPES.map(({ key, label, description, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setShopType(key)}
-                className={`rounded-xl border-2 p-4 text-start transition-all ${
-                  shopType === key
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50 hover:bg-muted/40'
-                }`}
-              >
-                <Icon
-                  className={`size-6 mb-2 ${shopType === key ? 'text-primary' : 'text-muted-foreground'}`}
-                />
-                <div className="font-semibold text-sm">{label}</div>
-                <div className="text-xs text-muted-foreground mt-0.5">{description}</div>
-              </button>
-            ))}
-          </div>
-          <Button className="w-full" disabled={!shopType} onClick={() => setStep(2)}>
-            بعدی
-          </Button>
+      <div className="space-y-3">
+        <div>
+          <Label htmlFor="name">نام فروشگاه *</Label>
+          <Input
+            id="name"
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="مثلاً: فروشگاه آنلاین رضایی"
+          />
         </div>
-      )}
-
-      {step === 2 && (
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-lg font-bold">اطلاعات فروشگاه</h2>
-            <p className="text-sm text-muted-foreground mt-1">مشخصات فروشگاه خود را وارد کنید</p>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="name">نام فروشگاه *</Label>
-              <Input
-                id="name"
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="مثلاً: فروشگاه آنلاین رضایی"
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="slug">نام کاربری فروشگاه *</Label>
-              <Input
-                id="slug"
-                value={form.slug}
-                onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase() }))}
-                placeholder="مثلاً: rezaei-store"
-                className="mt-1"
-                dir="ltr"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                فقط حروف انگلیسی، اعداد، خط تیره و زیرخط
-              </p>
-            </div>
-
-            <div>
-              <Label htmlFor="description">توضیحات</Label>
-              <Textarea
-                id="description"
-                value={form.description}
-                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                placeholder="کوتاه درباره فروشگاه بنویسید…"
-                rows={3}
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="category">دسته‌بندی</Label>
-              <Input
-                id="category"
-                value={form.category}
-                onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
-                placeholder="مثلاً: لوازم الکترونیکی"
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="contactPhone">شماره تماس</Label>
-              <Input
-                id="contactPhone"
-                value={form.contactPhone}
-                onChange={(e) => setForm((f) => ({ ...f, contactPhone: e.target.value }))}
-                placeholder="09..."
-                className="mt-1"
-                dir="ltr"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="address">آدرس</Label>
-              <Input
-                id="address"
-                value={form.address}
-                onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
-                placeholder="آدرس محل کسب‌وکار"
-                className="mt-1"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>
-              قبلی
-            </Button>
-            <Button
-              className="flex-1"
-              disabled={!form.name.trim() || !form.slug.trim() || createMutation.isPending}
-              onClick={() => createMutation.mutate()}
-            >
-              {createMutation.isPending ? <Loader2 className="size-4 animate-spin me-2" /> : null}
-              ایجاد فروشگاه
-            </Button>
-          </div>
+        <div>
+          <Label htmlFor="slug">نام کاربری فروشگاه *</Label>
+          <Input
+            id="slug"
+            value={form.slug}
+            onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value.toLowerCase() }))}
+            placeholder="مثلاً: rezaei-store"
+            dir="ltr"
+          />
         </div>
-      )}
+        <div>
+          <Label htmlFor="description">توضیحات</Label>
+          <Textarea
+            id="description"
+            value={form.description}
+            onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="کوتاه درباره فروشگاه بنویسید…"
+            rows={3}
+          />
+        </div>
+        <div>
+          <Label htmlFor="contactPhone">شماره تماس</Label>
+          <Input
+            id="contactPhone"
+            value={form.contactPhone}
+            onChange={(e) => setForm((f) => ({ ...f, contactPhone: e.target.value }))}
+            placeholder="09..."
+            dir="ltr"
+          />
+        </div>
+        <div>
+          <Label htmlFor="address">آدرس</Label>
+          <Input
+            id="address"
+            value={form.address}
+            onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))}
+            placeholder="آدرس محل کسب‌وکار"
+          />
+        </div>
+      </div>
+
+      <Button
+        className="w-full"
+        disabled={!form.name.trim() || !form.slug.trim() || createMutation.isPending}
+        onClick={() => createMutation.mutate()}
+      >
+        {createMutation.isPending ? <Loader2 className="size-4 animate-spin me-2" /> : null}
+        ایجاد فروشگاه
+      </Button>
     </div>
   );
 }
 
 function ShopDashboard({ shop }: { shop: ShopData }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const { uploadFile } = useUploadManager();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
 
   const verificationsQuery = useQuery({
     queryKey: ['my-verifications'],
@@ -298,7 +199,7 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
         { folder: 'temp', fileName: file.name, contentType: file.type },
       );
       if (!presign.success || !presign.data) {
-        toast.error('خطا در دریافت لینک آپلود');
+        toast.error('خطا');
         return;
       }
       await uploadFile({
@@ -316,11 +217,24 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
     }
   };
 
+  const deleteShopMutation = useMutation({
+    mutationFn: async () => {
+      const r = await apiClient.delete(`/shops/${shop.id}`);
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+    },
+    onSuccess: () => {
+      toast.success('فروشگاه با موفقیت حذف شد');
+      qc.invalidateQueries({ queryKey: ['my-shop'] });
+      setDeleteOpen(false);
+      router.refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
   const verificationMap = new Map((verificationsQuery.data ?? []).map((v) => [v.type, v.status]));
   const approvedCount = (verificationsQuery.data ?? []).filter(
     (v) => v.status === 'APPROVED',
   ).length;
-  const totalTypes = VERIFICATION_TYPES.length;
 
   return (
     <div className="space-y-6">
@@ -329,9 +243,6 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
           <h2 className="text-xl font-bold">{shop.name}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">@{shop.slug}</p>
         </div>
-        <Badge tone="brand" size="sm">
-          {SHOP_TYPE_LABELS[shop.shopType as ShopTypeKey] ?? shop.shopType}
-        </Badge>
       </div>
 
       <Card>
@@ -340,18 +251,20 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
         </CardContent>
       </Card>
 
-      {/* Verification progress tracker */}
       <div className="rounded-xl border border-border bg-surface-elevated p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm font-semibold">پیشرفت احراز هویت</span>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {formatPersianNumber(approvedCount)} از {formatPersianNumber(totalTypes)} تایید
+            {formatPersianNumber(approvedCount)} از {formatPersianNumber(VERIFICATION_TYPES.length)}{' '}
+            تایید
           </span>
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-primary transition-all duration-500"
-            style={{ width: `${totalTypes > 0 ? (approvedCount / totalTypes) * 100 : 0}%` }}
+            style={{
+              width: `${VERIFICATION_TYPES.length > 0 ? (approvedCount / VERIFICATION_TYPES.length) * 100 : 0}%`,
+            }}
           />
         </div>
       </div>
@@ -386,6 +299,57 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
           )}
         </div>
       </div>
+
+      {/* Delete shop */}
+      <div className="border-t border-border pt-4 mt-4">
+        <Button
+          variant="outline"
+          className="w-full text-destructive border-destructive/30 hover:bg-destructive/10"
+          leftIcon={<Trash2 className="size-4" />}
+          onClick={() => setDeleteOpen(true)}
+        >
+          حذف فروشگاه
+        </Button>
+        <p className="text-[11px] text-muted-foreground mt-2 text-center">
+          با حذف فروشگاه، تمام آگهی‌ها و اطلاعات آن پاک می‌شود
+        </p>
+      </div>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>حذف فروشگاه</DialogTitle>
+            <DialogDescription>
+              این عملیات قابل بازگشت نیست. نام فروشگاه را برای تأیید وارد کنید:
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            dir="ltr"
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={shop.slug}
+          />
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setDeleteOpen(false);
+                setDeleteConfirm('');
+              }}
+            >
+              انصراف
+            </Button>
+            <Button
+              variant="destructive"
+              isLoading={deleteShopMutation.isPending}
+              disabled={deleteConfirm !== shop.slug}
+              onClick={() => deleteShopMutation.mutate()}
+            >
+              حذف فروشگاه
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -405,10 +369,6 @@ export default function ShopSettingsPage() {
     enabled: !!user,
   });
 
-  const handleShopCreated = () => {
-    qc.invalidateQueries({ queryKey: ['my-shop'] });
-  };
-
   if (!user) {
     return (
       <div className="max-w-lg mx-auto px-4 py-6">
@@ -426,27 +386,23 @@ export default function ShopSettingsPage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 py-6">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="bg-background min-h-svh pb-8">
+      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-4">
         <IconButton
           aria-label="بازگشت"
           icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
           variant="ghost"
           onClick={() => router.back()}
         />
-        <div>
-          <h1 className="text-xl font-bold">فروشگاه من</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {shopQuery.data ? 'مدیریت فروشگاه و تأییدیه‌ها' : 'فروشگاه جدید ایجاد کنید'}
-          </p>
-        </div>
+        <h1 className="text-lg font-bold">فروشگاه من</h1>
       </div>
-
-      {shopQuery.data ? (
-        <ShopDashboard shop={shopQuery.data} />
-      ) : (
-        <ShopCreationWizard onCreated={handleShopCreated} />
-      )}
+      <div className="mx-auto max-w-lg px-4 py-6">
+        {shopQuery.data ? (
+          <ShopDashboard shop={shopQuery.data} />
+        ) : (
+          <ShopCreationWizard onCreated={() => qc.invalidateQueries({ queryKey: ['my-shop'] })} />
+        )}
+      </div>
     </div>
   );
 }

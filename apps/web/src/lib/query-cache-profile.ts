@@ -64,8 +64,14 @@ export function updateProfilePostStatus(
 }
 
 export function removeProfilePost(qc: QueryClient, username: string, postId: string) {
-  const key = profileTabQueryKey(username, 'posts');
-  qc.setQueryData<InfiniteData<ProfilePage>>(key, (old) =>
-    patchFirstProfilePage(old, (list) => list.filter((p) => p.id !== postId)),
-  );
+  const postsKey = profileTabQueryKey(username, 'posts');
+  const reelsKey = profileTabQueryKey(username, 'reels');
+  const savedKey = profileTabQueryKey(username, 'saved');
+  for (const key of [postsKey, reelsKey, savedKey]) {
+    qc.setQueryData<InfiniteData<ProfilePage>>(key, (old) =>
+      patchFirstProfilePage(old, (list) => list.filter((p) => p.id !== postId)),
+    );
+  }
+  qc.invalidateQueries({ queryKey: ['posts', 'explore'] });
+  qc.invalidateQueries({ queryKey: ['reels'] });
 }

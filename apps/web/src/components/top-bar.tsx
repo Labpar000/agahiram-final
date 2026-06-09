@@ -111,7 +111,13 @@ export function TopBar() {
           <>
             <HeaderIconButton
               label="جستجو"
-              onClick={() => setSearchOpen(true)}
+              onClick={() => {
+                if (searchOpen && searchText.trim()) {
+                  submitSearch(searchText);
+                } else {
+                  setSearchOpen(true);
+                }
+              }}
               icon={<IgSearch className="size-[var(--ig-icon)]" strokeWidth={1.75} aria-hidden />}
             />
             <ThemeButton />
@@ -156,7 +162,20 @@ export function TopBar() {
                   }}
                   placeholder="جستجو"
                   className="h-9 rounded-full border-0 bg-muted text-sm"
-                  leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
+                  leadingIcon={
+                    searchText.trim() ? (
+                      <button
+                        type="button"
+                        onClick={() => submitSearch(searchText)}
+                        className="grid place-items-center tap-none focus-visible:outline-none"
+                        aria-label="اجرای جستجو"
+                      >
+                        <IgSearch className="size-4" strokeWidth={1.75} aria-hidden />
+                      </button>
+                    ) : (
+                      <IgSearch className="size-4" strokeWidth={1.75} aria-hidden />
+                    )
+                  }
                   aria-label="جستجو"
                 />
               </div>

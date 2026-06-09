@@ -1,6 +1,7 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
+import { startTransition } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 
 function isMainTabPath(pathname: string): boolean {
   if (pathname === '/' || pathname === '/feed') return true;
@@ -24,4 +25,14 @@ export function PageTransition({ children }: { children: React.ReactNode }) {
       {children}
     </div>
   );
+}
+
+/** Wraps navigation in React.startTransition so tab switches don't block the main thread. */
+export function useTabNav() {
+  const router = useRouter();
+  return (href: string) => {
+    startTransition(() => {
+      router.push(href);
+    });
+  };
 }

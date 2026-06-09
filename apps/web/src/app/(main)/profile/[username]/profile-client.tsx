@@ -63,12 +63,12 @@ interface ShopProfileInfo {
 }
 
 const TRUST_TIER_LABELS: Record<string, string> = {
-  UNVERIFIED: 'تایید نشده',
-  BASIC: 'پایه',
-  STANDARD: 'استاندارد',
-  VERIFIED: 'تایید شده',
-  TRUSTED: 'قابل اعتماد',
-  PREMIUM: 'پریمیوم',
+  UNVERIFIED: 'بدون تأیید',
+  BASIC: 'تأیید موبایل',
+  STANDARD: 'تأیید هویت',
+  VERIFIED: 'تأیید مدارک',
+  TRUSTED: 'تأیید کامل',
+  PREMIUM: 'فروشگاه برتر',
 };
 
 const TRUST_TIER_COLORS: Record<string, string> = {
@@ -420,7 +420,7 @@ export function ProfileClient({ username }: { username: string }) {
                 size="sm"
                 className="h-8 rounded-lg text-sm font-semibold"
               >
-                <Link href="/settings">ویرایش پروفایل</Link>
+                <Link href="/settings/profile">ویرایش پروفایل</Link>
               </Button>
             </>
           ) : (

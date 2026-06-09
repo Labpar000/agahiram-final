@@ -23,6 +23,7 @@ import {
   IgActivity,
   IgEye,
   IgGrid,
+  IgHeart,
   IgLayers,
   IgPlay,
   IgSearch,
@@ -167,6 +168,41 @@ export function ExploreClient({
     placeholderData: keepPreviousData,
   });
 
+  const [savedSearches, setSavedSearches] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('agahiram_saved_searches') ?? '[]') as string[];
+    } catch {
+      return [];
+    }
+  });
+
+  const isSearchSaved = debouncedQ.trim()
+    ? savedSearches.some((s) => s === debouncedQ.trim())
+    : false;
+
+  const toggleSavedSearch = () => {
+    const queryValue = debouncedQ.trim();
+    if (!queryValue) {
+      toast.error('برای ذخیره جستجو، ابتدا عبارت جستجو را وارد کنید.');
+      return;
+    }
+    let next: string[];
+    if (isSearchSaved) {
+      next = savedSearches.filter((s) => s !== queryValue);
+      toast.success('از جستجوهای ذخیره‌شده حذف شد');
+    } else {
+      next = [queryValue, ...savedSearches].slice(0, 20); // keep max 20
+      toast.success('جستجو ذخیره شد');
+    }
+    setSavedSearches(next);
+    try {
+      localStorage.setItem('agahiram_saved_searches', JSON.stringify(next));
+    } catch {
+      /* ignore quota */
+    }
+  };
+
   const createSearchAlert = async () => {
     const queryValue = debouncedQ.trim();
     if (!queryValue) {
@@ -242,6 +278,15 @@ export function ExploreClient({
               </span>
             ) : null}
           </div>
+          <IconButton
+            aria-label={isSearchSaved ? 'حذف از جستجوهای ذخیره‌شده' : 'ذخیره جستجو'}
+            icon={
+              <IgHeart className="size-5" filled={isSearchSaved} strokeWidth={1.75} aria-hidden />
+            }
+            variant="secondary"
+            size="md"
+            onClick={() => toggleSavedSearch()}
+          />
           <IconButton
             aria-label="ذخیره هشدار جستجو"
             icon={<IgActivity className="size-5" strokeWidth={1.75} aria-hidden />}
@@ -488,17 +533,13 @@ function ExploreTile({ post, featured = false }: { post: PostSummary; featured?:
         </span>
       ) : null}
 
-      {post.viewCount > 0 ? (
-        <span
-          aria-label={`${formatPersianNumber(post.viewCount)} بازدید`}
-          className="absolute bottom-1.5 start-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm"
-        >
-          <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
-          {formatPersianCompact(post.viewCount)}
-        </span>
-      ) : null}
-
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2 pt-6 opacity-100 transition-opacity duration-200 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+        {post.viewCount > 0 ? (
+          <span className="absolute bottom-1.5 start-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
+            <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
+            {formatPersianCompact(post.viewCount)}
+          </span>
+        ) : null}
         <p className="line-clamp-1 text-[12px] font-bold text-white drop-shadow">{post.title}</p>
         <p className="truncate text-[11px] text-white/95 drop-shadow">
           {formatPersianPrice(post.price)}

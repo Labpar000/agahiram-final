@@ -49,7 +49,7 @@ export function StoryCamera({
     const constraints: MediaStreamConstraints = {
       video: {
         facingMode: facing,
-        aspectRatio: 9 / 16,
+        aspectRatio: { ideal: window.innerWidth / window.innerHeight },
         ...(torchOn && facing === 'environment'
           ? { advanced: [{ torch: true } as MediaTrackConstraintSet] }
           : {}),
@@ -141,7 +141,7 @@ export function StoryCamera({
             onCapture({ blob, url: URL.createObjectURL(blob), type: 'image' });
           },
           'image/jpeg',
-          0.92,
+          1.0,
         );
       };
       runAfterTimer(run);

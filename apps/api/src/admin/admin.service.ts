@@ -361,7 +361,7 @@ export class AdminService {
   async deletePost(id: string, reason: string | undefined, ctx: AuditContext) {
     const post = await this.prisma.post.update({
       where: { id },
-      data: { status: 'deleted', rejectionReason: reason ?? null },
+      data: { status: 'deleted', deletionReason: reason ?? null },
     });
     await this.notifications.create(post.userId, NotificationType.AD_REMOVED, {
       postId: id,

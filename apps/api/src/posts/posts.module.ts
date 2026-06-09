@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { BULL_QUEUES } from '@agahiram/shared';
 import { PostsController } from './posts.controller';
@@ -6,11 +6,13 @@ import { PostsService } from './posts.service';
 import { FeedService } from './feed.service';
 import { MediaModule } from '../media/media.module';
 import { CategoriesModule } from '../categories/categories.module';
+import { SearchModule } from '../search/search.module';
 
 @Module({
   imports: [
     MediaModule,
     CategoriesModule,
+    forwardRef(() => SearchModule),
     BullModule.registerQueue(
       { name: BULL_QUEUES.SEARCH_INDEX },
       { name: BULL_QUEUES.MEDIA_PROCESSING },

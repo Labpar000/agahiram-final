@@ -119,7 +119,7 @@ export class FeedService {
 
     const where: Prisma.PostWhereInput = {
       status: 'approved',
-      type: 'post',
+      type: input.onlyVideo ? 'reel' : input.onlyImage ? 'post' : { in: ['post', 'reel'] },
       ...(viewerId
         ? {
             OR: [

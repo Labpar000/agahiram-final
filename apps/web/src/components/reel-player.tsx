@@ -106,6 +106,16 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const [scrubbing, setScrubbing] = useState(false);
   const scrubRef = useRef<HTMLDivElement>(null);
 
+  const scrubFraction = useCallback((clientX: number) => {
+    const bar = scrubRef.current;
+    if (!bar) return 0;
+    const rect = bar.getBoundingClientRect();
+    const raw = (clientX - rect.left) / rect.width;
+    // RTL: the progress bar visual is reversed; user drags right→left to go forward
+    const isRTL = typeof document !== 'undefined' && document.dir === 'rtl';
+    return isRTL ? 1 - raw : raw;
+  }, []);
+
   const onScrubStart = useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault();
@@ -115,25 +125,17 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         video.pause();
       }
       setScrubbing(true);
-      const bar = scrubRef.current;
-      if (bar) {
-        const rect = bar.getBoundingClientRect();
-        seek((e.clientX - rect.left) / rect.width);
-      }
+      seek(scrubFraction(e.clientX));
     },
-    [seek, videoRef],
+    [seek, videoRef, scrubFraction],
   );
 
   const onScrubMove = useCallback(
     (e: React.PointerEvent) => {
       if (!scrubbing) return;
-      const bar = scrubRef.current;
-      if (bar) {
-        const rect = bar.getBoundingClientRect();
-        seek((e.clientX - rect.left) / rect.width);
-      }
+      seek(scrubFraction(e.clientX));
     },
-    [scrubbing, seek],
+    [scrubbing, seek, scrubFraction],
   );
 
   const onScrubEnd = useCallback(
@@ -338,15 +340,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
 
       {/* z-index 3: UI elements (info, actions, mute, progress) */}
 
-      {/* Mute button — always visible top-right */}
-      <button
-        type="button"
-        aria-label={muted ? 'فعال‌سازی صدا' : 'قطع صدا'}
-        onClick={toggleMuted}
-        className="absolute end-4 top-4 z-[3] grid size-9 place-items-center rounded-full bg-black/50 text-white backdrop-blur-sm tap-none"
-      >
-        <IgVolume muted={muted} className="size-[18px]" strokeWidth={1.75} aria-hidden />
-      </button>
+      {/* Mute button removed from top-right — now in action rail below */}
 
       {/* Video error overlay */}
       {videoError ? (
@@ -366,12 +360,15 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
         </div>
       ) : null}
 
-      {/* FIXED: Action buttons — right side rail, 28px icons, 20px gap */}
+      {/* Action buttons — right side rail, compact (Instagram spec: 28px icons, 16px gap) */}
       <div
-        className="absolute bottom-[80px] end-3 z-[3] flex flex-col items-center gap-5"
+        className="absolute bottom-[80px] end-3 z-[3] flex flex-col items-center gap-4"
         style={{ paddingBottom: 'var(--safe-bottom, 0px)' }}
       >
-        <Link href={`/profile/${reel.user.username}`} className="relative mb-0 block">
+        <Link
+          href={`/profile/${reel.user.username}`}
+          className="relative mb-0 flex flex-col items-center gap-1.5"
+        >
           <Avatar size="sm" className="size-10 ring-2 ring-white">
             {reel.user.avatar ? <AvatarImage src={reel.user.avatar} alt="" /> : null}
             <AvatarFallback className="bg-white/20 text-[11px] text-white">
@@ -383,8 +380,10 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
               type="button"
               aria-label={following ? 'لغو دنبال‌کردن' : 'دنبال‌کردن'}
               className={cn(
-                'absolute -bottom-1.5 start-1/2 grid size-5 -translate-x-1/2 rtl:translate-x-1/2 place-items-center rounded-full shadow-sm',
-                following ? 'bg-neutral-500 text-white' : 'bg-[#FF3040] text-white',
+                'px-2.5 py-0.5 rounded-md border text-[11px] font-semibold',
+                following
+                  ? 'border-white/30 text-white/80 bg-white/10'
+                  : 'border-white/80 text-white bg-transparent',
               )}
               onClick={async (e) => {
                 e.preventDefault();
@@ -433,13 +432,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                 }
               }}
             >
-              {following ? (
-                <span className="text-[10px] font-bold leading-none" aria-hidden>
-                  ✓
-                </span>
-              ) : (
-                <IgPlus className="size-3" strokeWidth={3} aria-hidden />
-              )}
+              {following ? 'دنبال نکردن' : 'دنبال کردن'}
             </button>
           ) : null}
         </Link>
@@ -484,12 +477,12 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           </motion.span>
         </RailButton>
 
-        <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
-          <IgOptions className="size-7" strokeWidth={1.5} />
+        <RailButton ariaLabel={muted ? 'فعال‌سازی صدا' : 'قطع صدا'} onClick={toggleMuted}>
+          <IgVolume muted={muted} className="size-7" strokeWidth={1.5} />
         </RailButton>
 
-        <RailButton ariaLabel="موسیقی">
-          <IgMusic className="size-7" strokeWidth={1.5} />
+        <RailButton ariaLabel="گزینه‌های بیشتر" onClick={() => setMoreOpen(true)}>
+          <IgOptions className="size-7" strokeWidth={1.5} />
         </RailButton>
       </div>
 
@@ -548,33 +541,43 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           {formatPersianPrice(reel.price)}
         </p>
         <div className="mt-0.5 inline-flex flex-wrap gap-1.5">
-          <Button
-            variant={contactRevealed ? 'outline' : 'secondary'}
-            size="sm"
-            leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
-            className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
-            onClick={() => void onContact()}
-            aria-live="polite"
-          >
-            {contactRevealed ? (
-              <span dir="ltr" className="font-mono tracking-wide">
-                {formatPhoneFa(contactPhone ?? '')}
-              </span>
-            ) : (
-              'تماس'
-            )}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
-            className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
-            onClick={() => void onSendMessage()}
-            isLoading={messaging}
-            aria-label="ارسال پیام به فروشنده"
-          >
-            پیام
-          </Button>
+          {/* Conditionally show call button based on contactPreference */}
+          {!reel.contactPreference ||
+          reel.contactPreference === 'BOTH' ||
+          reel.contactPreference === 'CALL_ONLY' ? (
+            <Button
+              variant={contactRevealed ? 'outline' : 'secondary'}
+              size="sm"
+              leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
+              className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
+              onClick={() => void onContact()}
+              aria-live="polite"
+            >
+              {contactRevealed ? (
+                <span dir="ltr" className="font-mono tracking-wide">
+                  {formatPhoneFa(contactPhone ?? '')}
+                </span>
+              ) : (
+                'تماس'
+              )}
+            </Button>
+          ) : null}
+          {/* Conditionally show message button based on contactPreference */}
+          {!reel.contactPreference ||
+          reel.contactPreference === 'BOTH' ||
+          reel.contactPreference === 'MESSAGE_ONLY' ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
+              className="h-8 rounded-lg border-white/20 bg-white/15 px-3 text-xs text-white hover:bg-white/25"
+              onClick={() => void onSendMessage()}
+              isLoading={messaging}
+              aria-label="ارسال پیام به فروشنده"
+            >
+              پیام
+            </Button>
+          ) : null}
         </div>
       </div>
 

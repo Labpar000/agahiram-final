@@ -133,8 +133,12 @@ export class PostsController {
 
   @UseGuards(JwtAuthGuard)
   @Delete(':id')
-  delete(@CurrentUser('sub') userId: string, @Param('id') id: string) {
-    return this.postsService.delete(userId, id);
+  delete(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body('reason') reason?: string,
+  ) {
+    return this.postsService.delete(userId, id, reason);
   }
 
   @Public()

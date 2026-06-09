@@ -50,7 +50,14 @@ export class VoiceRecorderSession {
 
   async start(onTick?: (elapsedMs: number) => void, onMaxDuration?: () => void): Promise<void> {
     this.onTick = onTick ?? null;
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        sampleRate: 48000,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    });
     const picked = pickVoiceMimeType();
     this.mimeType = picked ?? 'audio/webm';
     this.recorder = picked

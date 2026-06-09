@@ -7,6 +7,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { BarChart3, CircleFadingPlus } from 'lucide-react';
+import { DeleteReasonDialog, type DeleteReason } from '@/components/delete-reason-dialog';
 import {
   EmptyState,
   IconButton,
@@ -83,14 +84,17 @@ export function PostDetailClient({ id }: { id: string }) {
 
   const isOwner = !!me && data?.user?.id === me.id;
 
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
   const deletePost = useMutation({
-    mutationFn: async () => {
-      const r = await apiClient.delete(`/posts/${id}`);
+    mutationFn: async (reason: DeleteReason) => {
+      const r = await apiClient.delete(`/posts/${id}`, { reason });
       if (!r.success) throw new Error(r.error ?? 'خطا در حذف');
     },
     onSuccess: () => {
       if (me?.username) removeProfilePost(qc, me.username, id);
       toast.success('آگهی با موفقیت حذف شد');
+      setDeleteDialogOpen(false);
       router.push(me?.username ? `/profile/${me.username}` : '/feed');
     },
     onError: (e) => toast.error((e as Error).message),
@@ -239,31 +243,12 @@ export function PostDetailClient({ id }: { id: string }) {
         title="گزارش آگهی"
       />
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>حذف آگهی</DialogTitle>
-            <DialogDescription>
-              آیا مطمئن هستید؟ این آگهی برای همیشه حذف خواهد شد و قابل بازگشت نیست.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-row justify-end gap-2">
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              انصراف
-            </Button>
-            <Button
-              variant="destructive"
-              isLoading={deletePost.isPending}
-              onClick={() => {
-                setDeleteDialogOpen(false);
-                deletePost.mutate();
-              }}
-            >
-              حذف آگهی
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteReasonDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        isLoading={deletePost.isPending}
+        onConfirm={(reason) => deletePost.mutate(reason)}
+      />
     </PostDetailSwipe>
   );
 }

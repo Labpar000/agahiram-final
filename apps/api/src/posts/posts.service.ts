@@ -24,6 +24,7 @@ import { RedisService } from '../redis/redis.service';
 import { SettingsService } from '../admin/settings.service';
 import { ModuleRef } from '@nestjs/core';
 import { AdminGateway } from '../admin/admin.gateway';
+import { SearchService } from '../search/search.service';
 
 @Injectable()
 export class PostsService {
@@ -41,6 +42,7 @@ export class PostsService {
     private readonly media: MediaService,
     private readonly redis: RedisService,
     private readonly settings: SettingsService,
+    private readonly searchService: SearchService,
     private readonly moduleRef: ModuleRef,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
     @InjectQueue(BULL_QUEUES.MEDIA_PROCESSING) private readonly mediaQueue: Queue,
@@ -346,16 +348,19 @@ export class PostsService {
     if (!post) throw new NotFoundException();
     if (post.userId !== userId) throw new ForbiddenException();
     const updated = await this.prisma.post.update({ where: { id }, data: { status: 'sold' } });
-    await this.searchQueue.add('index', { postId: id, remove: true });
+    await this.searchService.deletePost(id);
     return updated;
   }
 
-  async delete(userId: string, id: string) {
+  async delete(userId: string, id: string, reason?: string) {
     const post = await this.prisma.post.findUnique({ where: { id } });
     if (!post) throw new NotFoundException();
     if (post.userId !== userId) throw new ForbiddenException();
-    const updated = await this.prisma.post.update({ where: { id }, data: { status: 'deleted' } });
-    await this.searchQueue.add('index', { postId: id, remove: true });
+    const updated = await this.prisma.post.update({
+      where: { id },
+      data: { status: 'deleted', deletionReason: reason ?? null },
+    });
+    await this.searchService.deletePost(id);
     return updated;
   }
 

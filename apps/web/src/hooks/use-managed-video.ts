@@ -42,6 +42,71 @@ export function useManagedVideo({
     if (!video) return;
     video.loop = loop;
     video.muted = muted;
+
+    let stallTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onStalled = () => {
+      stallTimer = setTimeout(() => {
+        if (video.readyState === 0 || video.readyState === 1) {
+          const ct = video.currentTime;
+          video.load();
+          video.currentTime = ct;
+          void video.play().catch(() => {});
+        }
+      }, 3000);
+    };
+
+    const onPlaying = () => {
+      if (stallTimer) {
+        clearTimeout(stallTimer);
+        stallTimer = null;
+      }
+    };
+
+    const onWaiting = () => {
+      if (video.paused) {
+        stallTimer = setTimeout(() => {
+          if (video.readyState < 3) {
+            video.load();
+            void video.play().catch(() => {});
+          }
+        }, 3000);
+      }
+    };
+
+    let playStallTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onPlay = () => {
+      playStallTimer = setTimeout(() => {
+        if (video.paused && !video.ended) {
+          video.load();
+          void video.play().catch(() => {});
+        }
+      }, 5000);
+    };
+
+    const onPauseCleanup = () => {
+      if (playStallTimer) {
+        clearTimeout(playStallTimer);
+        playStallTimer = null;
+      }
+    };
+
+    video.addEventListener('stalled', onStalled);
+    video.addEventListener('playing', onPlaying);
+    video.addEventListener('waiting', onWaiting);
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPauseCleanup);
+
+    return () => {
+      video.removeEventListener('stalled', onStalled);
+      video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('waiting', onWaiting);
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPauseCleanup);
+      if (stallTimer) clearTimeout(stallTimer);
+      if (playStallTimer) clearTimeout(playStallTimer);
+    };
   }, [loop, muted]);
 
   useEffect(() => {

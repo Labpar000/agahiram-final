@@ -558,34 +558,44 @@ export function PostCard({
           />
 
           <div className="flex gap-2">
-            <Button
-              fullWidth
-              variant={contactRevealed ? 'outline' : 'secondary'}
-              size="sm"
-              className="h-8 rounded-lg text-xs font-semibold"
-              leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
-              onClick={onContact}
-              aria-live="polite"
-            >
-              {contactRevealed ? (
-                <span dir="ltr" className="font-mono text-sm tracking-wide">
-                  {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
-                </span>
-              ) : (
-                'تماس با فروشنده'
-              )}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-8 rounded-lg border-border text-xs font-semibold text-ig-link"
-              leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
-              onClick={onSendMessage}
-              isLoading={messaging}
-              aria-label="ارسال پیام به فروشنده"
-            >
-              پیام
-            </Button>
+            {/* Conditionally show call button based on contactPreference */}
+            {!post.contactPreference ||
+            post.contactPreference === 'BOTH' ||
+            post.contactPreference === 'CALL_ONLY' ? (
+              <Button
+                fullWidth
+                variant={contactRevealed ? 'outline' : 'secondary'}
+                size="sm"
+                className="h-8 rounded-lg text-xs font-semibold"
+                leftIcon={<IgPhone className="size-4" strokeWidth={1.75} />}
+                onClick={onContact}
+                aria-live="polite"
+              >
+                {contactRevealed ? (
+                  <span dir="ltr" className="font-mono text-sm tracking-wide">
+                    {formatPhoneFa(contactPhone ?? post.user.phone ?? '')}
+                  </span>
+                ) : (
+                  'تماس با فروشنده'
+                )}
+              </Button>
+            ) : null}
+            {/* Conditionally show message button based on contactPreference */}
+            {!post.contactPreference ||
+            post.contactPreference === 'BOTH' ||
+            post.contactPreference === 'MESSAGE_ONLY' ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 rounded-lg border-border text-xs font-semibold text-ig-link"
+                leftIcon={<IgComment className="size-4" strokeWidth={1.75} />}
+                onClick={onSendMessage}
+                isLoading={messaging}
+                aria-label="ارسال پیام به فروشنده"
+              >
+                پیام
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

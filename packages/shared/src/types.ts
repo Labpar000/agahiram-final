@@ -168,6 +168,7 @@ export interface PostSummary {
     name: string;
     slug?: string;
   } | null;
+  contactPreference?: 'BOTH' | 'CALL_ONLY' | 'MESSAGE_ONLY';
   media: Array<{
     id: string;
     url: string;

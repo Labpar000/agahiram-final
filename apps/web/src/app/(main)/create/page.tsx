@@ -37,6 +37,7 @@ import {
 import dynamic from 'next/dynamic';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import { useUserPreferences } from '@/lib/user-preferences.store';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ImageEditor } from '@/components/image-editor';
 import { ResponsiveSelect } from '@/components/responsive-select';
@@ -87,6 +88,7 @@ interface UploadedMedia {
 }
 
 type PriceType = 'fixed' | 'negotiable' | 'free' | 'callForPrice';
+type ContactPreferenceValue = 'BOTH' | 'CALL_ONLY' | 'MESSAGE_ONLY';
 
 export default function CreatePage() {
   const router = useRouter();
@@ -109,6 +111,8 @@ export default function CreatePage() {
   const [cityId, setCityId] = useState('');
   const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [hideExactLocation, setHideExactLocation] = useState(false);
+  const [coverIndex, setCoverIndex] = useState(0);
+  const [contactPreference, setContactPreference] = useState<ContactPreferenceValue>('BOTH');
   // Editor queue: image files awaiting crop/filter/rotate before upload.
   const [editorFile, setEditorFile] = useState<File | null>(null);
   const [editorQueue, setEditorQueue] = useState<File[]>([]);
@@ -132,15 +136,9 @@ export default function CreatePage() {
 
   const goBack = useCallback(() => {
     if (step === 0) {
-      // If a city was already selected, clear it so the user can pick a new one
-      // instead of being forced out of the page. Only navigate away if no city
-      // has ever been picked (true first visit).
-      if (cityId) {
-        setCityId('');
-        setProvinceId('');
-        autoAdvancedRef.current[0] = false;
-        return;
-      }
+      // User is canceling ad creation entirely — clear any persisted draft + last city
+      localStorage.removeItem('agahiram_post_draft');
+      localStorage.removeItem('agahiram_last_city_id');
       router.back();
       return;
     }
@@ -148,7 +146,13 @@ export default function CreatePage() {
     autoAdvancedRef.current[step] = false;
     autoAdvancedRef.current[prev] = false;
     setStep(prev);
-  }, [step, router, cityId]);
+  }, [step, router]);
+
+  const handleCancel = useCallback(() => {
+    localStorage.removeItem('agahiram_post_draft');
+    localStorage.removeItem('agahiram_last_city_id');
+    router.push('/');
+  }, [router]);
 
   // ---- Auto-advance: Step 0 (city) ----
   useEffect(() => {
@@ -187,15 +191,24 @@ export default function CreatePage() {
   useEffect(() => {
     try {
       const raw = localStorage.getItem('agahiram_post_draft');
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      if (draft.title) setTitle(draft.title);
-      if (draft.description) setDescription(draft.description);
-      if (draft.priceType) setPriceType(draft.priceType);
-      if (draft.price) setPrice(draft.price);
-      if (draft.cityId) setCityId(draft.cityId);
-      if (draft.provinceId) setProvinceId(draft.provinceId);
-      if (draft.attributes && typeof draft.attributes === 'object') setAttributes(draft.attributes);
+      if (raw) {
+        const draft = JSON.parse(raw);
+        if (draft.title) setTitle(draft.title);
+        if (draft.description) setDescription(draft.description);
+        if (draft.priceType) setPriceType(draft.priceType);
+        if (draft.price) setPrice(draft.price);
+        if (draft.cityId) setCityId(draft.cityId);
+        if (draft.provinceId) setProvinceId(draft.provinceId);
+        if (draft.attributes && typeof draft.attributes === 'object')
+          setAttributes(draft.attributes);
+      } else {
+        // No draft — pre-fill with user's default city if set
+        const prefs = useUserPreferences.getState();
+        if (prefs.defaultCityId && prefs.defaultProvinceId) {
+          setCityId(prefs.defaultCityId);
+          setProvinceId(prefs.defaultProvinceId);
+        }
+      }
     } catch {
       /* ignore */
     }
@@ -422,10 +435,16 @@ export default function CreatePage() {
           Object.keys(attributes).filter((k) => k !== 'price').length > 0
             ? Object.fromEntries(Object.entries(attributes).filter(([k]) => k !== 'price'))
             : undefined,
-        mediaKeys: media.map((m, i) => ({ key: m.key, type: m.type, order: i })),
+        mediaKeys: media.map((m, i) => ({
+          key: m.key,
+          type: m.type,
+          order: i,
+          isThumbnail: i === coverIndex,
+        })),
         lat: pickedLocation?.lat ?? null,
         lng: pickedLocation?.lng ?? null,
         hideExactLocation,
+        contactPreference,
       });
       if (!r.success) throw new Error(r.error ?? 'خطا در ثبت آگهی');
       return r.data;
@@ -550,6 +569,7 @@ export default function CreatePage() {
                   setProvinceId(p.id);
                   try {
                     localStorage.setItem('agahiram_last_city_id', c.id);
+                    useUserPreferences.getState().setDefaultCity(c.id, p.id);
                   } catch {
                     /* ignore */
                   }
@@ -680,12 +700,38 @@ export default function CreatePage() {
                     /* eslint-disable-next-line @next/next/no-img-element */
                     <img src={m.preview} alt="" className="size-full object-cover" />
                   )}
+                  {/* Cover indicator */}
+                  {i === coverIndex ? (
+                    <span className="absolute start-1 top-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                      کاور
+                    </span>
+                  ) : null}
+                  {/* Set as Cover button */}
+                  <button
+                    type="button"
+                    aria-label="تنظیم به عنوان کاور"
+                    onClick={() => setCoverIndex(i)}
+                    className={cn(
+                      'absolute bottom-1 start-1 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                      i === coverIndex
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-black/60 text-white hover:bg-black/70',
+                    )}
+                  >
+                    {i === coverIndex ? 'کاور' : 'کاور شود'}
+                  </button>
                   <button
                     type="button"
                     aria-label="حذف"
                     onClick={() => {
                       const item = media[i];
                       if (item?.preview) URL.revokeObjectURL(item.preview);
+                      // Adjust coverIndex if deleting the cover item or an item before it
+                      setCoverIndex((ci) => {
+                        if (i === ci) return 0;
+                        if (i < ci) return ci - 1;
+                        return ci;
+                      });
                       setMedia((arr) => arr.filter((_, j) => j !== i));
                     }}
                     className="absolute end-1 top-1 grid size-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur-sm tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
@@ -856,6 +902,32 @@ export default function CreatePage() {
                   ) : null}
                 </div>
               ) : null}
+
+              {/* Contact preferences */}
+              <div className="space-y-2">
+                <Label className="inline-flex items-center gap-1">ترجیح تماس</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { v: 'BOTH' as const, l: 'تماس و پیام' },
+                    { v: 'CALL_ONLY' as const, l: 'فقط تماس' },
+                    { v: 'MESSAGE_ONLY' as const, l: 'فقط پیام' },
+                  ].map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => setContactPreference(o.v)}
+                      className={cn(
+                        'h-11 rounded-lg border text-sm font-medium tap-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface',
+                        contactPreference === o.v
+                          ? 'border-primary bg-accent text-accent-foreground'
+                          : 'border-input hover:bg-muted',
+                      )}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </section>
         )}

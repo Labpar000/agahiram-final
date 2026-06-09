@@ -103,6 +103,40 @@ enum CallType {
   audio
 }
 
+enum AdCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REJECTED
+}
+
+enum BidType {
+  CPM
+  CPC
+}
+
+enum AdStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AdSlot {
+  STORY
+  EXPLORE_FEED
+  BANNER
+}
+
+enum ContactPreference {
+  BOTH
+  CALL_ONLY
+  MESSAGE_ONLY
+}
+
 enum LiveStreamStatus {
   scheduled
   live
@@ -260,6 +294,9 @@ model User {
   followRequestsReceived FollowRequest[] @relation("FollowRequestTargets")
   businessExpiresAt DateTime?
   shop              Shop?
+  adCampaigns       AdCampaign[]
+  approvedAds       Ad[]          @relation("AdApprovals")
+  reviewedAds       Ad[]          @relation("AdReviews")
 
   @@index([username])
   @@index([phone])
@@ -371,6 +408,8 @@ model Post {
   commentsEnabled   Boolean    @default(true)
   expiresAt         DateTime?
   rejectionReason   String?
+  deletionReason    String?
+  contactPreference ContactPreference @default(BOTH)
   /// PostgreSQL tsvector maintained by DB trigger for robust fallback search.
   searchVector      Unsupported("tsvector")?
   createdAt         DateTime   @default(now())
@@ -411,6 +450,7 @@ model PostMedia {
   height       Int?
   duration     Int?
   hlsUrl       String?
+  isThumbnail  Boolean   @default(false)
   createdAt    DateTime  @default(now())
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -1145,4 +1185,103 @@ model Payout {
 
   @@index([userId, status])
   @@index([status, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Advertising System
+// ═══════════════════════════════════════════════════════════════
+
+model AdCampaign {
+  id            String           @id @default(uuid())
+  name          String
+  advertiserId  String
+  advertiser    User             @relation(fields: [advertiserId], references: [id])
+  status        AdCampaignStatus @default(DRAFT)
+  budget        BigInt
+  dailyBudget   BigInt?
+  bidType       BidType          @default(CPM)
+  bidAmount     BigInt
+  startDate     DateTime
+  endDate       DateTime?
+  targeting     Json?
+  ads           Ad[]
+  payments      AdPayment[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@index([advertiserId])
+  @@index([status])
+}
+
+model Ad {
+  id            String    @id @default(uuid())
+  campaignId    String
+  campaign      AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  title         String?
+  description   String?
+  mediaUrl      String
+  redirectUrl   String?
+  slot          AdSlot
+  status        AdStatus  @default(PENDING_REVIEW)
+  impressions   Int       @default(0)
+  clicks        Int       @default(0)
+  ctr           Float     @default(0)
+  spent         BigInt    @default(0)
+  approvedAt    DateTime?
+  approvedById  String?
+  approvedBy    User?     @relation("AdApprovals", fields: [approvedById], references: [id])
+  reviewedAt    DateTime?
+  reviewedById  String?
+  reviewedBy    User?     @relation("AdReviews", fields: [reviewedById], references: [id])
+  adminNote     String?
+  startsAt      DateTime?
+  endsAt        DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  impressionsRel AdImpression[]
+  clicksRel      AdClick[]
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([slot])
+}
+
+model AdImpression {
+  id        String   @id @default(uuid())
+  adId      String
+  ad        Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  userId    String?
+  sessionId String?
+  source    String   @default("explore")
+  createdAt DateTime @default(now())
+
+  @@index([adId])
+  @@index([createdAt])
+}
+
+model AdClick {
+  id         String   @id @default(uuid())
+  adId       String
+  ad         Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  userId     String?
+  sessionId  String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([adId])
+  @@index([createdAt])
+}
+
+model AdPayment {
+  id         String   @id @default(uuid())
+  campaignId String
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  amount     BigInt
+  refId      String?
+  status     String   @default("COMPLETED")
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([campaignId])
 }

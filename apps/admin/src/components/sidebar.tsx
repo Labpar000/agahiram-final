@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
+  BadgePercent,
   BarChart3,
   Bell,
   Coins,
@@ -67,6 +68,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/locations', icon: MapPin, label: 'مناطق', adminOnly: true },
   { href: '/boost-plans', icon: TrendingUp, label: 'پلن‌های نردبان', adminOnly: true },
   { href: '/search-alerts', icon: Search, label: 'هشدار جستجو', adminOnly: true },
+  { href: '/ads/campaigns', icon: BadgePercent, label: 'تبلیغات', adminOnly: true },
+  { href: '/ads/review', icon: ShieldCheck, label: 'بررسی تبلیغات' },
+  { href: '/ads/reports', icon: BarChart3, label: 'آمار تبلیغات' },
   { href: '/broadcast', icon: Megaphone, label: 'اعلان همگانی', adminOnly: true },
   { href: '/live', icon: Radio, label: 'لایو', adminOnly: true },
   { href: '/push', icon: Bell, label: 'اعلان مرورگر', adminOnly: true },

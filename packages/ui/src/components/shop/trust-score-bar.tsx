@@ -2,21 +2,31 @@ import { cn } from '../../lib/utils';
 import type { TrustTierValue } from './trust-badge';
 
 const TIERS: Array<{ tier: TrustTierValue; threshold: number; label: string; color: string }> = [
-  { tier: 'UNVERIFIED', threshold: 0, label: 'تأیید نشده', color: 'bg-gray-300' },
-  { tier: 'BASIC', threshold: 100, label: 'پایه', color: 'bg-blue-400' },
-  { tier: 'STANDARD', threshold: 250, label: 'استاندارد', color: 'bg-teal-400' },
-  { tier: 'VERIFIED', threshold: 500, label: 'تأییدشده', color: 'bg-green-500' },
-  { tier: 'TRUSTED', threshold: 800, label: 'معتبر', color: 'bg-purple-500' },
-  { tier: 'PREMIUM', threshold: 1000, label: 'ممتاز', color: 'bg-amber-500' },
+  { tier: 'UNVERIFIED', threshold: 0, label: 'بدون تأیید', color: 'bg-gray-300' },
+  { tier: 'BASIC', threshold: 100, label: 'تأیید موبایل', color: 'bg-blue-400' },
+  { tier: 'STANDARD', threshold: 250, label: 'تأیید هویت', color: 'bg-teal-400' },
+  { tier: 'VERIFIED', threshold: 500, label: 'تأیید مدارک', color: 'bg-green-500' },
+  { tier: 'TRUSTED', threshold: 800, label: 'تأیید کامل', color: 'bg-purple-500' },
+  { tier: 'PREMIUM', threshold: 1000, label: 'فروشگاه برتر', color: 'bg-amber-500' },
 ];
 
 const MAX_SCORE = 1200;
+
+const TIER_TOOLTIPS: Record<TrustTierValue, string> = {
+  UNVERIFIED: 'این فروشگاه هنوز هیچ تأییدیه‌ای ندارد',
+  BASIC: 'شماره موبایل تأیید شده',
+  STANDARD: 'تأیید موبایل + تأیید هویت ملی',
+  VERIFIED: 'تأیید موبایل + هویت + مدارک صنفی',
+  TRUSTED: 'تمام تأییدیه‌های هویتی و صنفی تکمیل شده',
+  PREMIUM: 'فروشگاه برتر با بالاترین سطح اعتماد',
+};
 
 export interface TrustScoreBarProps {
   score: number;
   tier?: TrustTierValue;
   showLabels?: boolean;
   compact?: boolean;
+  showTooltip?: boolean;
   className?: string;
 }
 
@@ -24,12 +34,16 @@ export function TrustScoreBar({
   score,
   showLabels = true,
   compact = false,
+  showTooltip = false,
   className,
 }: TrustScoreBarProps) {
   if (compact) {
     const cTier = [...TIERS].reverse().find((t) => score >= t.threshold) ?? TIERS[0];
     return (
-      <div className={cn('flex items-center gap-1.5', className)}>
+      <div
+        className={cn('flex items-center gap-1.5', className)}
+        title={showTooltip ? TIER_TOOLTIPS[cTier.tier] : undefined}
+      >
         <div className={cn('h-2 w-14 overflow-hidden rounded-full bg-muted')}>
           <div
             className={cn('h-full rounded-full transition-all duration-500', cTier.color)}
@@ -51,7 +65,12 @@ export function TrustScoreBar({
     <div className={cn('space-y-2', className)}>
       <div className="flex items-center justify-between text-xs font-medium">
         <span className="text-muted-foreground">امتیاز اعتماد</span>
-        <span className="tabular-nums text-foreground">{score.toLocaleString('fa-IR')}</span>
+        <span
+          className="tabular-nums text-foreground"
+          title={showTooltip ? TIER_TOOLTIPS[currentTier.tier] : undefined}
+        >
+          {score.toLocaleString('fa-IR')}
+        </span>
       </div>
 
       <div className="relative h-3 rounded-full bg-muted overflow-hidden">
@@ -82,6 +101,7 @@ export function TrustScoreBar({
             <span
               key={tier.tier}
               className={cn(score >= tier.threshold && 'text-foreground font-medium')}
+              title={showTooltip ? TIER_TOOLTIPS[tier.tier] : undefined}
             >
               {tier.label}
             </span>

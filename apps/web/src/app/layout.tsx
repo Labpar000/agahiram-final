@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import './globals.css';
 import { Providers } from '@/components/providers';
 import { WebVitals } from '@/components/web-vitals';
+import { OrientationWarning } from '@/components/orientation-warning';
 
 const vazir = localFont({
   src: '../fonts/Vazirmatn-Variable.woff2',
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>{children}</Providers>
         <WebVitals />
+        <OrientationWarning />
       </body>
     </html>
   );
