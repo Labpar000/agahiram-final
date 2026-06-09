@@ -32,8 +32,6 @@ export class MediaService {
     const safeExtension = this.normalizeExtension(extension, contentType);
     const key = `${normalizedFolder}/${userId}/${uuidv4()}.${safeExtension}`;
 
-    const uploadUrl = await this.minio.getPresignedUploadUrl(key, contentType, 600);
-
     await this.redis.set(
       `upload:${key}`,
       JSON.stringify({ userId, contentType, confirmed: false }),
@@ -41,11 +39,59 @@ export class MediaService {
     );
 
     return {
-      uploadUrl,
+      uploadUrl: this.buildUploadUrl(key),
       key,
       publicUrl: this.buildPublicUrl(key),
       expiresIn: 600,
     };
+  }
+
+  async storeUpload(userId: string, key: string, body: Buffer, contentTypeHeader: string) {
+    const meta = await this.redis.get(`upload:${key}`);
+    if (!meta) throw new BadRequestException('آپلود یافت نشد');
+
+    const parsed = JSON.parse(meta) as {
+      userId: string;
+      contentType?: string;
+      confirmed: boolean;
+    };
+    if (parsed.userId !== userId) {
+      throw new BadRequestException('دسترسی غیرمجاز');
+    }
+    if (parsed.confirmed) {
+      throw new BadRequestException('این آپلود قبلاً تأیید شده است');
+    }
+
+    const parts = key.split('/');
+    const folder = parts[0];
+    const ownerId = parts[1];
+    if (!folder || ownerId !== userId) {
+      throw new BadRequestException('کلید فایل نامعتبر است');
+    }
+
+    if (body.length === 0) {
+      throw new BadRequestException('فایل خالی است');
+    }
+
+    const expectedType = parsed.contentType?.split(';')[0]?.trim() ?? '';
+    const uploadType = contentTypeHeader.split(';')[0]?.trim() ?? contentTypeHeader;
+    const storedType = expectedType || uploadType;
+    const maxBytes = maxUploadBytesFor(parsed.contentType ?? storedType);
+    if (body.length > maxBytes) {
+      const maxMb = Math.round(maxBytes / (1024 * 1024));
+      throw new BadRequestException(`حجم فایل بیش از حد مجاز است (حداکثر ${maxMb} مگابایت)`);
+    }
+
+    if (
+      expectedType &&
+      uploadType &&
+      expectedType !== uploadType &&
+      !(ALLOWED_TYPES.includes(expectedType) && ALLOWED_TYPES.includes(uploadType))
+    ) {
+      throw new BadRequestException('نوع فایل با آپلود مطابقت ندارد');
+    }
+
+    await this.minio.putObject(key, body, storedType || uploadType || 'application/octet-stream');
   }
 
   async confirmUpload(userId: string, key: string) {
@@ -110,6 +156,11 @@ export class MediaService {
 
   buildPublicUrl(key: string): string {
     return `/api/v1/media/object?key=${encodeURIComponent(key)}`;
+  }
+
+  /** Same-origin proxy upload — avoids MinIO presigned URLs, CORS, and Caddy. */
+  buildUploadUrl(key: string): string {
+    return `/api/v1/media/upload?key=${encodeURIComponent(key)}`;
   }
 
   async assertUploadConfirmed(userId: string, key: string): Promise<void> {

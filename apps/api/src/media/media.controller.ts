@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Put,
   Body,
   Query,
   Req,
@@ -110,6 +111,25 @@ export class MediaController {
       body.contentType,
       body.extension,
     );
+  }
+
+  @Put('upload')
+  @UseGuards(JwtAuthGuard)
+  async upload(
+    @Query('key') keyRaw: string,
+    @Req() req: FastifyRequest,
+    @CurrentUser() user: JwtPayload,
+    @Res() res: FastifyReply,
+  ) {
+    if (!keyRaw?.trim()) throw new BadRequestException('کلید فایل الزامی است');
+    const key = decodeURIComponent(keyRaw);
+    const body = req.body;
+    if (!body || !Buffer.isBuffer(body)) {
+      throw new BadRequestException('بدنه درخواست نامعتبر است');
+    }
+    const contentType = String(req.headers['content-type'] ?? 'application/octet-stream');
+    await this.mediaService.storeUpload(user.sub, key, body, contentType);
+    return res.status(204).send();
   }
 
   @Post('confirm')

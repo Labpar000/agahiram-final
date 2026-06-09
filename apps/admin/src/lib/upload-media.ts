@@ -1,8 +1,12 @@
-import { getApiBase } from './api';
+type UploadResult = { ok: true } | { ok: false; status?: number; detail?: string };
 
-export type UploadResult = { ok: true } | { ok: false; status?: number; detail?: string };
+function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  if (typeof window !== 'undefined') return '/api/v1';
+  const upstream = process.env.INTERNAL_API_URL ?? 'http://127.0.0.1:4000';
+  return `${upstream.replace(/\/$/, '')}/api/v1`;
+}
 
-/** Presign returns `/api/v1/media/upload?...`; resolve against API base when absolute. */
 export function resolveMediaUploadUrl(uploadUrl: string, apiBase = getApiBase()): string {
   if (uploadUrl.startsWith('http://') || uploadUrl.startsWith('https://')) return uploadUrl;
   const base = apiBase.replace(/\/$/, '');
@@ -13,23 +17,13 @@ export function resolveMediaUploadUrl(uploadUrl: string, apiBase = getApiBase())
   return `${base}${path}`;
 }
 
-export function uploadToMinio(
-  url: string,
-  file: File,
-  contentType: string,
-  onProgress?: (pct: number) => void,
-): Promise<UploadResult> {
+export function uploadToMinio(url: string, file: File, contentType: string): Promise<UploadResult> {
   const resolvedUrl = resolveMediaUploadUrl(url);
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', resolvedUrl, true);
     xhr.withCredentials = true;
     xhr.setRequestHeader('Content-Type', contentType);
-    xhr.upload.onprogress = (e) => {
-      if (e.lengthComputable && onProgress) {
-        onProgress(Math.round((e.loaded / e.total) * 100));
-      }
-    };
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve({ ok: true });

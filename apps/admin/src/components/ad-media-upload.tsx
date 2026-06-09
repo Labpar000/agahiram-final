@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { Button, Spinner, toast } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { uploadToMinio } from '@/lib/upload-media';
 
 type Props = {
   value: string;
@@ -34,11 +35,7 @@ export function AdMediaUpload({ value, onChange, label = 'آپلود تصویر'
       });
       if (!presign.success || !presign.data) throw new Error(presign.error ?? 'خطا در presign');
 
-      const put = await fetch(presign.data.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
+      const put = await uploadToMinio(presign.data.uploadUrl, file, file.type);
       if (!put.ok) throw new Error('آپلود ناموفق');
 
       const confirm = await apiClient.post<{ publicUrl: string }>('/media/confirm', {

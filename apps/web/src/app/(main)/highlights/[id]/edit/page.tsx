@@ -128,8 +128,8 @@ export default function EditHighlightPage({ params }: { params: Promise<{ id: st
         { folder: S3_FOLDERS.STORIES, contentType: file.type, extension },
       );
       if (!presign.success || !presign.data) throw new Error(presign.error ?? 'خطا در آپلود');
-      const ok = await uploadToMinio(presign.data.uploadUrl, file, file.type);
-      if (!ok) throw new Error('آپلود ناموفق');
+      const put = await uploadToMinio(presign.data.uploadUrl, file, file.type);
+      if (!put.ok) throw new Error('آپلود ناموفق');
       await apiClient.post('/media/confirm', { key: presign.data.key });
       setCustomCoverUrl(presign.data.publicUrl);
       setCoverArchiveId(null);

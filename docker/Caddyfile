@@ -22,6 +22,9 @@ www.{$DOMAIN:agahiram.ir} {
     import security_headers
 
     handle /api/* {
+        request_body {
+            max_size 250MB
+        }
         reverse_proxy api:4000
     }
 

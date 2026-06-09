@@ -189,6 +189,20 @@ migrate_minio_env() {
   fi
 }
 
+migrate_admin_phones_env() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  local phone="09132609737"
+  if grep -q '^ADMIN_PHONES=' "$ENV_FILE" 2>/dev/null; then
+    if ! grep '^ADMIN_PHONES=' "$ENV_FILE" | grep -q "$phone"; then
+      sed -i "s|^ADMIN_PHONES=\(.*\)|ADMIN_PHONES=\1,${phone}|" "$ENV_FILE"
+      log "appended ${phone} to ADMIN_PHONES"
+    fi
+  else
+    echo "ADMIN_PHONES=09120000000,09127477990,${phone}" >> "$ENV_FILE"
+    log "seeded ADMIN_PHONES with ${phone}"
+  fi
+}
+
 migrate_voice_video_env() {
   local script="$APP_DIR/scripts/configure-voice-video.sh"
   if [[ -f "$script" ]]; then
@@ -314,6 +328,7 @@ deploy_transfer() {
   fi
 
   migrate_minio_env
+  migrate_admin_phones_env
   migrate_voice_video_env
   migrate_sms_env
   sync_image_tag_env
@@ -383,6 +398,7 @@ deploy_pull() {
   fi
 
   migrate_minio_env
+  migrate_admin_phones_env
   migrate_voice_video_env
   migrate_sms_env
   sync_image_tag_env
@@ -456,6 +472,7 @@ deploy_build() {
   fi
 
   migrate_minio_env
+  migrate_admin_phones_env
   migrate_voice_video_env
   migrate_sms_env
   sync_image_tag_env

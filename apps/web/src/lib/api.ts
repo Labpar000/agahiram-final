@@ -2,7 +2,7 @@ import type { ApiResponse } from '@agahiram/shared';
 import { getViewerHash } from './viewer-hash';
 
 /** Browser uses same-origin /api/v1 (Next rewrite); SSR uses internal upstream. */
-function getApiBase(): string {
+export function getApiBase(): string {
   const publicUrl = process.env.NEXT_PUBLIC_API_URL;
   if (publicUrl) return publicUrl;
   if (typeof window !== 'undefined') return '/api/v1';

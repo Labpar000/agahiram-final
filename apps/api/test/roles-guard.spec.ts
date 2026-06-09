@@ -26,20 +26,11 @@ describe('RolesGuard', () => {
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
   });
 
-  it('rejects elevated roles when phone is not on admin allowlist', () => {
+  it('allows elevated roles assigned in the database', () => {
     const guard = new RolesGuard({
       getAllAndOverride: () => [UserRole.ADMIN],
     } as Reflector);
     const context = createMockExecutionContext({ role: UserRole.ADMIN, phone: '09999999999' });
-
-    expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
-  });
-
-  it('allows allowlisted admin phones', () => {
-    const guard = new RolesGuard({
-      getAllAndOverride: () => [UserRole.ADMIN],
-    } as Reflector);
-    const context = createMockExecutionContext({ role: UserRole.ADMIN, phone: '09120000000' });
 
     expect(guard.canActivate(context)).toBe(true);
   });

@@ -69,7 +69,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-agahiram}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-agahiram_minio_dev}
-      # Browser presigned PUTs from Next.js dev (:5173) are cross-origin to :9000.
+      # Legacy direct MinIO PUTs (uploads now go via API proxy). Kept for tooling.
       MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:5173,http://localhost:3001"
     ports:
       - "9000:9000"

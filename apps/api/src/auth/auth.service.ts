@@ -111,20 +111,13 @@ export class AuthService {
       throw new ForbiddenException('حساب شما مسدود شده است');
     }
 
-    // Enforce the admin allowlist as the single source of truth: only ADMIN_PHONES
-    // may hold an elevated role. Allowlisted phones are auto-promoted to admin;
-    // any other account that somehow holds an elevated role is demoted to user.
+    // ADMIN_PHONES auto-promotes allowlisted accounts on login. Roles assigned via
+    // the admin panel are stored in the DB and are not demoted here.
     const allowlisted = isAdminPhone(user.phone);
-    const isElevated = user.role === UserRole.ADMIN || user.role === UserRole.MODERATOR;
     if (allowlisted && user.role !== UserRole.ADMIN) {
       user = await this.prisma.user.update({
         where: { id: user.id },
         data: { role: UserRole.ADMIN as never },
-      });
-    } else if (!allowlisted && isElevated) {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { role: UserRole.USER as never },
       });
     }
 
@@ -161,10 +154,19 @@ export class AuthService {
       const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
       if (!user || user.isBanned) throw new UnauthorizedException('کاربر معتبر نیست');
 
+      let role = user.role as UserRole;
+      if (isAdminPhone(user.phone) && role !== UserRole.ADMIN) {
+        const updated = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { role: UserRole.ADMIN as never },
+        });
+        role = updated.role as UserRole;
+      }
+
       const tokens = await this.generateTokens({
         sub: user.id,
         phone: user.phone,
-        role: user.role as UserRole,
+        role,
       });
       return { ...tokens, user: this.toUserProfile(user) };
     } catch (e) {

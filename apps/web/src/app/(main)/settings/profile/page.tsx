@@ -18,6 +18,7 @@ import {
 } from '@agahiram/ui';
 import { usernameSchema } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
+import { uploadToMinio } from '@/lib/upload-media';
 import { useAuthStore } from '@/lib/auth-store';
 import { useUserPreferences } from '@/lib/user-preferences.store';
 import { patchAuthUser, patchProfileQuery } from '@/lib/query-cache-profile';
@@ -89,11 +90,8 @@ export default function ProfileSettingsPage() {
         extension: file.name.split('.').pop(),
       });
       if (!presign.success || !presign.data) throw new Error('خطا در دریافت لینک آپلود');
-      await fetch(presign.data.uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: { 'Content-Type': file.type },
-      });
+      const put = await uploadToMinio(presign.data.uploadUrl, file, file.type);
+      if (!put.ok) throw new Error('آپلود ناموفق');
       await apiClient.post('/media/confirm', { key: presign.data.key });
       const update = await apiClient.patch('/users/me', { avatarKey: presign.data.key });
       if (!update.success) throw new Error(update.error ?? 'خطا');

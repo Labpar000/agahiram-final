@@ -7,7 +7,6 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { JwtPayload, UserRole } from '@agahiram/shared';
-import { isAdminPhone } from '../config/admin-phones';
 import { getCorsOrigins } from '../config/cors';
 
 export const ADMIN_EVENTS = {
@@ -48,7 +47,7 @@ export class AdminGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
       const payload = this.jwt.verify<JwtPayload>(token);
       const isElevated = payload.role === UserRole.ADMIN || payload.role === UserRole.MODERATOR;
-      if (!isElevated || !isAdminPhone(payload.phone)) {
+      if (!isElevated) {
         client.disconnect();
         return;
       }

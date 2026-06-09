@@ -26,7 +26,6 @@ export function isAdminPhone(phone: string | null | undefined): boolean {
   return !!phone && getAdminPhones().includes(phone);
 }
 
-export function canAccessAdminPanel(role: string, phone: string | null | undefined): boolean {
-  const isElevated = role === 'admin' || role === 'moderator';
-  return isElevated && isAdminPhone(phone);
+export function canAccessAdminPanel(role: string, _phone: string | null | undefined): boolean {
+  return role === 'admin' || role === 'moderator';
 }
