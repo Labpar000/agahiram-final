@@ -9,10 +9,12 @@ import { MinioService } from '../src/media/minio.service';
 import { MediaService } from '../src/media/media.service';
 import { SettingsService } from '../src/admin/settings.service';
 import { RedisService } from '../src/redis/redis.service';
+import { SearchService } from '../src/search/search.service';
 
 describe('PostsService.delete', () => {
   let service: PostsService;
 
+  const searchService = { deletePost: vi.fn().mockResolvedValue(undefined) };
   const searchQueue = { add: vi.fn().mockResolvedValue({ id: 'job-1' }) };
   const mediaQueue = { add: vi.fn() };
 
@@ -36,6 +38,7 @@ describe('PostsService.delete', () => {
         { provide: MediaService, useValue: {} },
         { provide: SettingsService, useValue: { getCached: () => ({}) } },
         { provide: RedisService, useValue: {} },
+        { provide: SearchService, useValue: searchService },
         { provide: ModuleRef, useValue: { get: () => null } },
         { provide: getQueueToken(BULL_QUEUES.SEARCH_INDEX), useValue: searchQueue },
         { provide: getQueueToken(BULL_QUEUES.MEDIA_PROCESSING), useValue: mediaQueue },
@@ -50,8 +53,8 @@ describe('PostsService.delete', () => {
 
     expect(prisma.post.update).toHaveBeenCalledWith({
       where: { id: 'post-1' },
-      data: { status: 'deleted' },
+      data: { status: 'deleted', deletionReason: null },
     });
-    expect(searchQueue.add).toHaveBeenCalledWith('index', { postId: 'post-1', remove: true });
+    expect(searchService.deletePost).toHaveBeenCalledWith('post-1');
   });
 });
