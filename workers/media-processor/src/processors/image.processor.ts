@@ -22,8 +22,8 @@ export async function processImageJob({ mediaId }: Job) {
     // by the display surface. Cards/grids decide their own framing.
     const thumb = await sharp(buffer)
       .rotate()
-      .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
-      .jpeg({ quality: 70, mozjpeg: true })
+      .resize(320, 320, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 68, mozjpeg: true })
       .toBuffer();
 
     const base = originalKey.replace(/\.[^./]+$/, '');

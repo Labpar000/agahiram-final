@@ -143,7 +143,7 @@ export class MinioService {
   }
 
   getPublicUrl(key: string): string {
-    return `/api/v1/media/object?key=${encodeURIComponent(key)}`;
+    return this.toServedUrl(key) ?? `/api/v1/media/object?key=${encodeURIComponent(key)}`;
   }
 
   private urlParseOpts() {

@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { SearchSuggestionItem } from '@agahiram/shared';
 import { formatPersianNumber, normalizePersianText } from '@agahiram/shared';
 import {
@@ -16,11 +15,13 @@ import {
   IgSun,
   IgTopNav,
   IgWordmark,
-  Input,
+  Spinner,
   igHeaderIconClass,
   useTheme,
 } from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
+import { SearchBar } from '@/features/search/components/search-bar';
+import { useSearchSuggestions } from '@/features/search/hooks/use-search-suggestions';
+import { mergeExploreHref } from '@/features/search/lib/search-url';
 import { useUnreadMessages, useUnreadNotifications } from '@/hooks/useUnreadCounts';
 import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
 import { isImmersiveReelsRoute } from '@/lib/reel-url';
@@ -30,6 +31,7 @@ const RECENT_KEY = 'agahiram_recent_searches';
 export function TopBar() {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
+  const searchParams = useSearchParams();
   const hideOnReels = isImmersiveReelsRoute(pathname);
   const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const notifUnread = useUnreadNotifications();
@@ -57,19 +59,13 @@ export function TopBar() {
     }
   }, []);
 
-  const suggestionsQuery = useQuery({
-    queryKey: ['search', 'suggestions', debounced],
-    queryFn: async () => {
-      const r = await apiClient.get<{ suggestions: SearchSuggestionItem[] }>(
-        '/search/suggestions',
-        { q: debounced, limit: 8 },
-      );
-      return r.data?.suggestions ?? [];
-    },
-    enabled: searchOpen && debounced.length >= 2,
-    staleTime: 30_000,
-  });
+  useEffect(() => {
+    if (pathname === '/explore' && !searchOpen) {
+      setSearchText(searchParams?.get('q')?.trim() ?? '');
+    }
+  }, [pathname, searchParams, searchOpen]);
 
+  const suggestionsQuery = useSearchSuggestions(debounced, searchOpen);
   const suggestions = suggestionsQuery.data ?? [];
   const shownRecents = useMemo(
     () =>
@@ -89,7 +85,27 @@ export function TopBar() {
     if (s.kind === 'category' && s.categoryId) {
       setSearchOpen(false);
       setSearchText('');
-      router.push(`/explore?categoryId=${encodeURIComponent(s.categoryId)}`);
+      router.push(
+        mergeExploreHref(searchParams?.toString() ? `?${searchParams.toString()}` : '', {
+          filters: { categoryId: s.categoryId, categoryName: s.text },
+        }),
+      );
+      return;
+    }
+    if (s.kind === 'city' && s.cityId) {
+      setSearchOpen(false);
+      setSearchText('');
+      router.push(
+        mergeExploreHref(searchParams?.toString() ? `?${searchParams.toString()}` : '', {
+          filters: { cityId: s.cityId, cityName: s.text },
+        }),
+      );
+      return;
+    }
+    if (s.kind === 'post' && s.postId) {
+      setSearchOpen(false);
+      setSearchText('');
+      router.push(`/post/${s.postId}`);
       return;
     }
     submitSearch(s.text);
@@ -100,6 +116,8 @@ export function TopBar() {
       return s.text && s.text !== s.username ? `${s.text} (@${s.username})` : `@${s.username}`;
     }
     if (s.kind === 'category') return `دسته: ${s.text}`;
+    if (s.kind === 'city') return `شهر: ${s.text}`;
+    if (s.kind === 'post') return s.text;
     return s.text;
   };
 
@@ -115,7 +133,11 @@ export function TopBar() {
     }
     setSearchOpen(false);
     setSearchText('');
-    router.push(`/explore?q=${encodeURIComponent(term)}`);
+    router.push(
+      mergeExploreHref(searchParams?.toString() ? `?${searchParams.toString()}` : '', {
+        q: term,
+      }),
+    );
   };
 
   if (hideOnReels || hideOnStoryViewer) return null;
@@ -174,34 +196,11 @@ export function TopBar() {
           <div className="glass border-b border-border-subtle pt-safe">
             <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center gap-2 px-4 py-2">
               <div className="flex-1">
-                <Input
+                <SearchBar
                   autoFocus
-                  type="search"
                   value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      submitSearch(searchText);
-                    }
-                  }}
-                  placeholder="جستجو"
-                  className="h-9 rounded-full border-0 bg-muted text-sm"
-                  leadingIcon={
-                    searchText.trim() ? (
-                      <button
-                        type="button"
-                        onClick={() => submitSearch(searchText)}
-                        className="grid place-items-center tap-none focus-visible:outline-none"
-                        aria-label="اجرای جستجو"
-                      >
-                        <IgSearch className="size-4" strokeWidth={1.75} aria-hidden />
-                      </button>
-                    ) : (
-                      <IgSearch className="size-4" strokeWidth={1.75} aria-hidden />
-                    )
-                  }
-                  aria-label="جستجو"
+                  onChange={setSearchText}
+                  onSubmit={submitSearch}
                 />
               </div>
               <HeaderIconButton
@@ -217,7 +216,22 @@ export function TopBar() {
 
           <div className="mx-auto max-w-2xl overflow-y-auto px-3 py-2 sm:px-4">
             {debounced.length >= 2 ? (
-              suggestions.length === 0 ? (
+              suggestionsQuery.isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Spinner className="size-6" />
+                </div>
+              ) : suggestionsQuery.isError ? (
+                <div className="px-2 py-3 text-sm text-muted-foreground">
+                  <p>خطا در دریافت پیشنهادها.</p>
+                  <button
+                    type="button"
+                    className="mt-2 text-ig-link underline"
+                    onClick={() => void suggestionsQuery.refetch()}
+                  >
+                    تلاش مجدد
+                  </button>
+                </div>
+              ) : suggestions.length === 0 ? (
                 <p className="px-2 py-3 text-sm text-muted-foreground">پیشنهادی پیدا نشد.</p>
               ) : (
                 <ul className="divide-y divide-border-subtle">

@@ -20,18 +20,24 @@ import {
   adServeSchema,
   createAdSchema,
   createCampaignSchema,
+  createMyCampaignSchema,
   reviewAdSchema,
   updateAdSchema,
   updateCampaignSchema,
+  updateMyAdSchema,
+  updateMyCampaignSchema,
   type AdAnalyticsQueryInput,
   type AdImpressionInput,
   type AdReportInput,
   type AdServeInput,
   type CreateAdInput,
   type CreateCampaignInput,
+  type CreateMyCampaignInput,
   type ReviewAdInput,
   type UpdateAdInput,
   type UpdateCampaignInput,
+  type UpdateMyAdInput,
+  type UpdateMyCampaignInput,
 } from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -113,6 +119,127 @@ export class AdsController {
     @Body() body: AdReportInput,
   ) {
     return this.ads.reportAd(userId, id, body.reason, body.details);
+  }
+
+  /* ──────────── Advertiser self-service (before parametric :id routes) ──────────── */
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/overview')
+  myOverview(@CurrentUser('sub') userId: string) {
+    return this.ads.getMyOverview(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/campaigns')
+  myCampaigns(
+    @CurrentUser('sub') userId: string,
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.ads.getCampaigns({
+      advertiserId: userId,
+      status,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('my/campaigns')
+  myCreateCampaign(
+    @CurrentUser('sub') userId: string,
+    @Body(new ZodValidationPipe(createMyCampaignSchema)) body: CreateMyCampaignInput,
+  ) {
+    return this.ads.createMyCampaign(userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/campaigns/:id')
+  myCampaign(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.ads.getMyCampaign(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('my/campaigns/:id')
+  myUpdateCampaign(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Body(new ZodValidationPipe(updateMyCampaignSchema)) body: UpdateMyCampaignInput,
+  ) {
+    return this.ads.updateMyCampaign(userId, id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/campaigns/:id/analytics')
+  @UsePipes(new ZodValidationPipe(adAnalyticsQuerySchema))
+  myCampaignAnalytics(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Query() query: AdAnalyticsQueryInput,
+  ) {
+    return this.ads.getMyCampaignAnalytics(userId, id, query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/ads')
+  myAds(
+    @CurrentUser('sub') userId: string,
+    @Query('campaignId') campaignId?: string,
+    @Query('status') status?: string,
+    @Query('slot') slot?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.ads.listMyAds(userId, {
+      campaignId,
+      status,
+      slot,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('my/ads')
+  myCreateAd(
+    @CurrentUser('sub') userId: string,
+    @Body(new ZodValidationPipe(createAdSchema)) body: CreateAdInput,
+  ) {
+    return this.ads.createMyAd(userId, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/ads/:id')
+  myAd(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.ads.getMyAd(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('my/ads/:id/analytics')
+  @UsePipes(new ZodValidationPipe(adAnalyticsQuerySchema))
+  myAdAnalytics(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Query() query: AdAnalyticsQueryInput,
+  ) {
+    return this.ads.getMyAdAnalytics(userId, id, query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('my/ads/:id')
+  myUpdateAd(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Body(new ZodValidationPipe(updateMyAdSchema)) body: UpdateMyAdInput,
+  ) {
+    return this.ads.updateMyAd(userId, id, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('my/ads/:id')
+  myDeleteAd(@Param('id') id: string, @CurrentUser('sub') userId: string) {
+    return this.ads.deleteMyAd(userId, id);
   }
 
   /* ──────────── Admin campaign management ──────────── */

@@ -1,8 +1,9 @@
 'use client';
 
 import type { InfiniteData, QueryClient } from '@tanstack/react-query';
-import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
+import type { PaginatedResponse, PostSummary, ReelItem } from '@agahiram/shared';
 import { profileTabQueryKey } from '@/lib/query-cache-profile';
+import { expandPostToReelItems } from '@/lib/reel-url';
 
 type FeedPage = PaginatedResponse<PostSummary>;
 
@@ -102,12 +103,34 @@ export function prependExplorePost(qc: QueryClient, post: PostSummary) {
 
 /** Optimistically prepend a post to the reels infinite cache. */
 export function prependReelsPost(qc: QueryClient, post: PostSummary) {
+  const reels = expandPostToReelItems(post);
+  if (reels.length === 0) return;
+
   const queries = qc.getQueriesData<InfiniteData<FeedPage>>({ queryKey: ['reels'] });
+  const hasCachedPages = queries.some(([, data]) => (data?.pages?.length ?? 0) > 0);
+
+  const mergeReels = (existing: PostSummary[]) => {
+    const next = [...existing];
+    for (const reel of reels) {
+      if (next.some((p) => (p as ReelItem).reelKey === reel.reelKey)) continue;
+      next.unshift(reel);
+    }
+    return next;
+  };
+
+  if (!hasCachedPages) {
+    qc.setQueryData<InfiniteData<FeedPage>>(['reels'], {
+      pages: [{ data: reels, nextCursor: null, hasMore: false }],
+      pageParams: [undefined],
+    });
+    return;
+  }
+
   for (const [key, data] of queries) {
-    if (!data?.pages) continue;
+    if (!data?.pages?.length) continue;
     const [first, ...rest] = data.pages;
-    const next = { ...first!, data: [post, ...(first?.data ?? [])] };
-    qc.setQueryData(key, { ...data, pages: [next, ...rest] });
+    const nextData = mergeReels(first?.data ?? []);
+    qc.setQueryData(key, { ...data, pages: [{ ...first!, data: nextData }, ...rest] });
   }
 }
 

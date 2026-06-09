@@ -5,6 +5,7 @@ import { Providers } from '@/components/providers';
 import { WebVitals } from '@/components/web-vitals';
 import { OrientationWarning } from '@/components/orientation-warning';
 import { VisualViewportSync } from '@/components/visual-viewport-sync';
+import { MobileInputScrollSync } from '@/components/mobile-input-scroll-sync';
 
 const vazir = localFont({
   src: '../fonts/Vazirmatn-Variable.woff2',
@@ -66,6 +67,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: 'cover',
   colorScheme: 'light dark',
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -80,6 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <Providers>{children}</Providers>
         <VisualViewportSync />
+        <MobileInputScrollSync />
         <WebVitals />
         <OrientationWarning />
       </body>

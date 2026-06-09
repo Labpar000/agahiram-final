@@ -10,6 +10,8 @@ export interface OtpInputProps {
   onComplete?: (v: string) => void;
   autoFocus?: boolean;
   invalid?: boolean;
+  /** Bump when a new OTP SMS is sent so Web OTP listener re-arms. */
+  webOtpSessionKey?: string | number;
   className?: string;
   inputClassName?: string;
 }
@@ -24,6 +26,7 @@ export function OtpInput({
   onComplete,
   autoFocus,
   invalid,
+  webOtpSessionKey = 0,
   className,
   inputClassName,
 }: OtpInputProps) {
@@ -45,7 +48,19 @@ export function OtpInput({
     // iOS Safari often ignores immediate focus after a step transition.
     const t = window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 100);
     return () => window.clearTimeout(t);
-  }, [autoFocus]);
+  }, [autoFocus, webOtpSessionKey]);
+
+  // iOS SMS QuickType autofill sometimes skips React's synthetic onChange.
+  React.useEffect(() => {
+    const input = inputRef.current;
+    if (!input) return;
+    const onNativeInput = () => {
+      const next = toLatinDigits(input.value).replace(/\D/g, '').slice(0, length);
+      if (next !== sanitized) setValue(input.value);
+    };
+    input.addEventListener('input', onNativeInput);
+    return () => input.removeEventListener('input', onNativeInput);
+  }, [length, sanitized, setValue]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || !('OTPCredential' in window) || !navigator.credentials) {
@@ -63,7 +78,7 @@ export function OtpInput({
       })
       .catch(() => {});
     return () => ac.abort();
-  }, [setValue]);
+  }, [setValue, webOtpSessionKey]);
 
   return (
     <label
@@ -73,9 +88,13 @@ export function OtpInput({
     >
       <input
         ref={inputRef}
-        type="tel"
+        type="text"
         inputMode="numeric"
+        name="one-time-code"
         autoComplete="one-time-code"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         enterKeyHint="done"
         pattern="[0-9]*"
         maxLength={length}
@@ -83,11 +102,12 @@ export function OtpInput({
         aria-invalid={invalid || undefined}
         aria-label="کد تأیید ۶ رقمی"
         onChange={(e) => setValue(e.target.value)}
+        onInput={(e) => setValue(e.currentTarget.value)}
         onPaste={(e) => {
           e.preventDefault();
           setValue(e.clipboardData.getData('text'));
         }}
-        className="absolute inset-0 z-10 h-full w-full cursor-text opacity-0"
+        className="absolute inset-0 z-10 h-full w-full cursor-text border-0 bg-transparent text-transparent caret-transparent outline-none selection:bg-transparent"
       />
       {Array.from({ length }).map((_, i) => {
         const ch = chars[i];

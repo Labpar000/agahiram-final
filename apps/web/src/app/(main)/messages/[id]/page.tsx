@@ -8,10 +8,17 @@ import {
   AvatarFallback,
   AvatarImage,
   Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   EmptyState,
   ErrorState,
   IconButton,
   IgArrowBack,
+  IgClose,
   IgDirect,
   IgGallery,
   IgInfo,
@@ -32,7 +39,8 @@ import { ChatMessage } from '@/components/chat-message';
 import { MobileInputShell } from '@/components/mobile-input-shell';
 import { viewportHeightAboveChrome } from '@/lib/mobile-layout';
 import { VoiceRecordOverlay } from '@/components/voice-record-overlay';
-import { useConversation } from '@/hooks/useConversation';
+import { useConversation, canEditMessage, canDeleteMessage } from '@/hooks/useConversation';
+import type { ChatMessageRow } from '@/hooks/useConversation';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { useCall } from '@/features/calls/call-provider';
 import type { VoiceRecordingResult } from '@/lib/voice-recorder';
@@ -44,6 +52,9 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
   const [text, setText] = useState('');
   const [infoOpen, setInfoOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [actionMessage, setActionMessage] = useState<ChatMessageRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ChatMessageRow | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessageRow | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
     head,
@@ -53,6 +64,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     isError,
     refetch,
     sendMessage,
+    editMessage,
+    deleteMessage,
     addOptimisticMessage,
     removeOptimisticMessage,
   } = useConversation(id);
@@ -136,10 +149,35 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
 
   const send = async () => {
     if (!text.trim()) return;
+    if (editingMessage) {
+      const content = text.trim();
+      setText('');
+      setEditingMessage(null);
+      await editMessage.mutateAsync({ messageId: editingMessage.id, content });
+      return;
+    }
     const tmp = text;
     setText('');
     const tempId = `temp-${Date.now()}`;
     await sendMessage.mutateAsync({ content: tmp, type: MessageType.TEXT, tempId });
+  };
+
+  const cancelEdit = () => {
+    setEditingMessage(null);
+    setText('');
+  };
+
+  const startEdit = (message: ChatMessageRow) => {
+    setActionMessage(null);
+    setEditingMessage(message);
+    setText(message.content);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    await deleteMessage.mutateAsync(deleteTarget.id);
+    if (editingMessage?.id === deleteTarget.id) cancelEdit();
+    setDeleteTarget(null);
   };
 
   const sendMedia = async (publicUrl: string, type: MessageType.IMAGE | MessageType.VOICE) => {
@@ -264,7 +302,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       ) : null}
 
       <MobileInputShell
-        stickyComposer={false}
+        stickyComposer
         composerPadding="var(--chat-composer-stack)"
         scrollRef={scrollRef}
         scrollClassName="px-3 py-4"
@@ -274,60 +312,75 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
               e.preventDefault();
               void send();
             }}
-            className="relative flex items-center gap-2 px-3 py-3"
-            style={{ paddingBottom: 'calc(0.75rem + var(--safe-bottom))' }}
+            className="relative flex flex-col gap-2 px-3 py-3 pb-[max(0.75rem,var(--safe-bottom))]"
           >
-            <VoiceRecordOverlay elapsedLabel={voice.elapsedLabel} visible={voice.isRecording} />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void sendImage(f);
-                e.target.value = '';
-              }}
-            />
-            <button
-              type="button"
-              aria-label="ارسال تصویر"
-              className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <IgGallery className="size-5" strokeWidth={1.75} aria-hidden />
-            </button>
-            <button
-              type="button"
-              aria-label={voice.isRecording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
-              disabled={voice.isProcessing || callPhase !== 'idle'}
-              className={`grid size-10 place-items-center rounded-full touch-none select-none ${
-                voice.isRecording
-                  ? 'bg-destructive text-destructive-foreground'
-                  : 'text-muted-foreground hover:bg-muted'
-              }`}
-              onPointerDown={voice.handlePointerDown}
-              onPointerUp={voice.handlePointerUp}
-              onPointerCancel={voice.handlePointerCancel}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              <IgMic className="size-5" strokeWidth={1.75} aria-hidden />
-            </button>
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="پیام بنویسید…"
-              aria-label="نوشتن پیام"
-              className="h-11 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-            />
-            <button
-              type="submit"
-              aria-label="ارسال"
-              disabled={!text.trim() || sendMessage.isPending}
-              className="grid size-11 place-items-center rounded-full bg-ig-link text-ig-link-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-            >
-              <IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />
-            </button>
+            {editingMessage ? (
+              <div className="flex items-center justify-between rounded-xl bg-muted px-3 py-2 text-xs">
+                <span className="text-muted-foreground">در حال ویرایش پیام</span>
+                <button
+                  type="button"
+                  aria-label="لغو ویرایش"
+                  className="grid size-7 place-items-center rounded-full text-muted-foreground hover:bg-background"
+                  onClick={cancelEdit}
+                >
+                  <IgClose className="size-4" strokeWidth={1.75} aria-hidden />
+                </button>
+              </div>
+            ) : null}
+            <div className="relative flex min-w-0 items-center gap-2">
+              <VoiceRecordOverlay elapsedLabel={voice.elapsedLabel} visible={voice.isRecording} />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void sendImage(f);
+                  e.target.value = '';
+                }}
+              />
+              <IconButton
+                type="button"
+                aria-label="ارسال تصویر"
+                variant="ghost"
+                disabled={!!editingMessage}
+                onClick={() => fileInputRef.current?.click()}
+                icon={<IgGallery className="size-5" strokeWidth={1.75} aria-hidden />}
+              />
+              <IconButton
+                type="button"
+                aria-label={voice.isRecording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
+                variant={voice.isRecording ? 'destructive' : 'ghost'}
+                disabled={voice.isProcessing || callPhase !== 'idle' || !!editingMessage}
+                className="touch-none select-none"
+                onPointerDown={voice.handlePointerDown}
+                onPointerUp={voice.handlePointerUp}
+                onPointerCancel={voice.handlePointerCancel}
+                onContextMenu={(e) => e.preventDefault()}
+                icon={<IgMic className="size-5" strokeWidth={1.75} aria-hidden />}
+              />
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={editingMessage ? 'ویرایش پیام…' : 'پیام بنویسید…'}
+                aria-label={editingMessage ? 'ویرایش پیام' : 'نوشتن پیام'}
+                className="h-11 min-w-0 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              />
+              <IconButton
+                type="submit"
+                aria-label={editingMessage ? 'ذخیره ویرایش' : 'ارسال'}
+                variant="ig-link"
+                className="rounded-full"
+                disabled={
+                  !text.trim() ||
+                  sendMessage.isPending ||
+                  editMessage.isPending ||
+                  (!!editingMessage && !canEditMessage(editingMessage))
+                }
+                icon={<IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />}
+              />
+            </div>
           </form>
         }
       >
@@ -359,16 +412,68 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
                 metadata={m.metadata}
                 isMine={m.isMine}
                 createdAt={m.createdAt}
+                editedAt={m.editedAt}
                 sender={m.sender ?? undefined}
                 storyPreview={m.storyPreview}
                 isFirstOfGroup={m.isFirstOfGroup}
                 isLastOfGroup={m.isLastOfGroup}
                 status={m.id.startsWith('temp-') ? 'sending' : 'sent'}
+                onLongPress={
+                  m.isMine && canDeleteMessage(m) ? () => setActionMessage(m) : undefined
+                }
               />
             ))
           )}
         </div>
       </MobileInputShell>
+
+      <Sheet open={!!actionMessage} onOpenChange={(open) => !open && setActionMessage(null)}>
+        <SheetContent side="bottom" className="pb-[calc(var(--safe-bottom)+1rem)]">
+          <SheetHeader>
+            <SheetTitle>گزینه‌های پیام</SheetTitle>
+          </SheetHeader>
+          <div className="space-y-2 pt-2">
+            {actionMessage && canEditMessage(actionMessage) ? (
+              <Button variant="outline" fullWidth onClick={() => startEdit(actionMessage)}>
+                ویرایش
+              </Button>
+            ) : null}
+            {actionMessage && canDeleteMessage(actionMessage) ? (
+              <Button
+                variant="destructive"
+                fullWidth
+                onClick={() => {
+                  setDeleteTarget(actionMessage);
+                  setActionMessage(null);
+                }}
+              >
+                حذف
+              </Button>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>حذف پیام</DialogTitle>
+            <DialogDescription>این پیام برای همه حذف می‌شود. آیا مطمئن هستید؟</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              انصراف
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteMessage.isPending}
+              onClick={() => void confirmDelete()}
+            >
+              حذف
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,12 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AccessToken, RoomServiceClient, type VideoGrant } from 'livekit-server-sdk';
 
+const LIVEKIT_TOKEN_TTL = '2h';
+
 @Injectable()
-export class LivekitService {
+export class LivekitService implements OnModuleInit {
   private readonly logger = new Logger(LivekitService.name);
 
-  private get configured(): boolean {
+  isConfigured(): boolean {
     return !!(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET);
+  }
+
+  onModuleInit() {
+    if (!this.isConfigured()) {
+      this.logger.error(
+        'LiveKit is not configured (LIVEKIT_API_KEY / LIVEKIT_API_SECRET missing) — video calls will fail',
+      );
+    }
   }
 
   getPublicUrl(): string {
@@ -22,7 +32,7 @@ export class LivekitService {
   }
 
   private roomClient(): RoomServiceClient | null {
-    if (!this.configured) return null;
+    if (!this.isConfigured()) return null;
     return new RoomServiceClient(
       this.getHttpUrl(),
       process.env.LIVEKIT_API_KEY!,
@@ -53,8 +63,19 @@ export class LivekitService {
     }
   }
 
+  async listParticipants(roomName: string): Promise<number> {
+    const client = this.roomClient();
+    if (!client) return 0;
+    try {
+      const participants = await client.listParticipants(roomName);
+      return participants.length;
+    } catch {
+      return 0;
+    }
+  }
+
   async mintToken(roomName: string, identity: string, displayName?: string): Promise<string> {
-    if (!this.configured) {
+    if (!this.isConfigured()) {
       return `livekit-dev-stub-${identity}-${roomName}`;
     }
     const grant: VideoGrant = {
@@ -66,7 +87,7 @@ export class LivekitService {
     const token = new AccessToken(process.env.LIVEKIT_API_KEY!, process.env.LIVEKIT_API_SECRET!, {
       identity,
       name: displayName,
-      ttl: '10m',
+      ttl: LIVEKIT_TOKEN_TTL,
     });
     token.addGrant(grant);
     return token.toJwt();

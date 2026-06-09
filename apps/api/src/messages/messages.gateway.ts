@@ -15,6 +15,7 @@ import {
   type SendMessageInput,
 } from '@agahiram/shared';
 import { MessagesService } from './messages.service';
+import { extractSocketToken } from '../common/socket-auth';
 import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
@@ -32,7 +33,11 @@ export class MessagesGateway implements OnGatewayConnection {
 
   handleConnection(@ConnectedSocket() socket: Socket) {
     try {
-      const token = (socket.handshake.auth?.token as string | undefined) ?? '';
+      const token = extractSocketToken(socket);
+      if (!token) {
+        socket.disconnect();
+        return;
+      }
       const payload = this.jwt.verify<JwtPayload>(token);
       socket.data.userId = payload.sub;
       socket.join(`user:${payload.sub}`);
@@ -68,6 +73,37 @@ export class MessagesGateway implements OnGatewayConnection {
       this.server.to(`user:${result.recipientUserId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVE, payload);
     }
     this.server.to(`user:${result.message.senderId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVE, payload);
+  }
+
+  broadcastMessageUpdate(result: {
+    message: Record<string, unknown> & { senderId: string };
+    conversationId: string;
+    recipientUserId?: string | null;
+  }) {
+    const payload = {
+      ...result.message,
+      conversationId: result.conversationId,
+    };
+    if (result.recipientUserId) {
+      this.server.to(`user:${result.recipientUserId}`).emit(SOCKET_EVENTS.MESSAGE_UPDATE, payload);
+    }
+    this.server.to(`user:${result.message.senderId}`).emit(SOCKET_EVENTS.MESSAGE_UPDATE, payload);
+  }
+
+  broadcastMessageDelete(result: {
+    messageId: string;
+    conversationId: string;
+    senderId: string;
+    recipientUserId?: string | null;
+  }) {
+    const payload = {
+      messageId: result.messageId,
+      conversationId: result.conversationId,
+    };
+    if (result.recipientUserId) {
+      this.server.to(`user:${result.recipientUserId}`).emit(SOCKET_EVENTS.MESSAGE_DELETE, payload);
+    }
+    this.server.to(`user:${result.senderId}`).emit(SOCKET_EVENTS.MESSAGE_DELETE, payload);
   }
 
   @SubscribeMessage(SOCKET_EVENTS.TYPING_START)

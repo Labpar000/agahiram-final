@@ -30,7 +30,7 @@ const WALLET_KEY = ['wallet'] as const;
 const HISTORY_KEY = ['payment-history'] as const;
 const PAYOUTS_KEY = ['payouts'] as const;
 
-export function useWallet() {
+export function useWallet(enabled = true) {
   const qc = useQueryClient();
 
   const walletQuery = useQuery({
@@ -40,6 +40,7 @@ export function useWallet() {
       if (!res.success || !res.data) throw new Error(res.error ?? 'خطا در دریافت موجودی');
       return res.data;
     },
+    enabled,
   });
 
   const historyQuery = useQuery({
@@ -49,6 +50,7 @@ export function useWallet() {
       if (!res.success || !res.data) throw new Error(res.error ?? 'خطا');
       return res.data;
     },
+    enabled,
   });
 
   const payoutsQuery = useQuery({
@@ -58,6 +60,7 @@ export function useWallet() {
       if (!res.success || !res.data) throw new Error(res.error ?? 'خطا');
       return res.data;
     },
+    enabled,
   });
 
   const topUp = useMutation({

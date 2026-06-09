@@ -1,4 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { buildWebOtpSmsSuffix } from '@agahiram/shared';
 
 type Provider = 'smsir' | 'kavenegar' | 'dev';
 
@@ -23,7 +24,16 @@ export class SmsService {
   private readonly smsIrTemplateId = Number(process.env.SMS_IR_TEMPLATE_ID ?? '0');
   private readonly smsIrParamName = process.env.SMS_IR_PARAM_NAME ?? 'Code';
   private readonly smsIrLine = (process.env.SMS_IR_LINE_NUMBER ?? '').trim();
-  private readonly otpTextTemplate = process.env.SMS_IR_OTP_TEXT ?? 'کد آگهی‌گرام: {code}\nلغو۱۱';
+  private readonly otpTextTemplate =
+    process.env.SMS_IR_OTP_TEXT ?? 'کد آگهیرام: {code}\n\n{webOtp}\nلغو۱۱';
+  private readonly webOtpOrigin = (
+    process.env.WEB_OTP_DOMAIN ??
+    process.env.FRONTEND_URL ??
+    'https://agahiram.ir'
+  ).trim();
+  private readonly smsIrWebOtpParamName = (
+    process.env.SMS_IR_WEB_OTP_PARAM_NAME ?? 'WebOtp'
+  ).trim();
 
   private readonly kavenegarKey = (process.env.KAVENEGAR_API_KEY ?? '').trim();
   private readonly kavenegarTemplate = process.env.KAVENEGAR_OTP_TEMPLATE ?? 'verify';
@@ -75,10 +85,17 @@ export class SmsService {
   }
 
   private async smsIrVerify(phone: string, code: string): Promise<void> {
+    const webOtp = buildWebOtpSmsSuffix(this.webOtpOrigin, code);
+    const parameters: { name: string; value: string }[] = [
+      { name: this.smsIrParamName, value: code },
+    ];
+    if (this.smsIrWebOtpParamName) {
+      parameters.push({ name: this.smsIrWebOtpParamName, value: webOtp });
+    }
     const payload = {
       mobile: phone,
       templateId: this.smsIrTemplateId,
-      parameters: [{ name: this.smsIrParamName, value: code }],
+      parameters,
     };
     try {
       const response = await fetch('https://api.sms.ir/v1/send/verify', {
@@ -112,7 +129,10 @@ export class SmsService {
   }
 
   private async smsIrBulk(phone: string, code: string): Promise<void> {
-    const messageText = this.otpTextTemplate.replace('{code}', code);
+    const webOtp = buildWebOtpSmsSuffix(this.webOtpOrigin, code);
+    const messageText = this.otpTextTemplate
+      .replace(/\{code\}/g, code)
+      .replace(/\{webOtp\}/g, webOtp);
     const payload = {
       lineNumber: Number(this.smsIrLine),
       messageText,
@@ -156,9 +176,11 @@ export class SmsService {
       throw new ServiceUnavailableException('سرویس پیامک پیکربندی نشده است');
     }
 
+    const webOtp = buildWebOtpSmsSuffix(this.webOtpOrigin, code);
     const url = new URL(`https://api.kavenegar.com/v1/${this.kavenegarKey}/verify/lookup.json`);
     url.searchParams.set('receptor', phone);
     url.searchParams.set('token', code);
+    url.searchParams.set('token2', webOtp);
     url.searchParams.set('template', this.kavenegarTemplate);
 
     try {

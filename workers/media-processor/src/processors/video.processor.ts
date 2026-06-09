@@ -99,7 +99,7 @@ export async function processVideoJob({ mediaId, coverTimeSec }: Job) {
             '-start_number',
             '0',
             '-hls_time',
-            '6',
+            '2',
             '-hls_list_size',
             '0',
             '-f',

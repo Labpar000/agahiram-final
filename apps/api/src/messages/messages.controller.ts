@@ -1,5 +1,21 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards, UsePipes } from '@nestjs/common';
-import { sendMessageSchema, type SendMessageInput } from '@agahiram/shared';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
+import {
+  editMessageSchema,
+  sendMessageSchema,
+  type EditMessageInput,
+  type SendMessageInput,
+} from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -52,7 +68,30 @@ export class MessagesController {
   }
 
   @Post('start/:username')
-  start(@CurrentUser('sub') userId: string, @Param('username') username: string) {
-    return this.service.startWithUser(userId, username);
+  start(
+    @CurrentUser('sub') userId: string,
+    @Param('username') username: string,
+    @Query('postId') postId?: string,
+  ) {
+    return this.service.startWithUser(userId, username, postId);
+  }
+
+  @Patch(':id')
+  @UsePipes(new ZodValidationPipe(editMessageSchema))
+  async update(
+    @CurrentUser('sub') userId: string,
+    @Param('id') id: string,
+    @Body() body: EditMessageInput,
+  ) {
+    const result = await this.service.updateMessage(userId, id, body.content);
+    this.gateway.broadcastMessageUpdate(result);
+    return result.message;
+  }
+
+  @Delete(':id')
+  async remove(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    const result = await this.service.deleteMessage(userId, id);
+    this.gateway.broadcastMessageDelete(result);
+    return { ok: true };
   }
 }

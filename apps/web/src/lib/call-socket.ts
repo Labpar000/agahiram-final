@@ -11,6 +11,10 @@ export function getCallSocket(): Socket {
       path: '/socket.io',
       autoConnect: false,
       withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
       transports: ['websocket', 'polling'],
     });
   }

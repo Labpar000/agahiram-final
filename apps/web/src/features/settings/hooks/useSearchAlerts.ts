@@ -36,6 +36,8 @@ export function useSearchAlerts(options?: { enabled?: boolean }) {
     },
     onSuccess: (alert) => {
       qc.setQueryData<SearchAlertItem[]>(QUERY_KEY, (old) => [alert, ...(old ?? [])]);
+      void qc.invalidateQueries({ queryKey: ['notifications'] });
+      void qc.invalidateQueries({ queryKey: ['notifications', 'unread'] });
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });

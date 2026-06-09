@@ -12,6 +12,7 @@ import type { PaginatedResponse, ReelItem } from '@agahiram/shared';
 import { EmptyState, ErrorState, IgArrowBack, IgReels, Spinner } from '@agahiram/ui';
 import { getPostCoverMedia } from '@agahiram/shared';
 import { ReelPlayer } from '@/components/reel-player';
+import { reelMatchesTarget } from '@/lib/reel-url';
 import { videoPlaybackController } from '@/lib/video-playback-controller';
 
 const WINDOW = 1;
@@ -22,7 +23,9 @@ type ReelsViewerProps = {
   queryKey: QueryKey;
   queryFn: (pageParam: string | undefined) => Promise<ReelsPage>;
   playbackActive: boolean;
+  /** Post id or composite `postId:mediaId` reel key. */
   startReelId?: string;
+  startMediaId?: string | null;
   /** When the target reel is missing from the first page, prepend this item. */
   seedReel?: ReelItem | null;
   initialData?: InfiniteData<ReelsPage>;
@@ -33,6 +36,7 @@ export function ReelsViewer({
   queryFn,
   playbackActive,
   startReelId,
+  startMediaId,
   seedReel,
   initialData,
 }: ReelsViewerProps) {
@@ -42,7 +46,6 @@ export function ReelsViewer({
   const [activeIndex, setActiveIndex] = useState(0);
   const activeIndexRef = useRef(0);
   const [scrolledToStart, setScrolledToStart] = useState(!startReelId);
-
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     useInfiniteQuery({
       queryKey,
@@ -53,14 +56,22 @@ export function ReelsViewer({
       staleTime: 30_000,
     });
 
+  const startTarget = startReelId
+    ? startMediaId
+      ? `${startReelId}:${startMediaId}`
+      : startReelId
+    : undefined;
+
   const reels = useMemo(() => {
     const fromPages = data?.pages.flatMap((p) => p.data) ?? [];
-    if (!startReelId || fromPages.some((r) => r.id === startReelId)) return fromPages;
-    if (seedReel && seedReel.id === startReelId) return [seedReel, ...fromPages];
+    if (!startTarget || fromPages.some((r) => reelMatchesTarget(r, startTarget, startMediaId)))
+      return fromPages;
+    if (seedReel && reelMatchesTarget(seedReel, startTarget, startMediaId))
+      return [seedReel, ...fromPages];
     return fromPages;
-  }, [data?.pages, seedReel, startReelId]);
+  }, [data?.pages, seedReel, startTarget, startMediaId]);
 
-  const activeReelId = reels[activeIndex]?.id;
+  const activeReelKey = reels[activeIndex]?.reelKey;
   const reelRefs = useRef<Map<number, HTMLElement>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -81,7 +92,7 @@ export function ReelsViewer({
         let bestIdx = activeIndexRef.current;
         let bestRatio = 0;
         for (const entry of entries) {
-          if (entry.intersectionRatio > bestRatio && entry.intersectionRatio >= 0.7) {
+          if (entry.intersectionRatio > bestRatio && entry.intersectionRatio >= 0.8) {
             const el = entry.target as HTMLElement;
             const idx = Number(el.dataset.reelIndex);
             if (!Number.isNaN(idx)) {
@@ -98,7 +109,7 @@ export function ReelsViewer({
           }
         }
       },
-      { threshold: [0, 0.5, 0.7, 1] },
+      { threshold: [0, 0.5, 0.8, 1] },
     );
 
     return () => {
@@ -123,8 +134,8 @@ export function ReelsViewer({
   }, [reels]);
 
   useEffect(() => {
-    if (!startReelId || scrolledToStart || reels.length === 0) return;
-    const idx = reels.findIndex((r) => r.id === startReelId);
+    if (!startTarget || scrolledToStart || reels.length === 0) return;
+    const idx = reels.findIndex((r) => reelMatchesTarget(r, startTarget, startMediaId));
     if (idx >= 0) {
       activeIndexRef.current = idx;
       setActiveIndex(idx);
@@ -137,7 +148,15 @@ export function ReelsViewer({
     if (hasNextPage && !isFetchingNextPage) {
       void fetchNextPage();
     }
-  }, [startReelId, reels, scrolledToStart, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [
+    startTarget,
+    startMediaId,
+    reels,
+    scrolledToStart,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
 
   useEffect(() => {
     activeIndexRef.current = activeIndex;
@@ -145,13 +164,13 @@ export function ReelsViewer({
       videoPlaybackController.pauseKind('reel');
       return;
     }
-    if (!activeReelId) return;
-    const playbackId = `reel-${activeReelId}`;
+    if (!activeReelKey) return;
+    const playbackId = `reel-${activeReelKey}`;
     videoPlaybackController.pauseExcept(playbackId);
     requestAnimationFrame(() => {
       void videoPlaybackController.requestPlay(playbackId, { resetUserPaused: false });
     });
-  }, [playbackActive, activeIndex, activeReelId]);
+  }, [playbackActive, activeIndex, activeReelKey]);
 
   useEffect(() => {
     return () => videoPlaybackController.pauseAll();
@@ -218,7 +237,7 @@ export function ReelsViewer({
                 const cover = getPostCoverMedia(r.media);
                 return (
                   <div
-                    key={r.id}
+                    key={r.reelKey}
                     data-reel-index={i}
                     ref={(node) => setReelRef(node, i)}
                     className="relative flex w-full snap-start snap-always items-center justify-center bg-black"

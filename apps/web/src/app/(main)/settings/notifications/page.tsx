@@ -1,7 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Spinner, toast } from '@agahiram/ui';
+import { alertExploreHref, alertSummaryLabel } from '@/lib/search-alert-utils';
 import { registerWebPush } from '@/lib/web-push';
 import { isWebPushSubscribed, unregisterWebPush } from '@/lib/web-push-unregister';
 import { SettingsHeader } from '@/features/settings/components/settings-header';
@@ -117,14 +119,12 @@ export default function NotificationSettingsPage() {
                 key={alert.id}
                 className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 last:border-0"
               >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {alert.query ?? 'جستجوی ذخیره‌شده'}
-                  </p>
+                <Link href={alertExploreHref(alert)} className="min-w-0 flex-1 tap-none">
+                  <p className="truncate text-sm font-medium">{alertSummaryLabel(alert)}</p>
                   <p className="text-[11px] text-muted-foreground">
-                    {new Date(alert.createdAt).toLocaleDateString('fa-IR')}
+                    {new Date(alert.createdAt).toLocaleDateString('fa-IR')} — مشاهده نتایج
                   </p>
-                </div>
+                </Link>
                 <button
                   type="button"
                   className="shrink-0 text-xs text-destructive hover:underline"

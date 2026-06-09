@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MessageType, type SendMessageInput } from '@agahiram/shared';
+import { MessageType, MESSAGE_EDIT_WINDOW_MS, type SendMessageInput } from '@agahiram/shared';
 import { toast } from '@agahiram/ui';
 import { apiClient, assertSuccess } from '@/lib/api';
 import { connectSocket, SOCKET_EVENTS } from '@/lib/socket';
@@ -24,9 +24,21 @@ export interface ChatMessageRow {
   type: string;
   senderId: string;
   createdAt: string;
+  editedAt?: string | null;
   metadata?: VoiceMessageMetadata | null;
   sender: { id: string; username: string | null; avatar: string | null };
   storyPreview?: StoryPreviewInMessage;
+}
+
+export function canEditMessage(message: Pick<ChatMessageRow, 'type' | 'createdAt' | 'id'>) {
+  if (message.id.startsWith('temp-')) return false;
+  if (message.type !== MessageType.TEXT) return false;
+  const ageMs = Date.now() - new Date(message.createdAt).getTime();
+  return ageMs <= MESSAGE_EDIT_WINDOW_MS;
+}
+
+export function canDeleteMessage(message: Pick<ChatMessageRow, 'id'>) {
+  return !message.id.startsWith('temp-');
 }
 
 export function useConversation(conversationId: string) {
@@ -89,9 +101,48 @@ export function useConversation(conversationId: string) {
       );
       void qc.invalidateQueries({ queryKey: ['conversations'] });
     };
+    const onUpdate = (msg: ChatMessageRow & { conversationId?: string }) => {
+      if (msg.conversationId && msg.conversationId !== conversationId) return;
+      const patch = (m: ChatMessageRow) =>
+        m.id === msg.id
+          ? {
+              ...m,
+              ...msg,
+              editedAt: msg.editedAt ?? new Date().toISOString(),
+            }
+          : m;
+      setLiveMessages((prev) => prev.map(patch));
+      qc.setQueryData(
+        ['chat', conversationId],
+        (old: { messages: ChatMessageRow[]; meId: string | null } | undefined) => {
+          if (!old) return old;
+          return { ...old, messages: old.messages.map(patch) };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: ['conversations'] });
+    };
+    const onDelete = (payload: { messageId: string; conversationId?: string }) => {
+      if (payload.conversationId && payload.conversationId !== conversationId) return;
+      setLiveMessages((prev) => prev.filter((m) => m.id !== payload.messageId));
+      qc.setQueryData(
+        ['chat', conversationId],
+        (old: { messages: ChatMessageRow[]; meId: string | null } | undefined) => {
+          if (!old) return old;
+          return {
+            ...old,
+            messages: old.messages.filter((m) => m.id !== payload.messageId),
+          };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: ['conversations'] });
+    };
     socket.on(SOCKET_EVENTS.MESSAGE_RECEIVE, onMessage);
+    socket.on(SOCKET_EVENTS.MESSAGE_UPDATE, onUpdate);
+    socket.on(SOCKET_EVENTS.MESSAGE_DELETE, onDelete);
     return () => {
       socket.off(SOCKET_EVENTS.MESSAGE_RECEIVE, onMessage);
+      socket.off(SOCKET_EVENTS.MESSAGE_UPDATE, onUpdate);
+      socket.off(SOCKET_EVENTS.MESSAGE_DELETE, onDelete);
     };
   }, [conversationId, qc]);
 
@@ -174,6 +225,62 @@ export function useConversation(conversationId: string) {
     },
   });
 
+  const editMessage = useMutation({
+    mutationFn: async ({ messageId, content }: { messageId: string; content: string }) => {
+      const r = await apiClient.patch<ChatMessageRow>(`/messages/${messageId}`, { content });
+      if (!r.success || !r.data) throw r;
+      return r.data;
+    },
+    onSuccess: (message) => {
+      const patch = (m: ChatMessageRow) => (m.id === message.id ? { ...m, ...message } : m);
+      setLiveMessages((prev) => prev.map(patch));
+      qc.setQueryData(
+        ['chat', conversationId],
+        (old: { messages: ChatMessageRow[]; meId: string | null } | undefined) => {
+          if (!old) return old;
+          return { ...old, messages: old.messages.map(patch) };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: ['conversations'] });
+    },
+    onError: (err) => {
+      const apiErr = err as { success?: boolean; error?: string };
+      if (apiErr && typeof apiErr === 'object' && 'success' in apiErr && !apiErr.success) {
+        toast.error(apiErr.error ?? 'ویرایش پیام ناموفق بود');
+      } else {
+        toast.error('ویرایش پیام ناموفق بود');
+      }
+    },
+  });
+
+  const deleteMessage = useMutation({
+    mutationFn: async (messageId: string) => {
+      const r = await apiClient.delete<{ ok: boolean }>(`/messages/${messageId}`);
+      if (!r.success) throw r;
+      return messageId;
+    },
+    onSuccess: (messageId) => {
+      setLiveMessages((prev) => prev.filter((m) => m.id !== messageId));
+      qc.setQueryData(
+        ['chat', conversationId],
+        (old: { messages: ChatMessageRow[]; meId: string | null } | undefined) => {
+          if (!old) return old;
+          return { ...old, messages: old.messages.filter((m) => m.id !== messageId) };
+        },
+      );
+      void qc.invalidateQueries({ queryKey: ['conversations'] });
+      toast.success('پیام حذف شد');
+    },
+    onError: (err) => {
+      const apiErr = err as { success?: boolean; error?: string };
+      if (apiErr && typeof apiErr === 'object' && 'success' in apiErr && !apiErr.success) {
+        toast.error(apiErr.error ?? 'حذف پیام ناموفق بود');
+      } else {
+        toast.error('حذف پیام ناموفق بود');
+      }
+    },
+  });
+
   const refetch = () => {
     void headQuery.refetch();
     void messagesQuery.refetch();
@@ -188,6 +295,8 @@ export function useConversation(conversationId: string) {
     isError: headQuery.isError || messagesQuery.isError,
     refetch,
     sendMessage,
+    editMessage,
+    deleteMessage,
     addOptimisticMessage: (msg: ChatMessageRow) => {
       setLiveMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;

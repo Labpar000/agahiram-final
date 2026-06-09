@@ -36,6 +36,11 @@ export class CallsController {
     return this.calls.end(userId, id);
   }
 
+  @Post(':id/refresh-token')
+  refreshToken(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.calls.refreshToken(userId, id);
+  }
+
   @Get('active')
   active(@CurrentUser('sub') userId: string) {
     return this.calls.getActiveForUser(userId);

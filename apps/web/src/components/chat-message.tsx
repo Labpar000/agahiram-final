@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { IgCheck, IgCheckDouble, IgClose, Avatar, AvatarFallback, AvatarImage } from '@agahiram/ui';
 import { cn, formatJalaliDate } from '@agahiram/shared';
 import { StoryReplyPreview } from '@/components/story-reply-preview';
@@ -18,12 +18,37 @@ export interface ChatMessageProps {
   type?: string;
   isMine: boolean;
   createdAt: string;
+  editedAt?: string | null;
   sender?: { username?: string | null; avatar?: string | null };
   storyPreview?: StoryPreviewInMessage;
   metadata?: VoiceMessageMetadata | null;
   status?: 'sending' | 'sent' | 'delivered' | 'read';
   isFirstOfGroup?: boolean;
   isLastOfGroup?: boolean;
+  onLongPress?: () => void;
+}
+
+function useLongPress(onLongPress: () => void, delayMs = 450) {
+  const timerRef = useRef<number | null>(null);
+  const clear = useCallback(() => {
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+  return {
+    onTouchStart: () => {
+      clear();
+      timerRef.current = window.setTimeout(onLongPress, delayMs);
+    },
+    onTouchEnd: clear,
+    onTouchMove: clear,
+    onTouchCancel: clear,
+    onContextMenu: (e: React.MouseEvent) => {
+      e.preventDefault();
+      onLongPress();
+    },
+  };
 }
 
 export function ChatMessage({
@@ -31,16 +56,21 @@ export function ChatMessage({
   type = 'text',
   isMine,
   createdAt,
+  editedAt,
   sender,
   storyPreview,
   metadata,
   status,
   isFirstOfGroup = true,
   isLastOfGroup = true,
+  onLongPress,
 }: ChatMessageProps) {
   const [lightbox, setLightbox] = useState(false);
   const voiceUploading =
     type === 'voice' && status === 'sending' && (!content || content.startsWith('blob:'));
+  const longPress = useLongPress(() => {
+    if (onLongPress) onLongPress();
+  });
 
   return (
     <>
@@ -69,7 +99,9 @@ export function ChatMessage({
               isMine
                 ? 'bg-ig-bubble-sent text-ig-bubble-sent-foreground rounded-ee-md'
                 : 'bg-surface-muted text-foreground rounded-es-md',
+              onLongPress && isMine && 'touch-none select-none',
             )}
+            {...(onLongPress && isMine ? longPress : {})}
           >
             {type === 'image' ? (
               <button type="button" onClick={() => setLightbox(true)} className="block">
@@ -101,6 +133,7 @@ export function ChatMessage({
                 isMine ? 'justify-end' : 'justify-start',
               )}
             >
+              {editedAt ? <span>ویرایش‌شده</span> : null}
               <span>{formatJalaliDate(createdAt, 'time')}</span>
               {isMine && status ? (
                 <span

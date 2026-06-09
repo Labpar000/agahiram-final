@@ -1,68 +1,20 @@
 'use client';
 
-// Explore grid:
-// - 3-column grid with 2px gap, uniform square tiles (posts + reels)
-// - Desktop hover video preview (300ms delay, autoplay muted, pause on leave)
-// - 18px video indicator icon
-// - Tile-shaped loading skeletons
-// - Infinite scroll with 200px rootMargin (via useInfiniteScroll default)
 import dynamic from 'next/dynamic';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
-import { usePathname, useSearchParams } from 'next/navigation';
-import {
-  keepPreviousData,
-  useInfiniteQuery,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { AdSlot, type PaginatedResponse, type PostSummary } from '@agahiram/shared';
-import {
-  formatPersianNumber,
-  formatPersianCompact,
-  formatPersianPrice,
-  getPostCoverMedia,
-  pickThumbnailSrc,
-  toServedMediaUrl,
-} from '@agahiram/shared';
-import {
-  EmptyState,
-  ErrorState,
-  IconButton,
-  IgEye,
-  IgGrid,
-  IgActivity,
-  IgLayers,
-  IgPlay,
-  IgSearch,
-  IgSliders,
-  Input,
-  Skeleton,
-  Spinner,
-} from '@agahiram/ui';
-import { apiClient } from '@/lib/api';
-import { PostLink } from '@/components/post-link';
-import type { Filters } from '@/components/search-filters';
-import { toast } from '@agahiram/ui';
-import { parseExploreSearchParams } from '@/lib/explore-url';
-import { StoryDiscoverRings, type DiscoverGroup } from '@/features/stories/story-discover-rings';
-import { AdTile } from '@/components/ad-tile';
-import { useAdsConfig, useServedAds } from '@/hooks/use-ads';
-import { mergeFeedWithAds } from '@/lib/merge-feed-with-ads';
-import { useAuthStore } from '@/lib/auth-store';
-import { handleEngagementError } from '@/lib/engagement-auth';
-import { endUserSession } from '@/lib/logout-session';
-import {
-  findMatchingSearchAlert,
-  hasSearchCriteria,
-  serializeAlertFilters,
-} from '@/lib/search-alert-utils';
-import { useSearchAlerts } from '@/features/settings/hooks/useSearchAlerts';
+import type { Filters } from '@/features/search/types';
+import { useExploreSearch } from '@/features/search/hooks/use-explore-search';
+import { useResolvedSearchFilters } from '@/features/search/hooks/use-search-filters';
+import { useStorySearch } from '@/features/search/hooks/use-story-search';
+import { useSearchAlertToggle } from '@/features/search/hooks/use-search-alert-toggle';
+import { useExploreFeedItems } from '@/features/search/hooks/use-explore-feed-items';
+import { SearchExploreHeader } from '@/features/search/components/search-explore-header';
+import { SearchResults } from '@/features/search/components/search-results';
 
 const SearchFiltersSheet = dynamic(
-  () => import('@/components/search-filters').then((m) => m.SearchFiltersSheet),
+  () =>
+    import('@/features/search/components/search-filter-sheet').then((m) => m.SearchFiltersSheet),
   {
     ssr: false,
     loading: () => (
@@ -74,21 +26,6 @@ const SearchFiltersSheet = dynamic(
   },
 );
 
-type SearchUser = {
-  id: string;
-  username: string | null;
-  name: string | null;
-  avatar: string | null;
-  isVerified: boolean;
-};
-
-type SearchCategory = { id: string; name: string; slug: string };
-
-type ExplorePage = PaginatedResponse<PostSummary> & {
-  users?: SearchUser[];
-  categories?: SearchCategory[];
-};
-
 export function ExploreClient({
   initialQ = '',
   initialFilters = {},
@@ -96,161 +33,29 @@ export function ExploreClient({
   initialQ?: string;
   initialFilters?: Filters;
 }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const queryClient = useQueryClient();
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [q, setQ] = useState(initialQ);
-  const [filters, setFilters] = useState<Filters>(initialFilters);
-  const [debouncedQ, setDebouncedQ] = useState(initialQ);
   const [openFilters, setOpenFilters] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedQ(q.trim()), 300);
-    return () => clearTimeout(t);
-  }, [q]);
-
-  // Keep-alive explore tab keeps client state — sync when URL/deep-link props change.
-  useEffect(() => {
-    setQ(initialQ);
-    setDebouncedQ(initialQ);
-  }, [initialQ]);
-
-  useEffect(() => {
-    setFilters(initialFilters);
-  }, [initialFilters]);
-
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams?.toString() ?? '');
-    if (debouncedQ) params.set('q', debouncedQ);
-    else params.delete('q');
-    for (const [key, value] of Object.entries(filters)) {
-      if (value === undefined || value === '' || value === false) params.delete(key);
-      else params.set(key, String(value));
-    }
-    const next = `${pathname}?${params.toString()}`;
-    const current = `${pathname}${window.location.search}`;
-    if (next !== current) {
-      window.history.replaceState(window.history.state, '', next);
-    }
-  }, [debouncedQ, filters, pathname, searchParams]);
-
-  useEffect(() => {
-    const onPop = () => {
-      const { q: urlQ, filters: urlFilters } = parseExploreSearchParams(window.location.search);
-      setQ(urlQ);
-      setDebouncedQ(urlQ);
-      setFilters(urlFilters);
-    };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
-
-  const hashtagStoryTag = useMemo(() => {
-    const m = debouncedQ.match(/^#([\w؀-ۿ]+)/);
-    return m?.[1] ?? null;
-  }, [debouncedQ]);
-
-  const { data: storySearch } = useQuery({
-    queryKey: ['stories', 'search', debouncedQ],
-    queryFn: async () => {
-      const r = await apiClient.get<{ groups: DiscoverGroup[] }>(
-        `/stories/search?q=${encodeURIComponent(debouncedQ)}`,
-      );
-      return r.data?.groups ?? [];
-    },
-    enabled: debouncedQ.length >= 2 && !hashtagStoryTag,
-    staleTime: 30_000,
-  });
-
-  const query = useInfiniteQuery({
-    queryKey: ['explore', debouncedQ, filters],
-    queryFn: async ({ pageParam }) => {
-      if (debouncedQ) {
-        const r = await apiClient.get<{
-          posts: PaginatedResponse<PostSummary>;
-          users: SearchUser[];
-          categories: SearchCategory[];
-        }>('/search', {
-          q: debouncedQ,
-          ...filters,
-          cursor: pageParam as string | undefined,
-          limit: 24,
-        });
-        if (!r.success || !r.data) throw new Error(r.error ?? 'خطا در جستجو');
-        const posts = r.data.posts;
-        return {
-          data: posts?.data ?? [],
-          nextCursor: posts?.nextCursor ?? null,
-          hasMore: posts?.hasMore ?? false,
-          users: pageParam ? undefined : r.data.users,
-          categories: pageParam ? undefined : r.data.categories,
-        } satisfies ExplorePage;
-      }
-      const r = await apiClient.get<PaginatedResponse<PostSummary>>('/posts/explore', {
-        ...(filters as Record<string, string | number | boolean | undefined>),
-        cursor: pageParam as string | undefined,
-        limit: 24,
-      });
-      if (r.success && r.data) {
-        return { ...r.data, data: r.data.data ?? [] };
-      }
-      return { data: [], nextCursor: null, hasMore: false } as PaginatedResponse<PostSummary>;
-    },
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
-    initialPageParam: undefined as string | undefined,
-    placeholderData: keepPreviousData,
-  });
-
   const {
-    data: searchAlerts,
-    create: createSearchAlert,
-    remove: removeSearchAlert,
-  } = useSearchAlerts({ enabled: isAuthenticated });
+    q,
+    setQ,
+    debouncedQ,
+    commitQuery,
+    filters,
+    setFilters,
+    query,
+    posts,
+    searchUsers,
+    searchCategories,
+  } = useExploreSearch(initialQ, initialFilters);
 
-  const matchingSearchAlert = useMemo(
-    () => findMatchingSearchAlert(searchAlerts, debouncedQ, filters),
-    [searchAlerts, debouncedQ, filters],
-  );
-  const isSearchAlertSaved = !!matchingSearchAlert;
-  const searchAlertBusy = createSearchAlert.isPending || removeSearchAlert.isPending;
-
-  const toggleSearchAlert = () => {
-    if (!hasSearchCriteria(debouncedQ, filters)) {
-      toast.error('برای ذخیره جستجو، عبارت جستجو یا فیلتر انتخاب کنید.');
-      return;
-    }
-    if (!isAuthenticated) {
-      handleEngagementError({ success: false, statusCode: 401 }, 'searchAlert', () => {
-        void endUserSession(queryClient);
-      });
-      return;
-    }
-
-    if (matchingSearchAlert) {
-      removeSearchAlert.mutate(matchingSearchAlert.id, {
-        onSuccess: () => toast.success('هشدار جستجو حذف شد.'),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : 'خطا در حذف هشدار جستجو'),
-      });
-      return;
-    }
-
-    const queryValue = debouncedQ.trim();
-    createSearchAlert.mutate(
-      {
-        ...(queryValue ? { query: queryValue } : {}),
-        cityId: filters.cityId,
-        filters: serializeAlertFilters(filters),
-      },
-      {
-        onSuccess: () =>
-          toast.success('هشدار جستجو ذخیره شد. از تنظیمات اعلان‌ها قابل مدیریت است.'),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : 'خطا در ذخیره هشدار جستجو'),
-      },
-    );
-  };
+  const displayFilters = useResolvedSearchFilters(filters);
+  const { hashtagStoryTag, storySearch } = useStorySearch(debouncedQ);
+  const {
+    matchingSearchAlert,
+    toggleSearchAlert,
+    isPending: alertPending,
+  } = useSearchAlertToggle(debouncedQ, filters);
+  const feedItems = useExploreFeedItems(posts, filters);
 
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
     query;
@@ -261,340 +66,64 @@ export function ExploreClient({
     fetchNextPage,
   });
 
-  const posts = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
-
-  const { data: adsConfig } = useAdsConfig();
-  const { data: exploreAds = [] } = useServedAds(AdSlot.EXPLORE_FEED, {
-    cityId: filters.cityId,
-    categoryId: filters.categoryId,
-    limit: 5,
-    enabled: !!adsConfig?.adsEnabled,
-  });
-
-  const feedItems = useMemo(
-    () => mergeFeedWithAds(posts, exploreAds, adsConfig?.adsExploreInterval ?? 9),
-    [posts, exploreAds, adsConfig?.adsExploreInterval],
-  );
-  const searchUsers = (data?.pages[0] as ExplorePage | undefined)?.users ?? [];
-  const searchCategories = (data?.pages[0] as ExplorePage | undefined)?.categories ?? [];
-  const hasSearchExtras = debouncedQ && (searchUsers.length > 0 || searchCategories.length > 0);
   const activeFilterCount = useMemo(
     () =>
       [
         filters.categoryId,
         filters.cityId ?? filters.provinceId,
+        filters.neighborhoodId,
         filters.minPrice,
         filters.maxPrice,
+        filters.priceType,
         filters.sortBy,
         filters.onlyImage,
         filters.onlyVideo,
         filters.onlyPromoted,
+        filters.attributes && Object.keys(filters.attributes).length > 0,
       ].filter(Boolean).length,
     [filters],
   );
 
   return (
     <div className="bg-background">
-      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] border-b border-border-subtle px-4 py-2">
-        <div className="mx-auto flex max-w-2xl items-center gap-2">
-          <div className="flex-1">
-            <Input
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const next = q.trim();
-                  setDebouncedQ(next);
-                }
-              }}
-              placeholder="جستجو"
-              className="h-9 rounded-full border-0 bg-muted text-sm"
-              leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
-              aria-label="جستجو"
-            />
-          </div>
-          <div className="relative">
-            <IconButton
-              aria-label={`فیلترها${activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}`}
-              icon={<IgSliders className="size-5" strokeWidth={1.75} aria-hidden />}
-              variant="secondary"
-              size="md"
-              onClick={() => setOpenFilters(true)}
-            />
-            {activeFilterCount > 0 ? (
-              <span
-                aria-hidden
-                className="absolute -end-1 -top-1 grid size-4 place-items-center rounded-full bg-destructive text-[9px] font-bold text-destructive-foreground ring-2 ring-background"
-              >
-                {formatPersianNumber(activeFilterCount)}
-              </span>
-            ) : null}
-          </div>
-          <IconButton
-            aria-label={isSearchAlertSaved ? 'حذف هشدار جستجو' : 'ذخیره هشدار جستجو'}
-            icon={
-              <IgActivity
-                className="size-5"
-                filled={isSearchAlertSaved}
-                strokeWidth={1.75}
-                aria-hidden
-              />
-            }
-            variant="secondary"
-            size="md"
-            disabled={searchAlertBusy}
-            onClick={toggleSearchAlert}
-          />
-        </div>
-        {hashtagStoryTag ? (
-          <Link
-            href={`/hashtag/${encodeURIComponent(hashtagStoryTag)}/stories`}
-            className="mt-2 block rounded-xl bg-muted px-3 py-2 text-center text-xs font-semibold text-foreground"
-          >
-            مشاهده استوری‌های #{hashtagStoryTag}
-          </Link>
-        ) : null}
-        {filters.cityId ? (
-          <Link
-            href={`/location/${filters.cityId}/stories`}
-            className="mt-2 block rounded-xl bg-muted px-3 py-2 text-center text-xs font-semibold text-foreground"
-          >
-            مشاهده استوری‌های این شهر
-          </Link>
-        ) : null}
-        {(storySearch?.length ?? 0) > 0 ? (
-          <div className="mt-3 rounded-xl border border-border bg-surface p-3">
-            <StoryDiscoverRings
-              groups={storySearch ?? []}
-              title="استوری‌های مرتبط"
-              subtitle={`جستجو: ${debouncedQ}`}
-            />
-          </div>
-        ) : null}
-      </div>
+      <SearchExploreHeader
+        q={q}
+        debouncedQ={debouncedQ}
+        filters={displayFilters}
+        activeFilterCount={activeFilterCount}
+        matchingSearchAlert={!!matchingSearchAlert}
+        alertPending={alertPending}
+        hashtagStoryTag={hashtagStoryTag}
+        storySearch={storySearch}
+        onQueryChange={setQ}
+        onQuerySubmit={() => commitQuery(q)}
+        onFiltersChange={setFilters}
+        onOpenFilters={() => setOpenFilters(true)}
+        onToggleAlert={toggleSearchAlert}
+      />
 
-      {isLoading && !data ? (
-        // FIXED: Tile-shaped skeletons matching the 2px grid
-        <div className="grid grid-cols-3 gap-[2px]">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-none bg-neutral-800" shimmer />
-          ))}
-        </div>
-      ) : isError ? (
-        <ErrorState onRetry={() => void refetch()} />
-      ) : posts.length === 0 && !hasSearchExtras ? (
-        <EmptyState
-          icon={
-            debouncedQ ? (
-              <IgSearch className="size-10" strokeWidth={1.5} aria-hidden />
-            ) : (
-              <IgGrid className="size-10" strokeWidth={1.5} aria-hidden />
-            )
-          }
-          title={debouncedQ ? 'نتیجه‌ای یافت نشد' : 'فعلاً آگهی‌ای نیست'}
-          description={
-            debouncedQ
-              ? 'با کلمات دیگری امتحان کنید یا فیلترها را تغییر دهید.'
-              : 'به‌زودی آگهی‌های تازه را اینجا می‌بینید.'
-          }
-          className="min-h-[calc(100svh-var(--header-height)-var(--bottom-nav)-var(--safe-bottom)-4.5rem)]"
-        />
-      ) : (
-        <>
-          {debouncedQ && searchUsers.length > 0 ? (
-            <section className="border-b border-border px-3 py-3">
-              <h2 className="mb-2 text-sm font-semibold">کاربران</h2>
-              <ul className="space-y-2">
-                {searchUsers.map((u) => (
-                  <li key={u.id}>
-                    <Link
-                      href={`/profile/${u.username ?? u.id}`}
-                      className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-muted"
-                    >
-                      <span className="font-medium">{u.name?.trim() || u.username}</span>
-                      {u.username && u.name?.trim() ? (
-                        <span className="text-xs text-muted-foreground">@{u.username}</span>
-                      ) : null}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {debouncedQ && searchCategories.length > 0 ? (
-            <section className="border-b border-border px-3 py-3">
-              <h2 className="mb-2 text-sm font-semibold">دسته‌بندی‌ها</h2>
-              <ul className="flex flex-wrap gap-2">
-                {searchCategories.map((c) => (
-                  <li key={c.id}>
-                    <Link
-                      href={`/explore?categoryId=${c.id}`}
-                      className="rounded-full bg-muted px-3 py-1 text-xs font-medium"
-                    >
-                      {c.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {posts.length > 0 ? (
-            <>
-              {debouncedQ ? (
-                <h2 className="border-b border-border px-3 py-2 text-sm font-semibold">آگهی‌ها</h2>
-              ) : null}
-              <div className="grid grid-cols-3 gap-[2px]">
-                {feedItems.map((item, i) =>
-                  item.type === 'ad' ? (
-                    <AdTile key={`ad-${item.data.id}-${i}`} ad={item.data} />
-                  ) : (
-                    <ExploreTile key={item.data.id} post={item.data} />
-                  ),
-                )}
-              </div>
-            </>
-          ) : null}
-          <div
-            ref={infiniteLoaderRef}
-            className="flex h-20 items-center justify-center px-4 text-sm text-muted-foreground"
-          >
-            {isFetchingNextPage ? (
-              <span className="inline-flex items-center gap-2">
-                <Spinner size="sm" /> در حال بارگذاری
-              </span>
-            ) : hasNextPage ? null : (
-              'به انتهای نتایج رسیدید'
-            )}
-          </div>
-        </>
-      )}
+      <SearchResults
+        debouncedQ={debouncedQ}
+        filters={filters}
+        posts={posts}
+        searchUsers={searchUsers}
+        searchCategories={searchCategories}
+        feedItems={feedItems}
+        isLoading={isLoading}
+        isError={isError}
+        hasData={!!data}
+        hasNextPage={!!hasNextPage}
+        isFetchingNextPage={isFetchingNextPage}
+        infiniteLoaderRef={infiniteLoaderRef}
+        onRetry={() => void refetch()}
+      />
 
       <SearchFiltersSheet
         open={openFilters}
         onOpenChange={setOpenFilters}
-        filters={filters}
+        filters={displayFilters}
         onApply={setFilters}
       />
     </div>
-  );
-}
-
-function ExploreTile({ post }: { post: PostSummary }) {
-  const media = getPostCoverMedia(post.media);
-  const isVideo = media?.type === 'video';
-  const thumbSrc = media ? pickThumbnailSrc(media) : null;
-  const videoSrc = media?.url ? (toServedMediaUrl(media.url) ?? media.url) : null;
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const hoverTimerRef = useRef<number | null>(null);
-  const [videoReady, setVideoReady] = useState(false);
-
-  const onMouseEnter = useCallback(() => {
-    if (!isVideo || !videoRef.current) return;
-    hoverTimerRef.current = window.setTimeout(() => {
-      const v = videoRef.current;
-      if (v && v.readyState >= 2) {
-        v.muted = true;
-        v.playsInline = true;
-        void v.play().catch(() => {});
-      }
-    }, 300);
-  }, [isVideo]);
-
-  const onMouseLeave = useCallback(() => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-    const v = videoRef.current;
-    if (v) {
-      v.pause();
-      v.currentTime = 0;
-    }
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    };
-  }, []);
-
-  return (
-    <PostLink
-      postId={post.id}
-      post={post}
-      aria-label={`${post.title}، ${formatPersianPrice(post.price)}`}
-      className="cv-tile group relative block aspect-square overflow-hidden bg-neutral-900 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
-      {media ? (
-        <>
-          {thumbSrc ? (
-            <Image
-              src={thumbSrc}
-              alt=""
-              fill
-              sizes="(max-width: 640px) 33vw, 200px"
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-              // When video loads, hide placeholder image so the <video> shows through
-              style={videoReady && isVideo ? { opacity: 0 } : undefined}
-            />
-          ) : null}
-
-          {/* Desktop hover video preview — autoplays muted after 300ms delay */}
-          {isVideo && videoSrc ? (
-            <video
-              ref={videoRef}
-              src={videoSrc}
-              muted
-              playsInline
-              preload="metadata"
-              className="absolute inset-0 size-full object-cover"
-              onCanPlay={() => setVideoReady(true)}
-              onLoadedMetadata={() => setVideoReady(true)}
-              style={{ pointerEvents: 'none' }}
-            />
-          ) : null}
-        </>
-      ) : (
-        <div className="grid size-full place-items-center bg-neutral-800 p-2 text-center text-xs text-muted-foreground">
-          بدون رسانه
-        </div>
-      )}
-
-      {/* FIXED: 18px video indicator (IG spec) */}
-      {isVideo ? (
-        <IgPlay
-          className="absolute start-[6px] top-[6px] size-[18px] text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]"
-          filled
-          strokeWidth={1.75}
-          aria-hidden
-        />
-      ) : null}
-      {post.media.length > 1 ? (
-        <span
-          aria-hidden
-          className="absolute end-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white"
-        >
-          <IgLayers className="size-3" strokeWidth={1.75} aria-hidden />
-          {formatPersianNumber(post.media.length)}
-        </span>
-      ) : null}
-      {post.viewCount > 0 ? (
-        <span className="absolute bottom-1.5 end-1.5 z-10 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100">
-          <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
-          {formatPersianCompact(post.viewCount)}
-        </span>
-      ) : null}
-
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2 pt-6 opacity-100 transition-opacity duration-200 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-        <p className="line-clamp-1 text-[12px] font-bold text-white drop-shadow">{post.title}</p>
-        <p className="truncate text-[11px] text-white/95 drop-shadow">
-          {formatPersianPrice(post.price)}
-        </p>
-      </div>
-    </PostLink>
   );
 }

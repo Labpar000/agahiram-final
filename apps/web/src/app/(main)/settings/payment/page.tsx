@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { formatPersianNumber } from '@agahiram/shared';
 import {
   Button,
@@ -18,12 +19,15 @@ import { SettingsSection } from '@/features/settings/components/settings-section
 import { useWallet } from '@/features/settings/hooks/useWallet';
 
 const WALLET_ENABLED = process.env.NEXT_PUBLIC_WALLET_ENABLED === 'true';
+const PAYMENT_RETURN_KEY = 'paymentReturnUrl';
 
 function formatAmount(value: string): string {
   return formatPersianNumber(Number(value));
 }
 
-export default function PaymentSettingsPage() {
+function PaymentSettingsInner() {
+  const searchParams = useSearchParams();
+  const returnUrl = searchParams.get('next');
   const { walletQuery, historyQuery, payoutsQuery, topUp, createPayout } = useWallet();
   const [topUpAmount, setTopUpAmount] = useState('50000');
   const [payoutAmount, setPayoutAmount] = useState('');
@@ -49,6 +53,9 @@ export default function PaymentSettingsPage() {
     if (!amount || amount < 10000) {
       toast.error('حداقل مبلغ شارژ ۱۰٬۰۰۰ تومان است');
       return;
+    }
+    if (returnUrl) {
+      sessionStorage.setItem(PAYMENT_RETURN_KEY, returnUrl);
     }
     topUp.mutate(amount, { onError: (e) => toast.error((e as Error).message) });
   };
@@ -226,5 +233,22 @@ export default function PaymentSettingsPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+export default function PaymentSettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="bg-background min-h-svh pb-8">
+          <SettingsHeader title="کیف پول و پرداخت" />
+          <div className="mx-auto max-w-2xl p-4 grid place-items-center py-12">
+            <Spinner />
+          </div>
+        </div>
+      }
+    >
+      <PaymentSettingsInner />
+    </Suspense>
   );
 }

@@ -23,6 +23,51 @@ test.describe('mobile layout tokens', () => {
     expect(vars.vvHeight).toBeTruthy();
   });
 
+  test('keyboard-aware layout tokens are defined on root', async ({ page }) => {
+    await page.goto('/feed');
+    const vars = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        bottomChrome: style.getPropertyValue('--bottom-chrome').trim(),
+        inputBarBottom: style.getPropertyValue('--input-bar-bottom').trim(),
+        keyboardInset: style.getPropertyValue('--keyboard-inset').trim(),
+        drawerInputBottom: style.getPropertyValue('--drawer-input-bottom').trim(),
+      };
+    });
+
+    expect(vars.bottomChrome).toBeTruthy();
+    expect(vars.inputBarBottom).toBeTruthy();
+    expect(vars.keyboardInset).toBe('0px');
+    expect(vars.drawerInputBottom).toBeTruthy();
+  });
+
+  test('simulated keyboard sets data-keyboard-open and keyboard inset', async ({ page }) => {
+    await page.goto('/feed');
+    await page.evaluate(() => {
+      document.documentElement.style.setProperty('--keyboard-inset', '280px');
+      document.documentElement.dataset.keyboardOpen = 'true';
+    });
+
+    const state = await page.evaluate(() => ({
+      keyboardOpen: document.documentElement.dataset.keyboardOpen,
+      inset: getComputedStyle(document.documentElement).getPropertyValue('--keyboard-inset').trim(),
+    }));
+
+    expect(state.keyboardOpen).toBe('true');
+    expect(state.inset).toBe('280px');
+  });
+
+  test('bottom nav is hidden while keyboard is open', async ({ page }) => {
+    await page.goto('/feed');
+    await page.evaluate(() => {
+      document.documentElement.dataset.keyboardOpen = 'true';
+    });
+
+    const nav = page.locator('nav[aria-label="ناوبری اصلی"]');
+    const visibility = await nav.evaluate((el) => getComputedStyle(el).visibility);
+    expect(visibility).toBe('hidden');
+  });
+
   test('bottom nav stacks above page content', async ({ page }) => {
     await page.goto('/feed');
     const nav = page.locator('nav[aria-label="ناوبری اصلی"]');

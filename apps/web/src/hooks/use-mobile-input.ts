@@ -12,7 +12,7 @@ function isFocusableInput(el: EventTarget | null): el is HTMLElement {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 }
 
-function findScrollParent(el: HTMLElement, boundary: HTMLElement): HTMLElement | null {
+function findScrollParent(el: HTMLElement, boundary: HTMLElement | null): HTMLElement | null {
   let node: HTMLElement | null = el.parentElement;
   while (node && node !== boundary) {
     const { overflowY } = getComputedStyle(node);
@@ -24,22 +24,62 @@ function findScrollParent(el: HTMLElement, boundary: HTMLElement): HTMLElement |
   return null;
 }
 
-function scrollInputIntoView(target: HTMLElement, boundary: HTMLElement) {
-  const scrollParent = findScrollParent(target, boundary);
-  target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+export function computeVisibleBottomFromMetrics({
+  visualViewport,
+  innerHeight,
+  keyboardInset,
+  keyboardOpen,
+  bottomNav,
+  safeBottom,
+}: {
+  visualViewport?: Pick<VisualViewport, 'height' | 'offsetTop'> | null;
+  innerHeight: number;
+  keyboardInset: number;
+  keyboardOpen: boolean;
+  bottomNav: number;
+  safeBottom: number;
+}): number {
+  if (visualViewport) {
+    return visualViewport.offsetTop + visualViewport.height;
+  }
 
+  const chromeBottom = keyboardOpen ? safeBottom : bottomNav + safeBottom;
+  return innerHeight - keyboardInset - chromeBottom;
+}
+
+export function computeInputScrollOverflow(rectBottom: number, visibleBottom: number): number {
+  return rectBottom - visibleBottom + 8;
+}
+
+function getVisibleBottom(): number {
   const root = document.documentElement;
   const keyboardInset = parseFloat(
     getComputedStyle(root).getPropertyValue('--keyboard-inset') || '0',
   );
-  if (keyboardInset <= 0) return;
-
-  const rect = target.getBoundingClientRect();
   const bottomNav = parseFloat(getComputedStyle(root).getPropertyValue('--bottom-nav') || '0');
   const safeBottom = parseFloat(getComputedStyle(root).getPropertyValue('--safe-bottom') || '0');
-  const chromeBottom = bottomNav + safeBottom;
-  const visibleBottom = window.innerHeight - keyboardInset - chromeBottom;
-  const overflow = rect.bottom - visibleBottom + 8;
+
+  return computeVisibleBottomFromMetrics({
+    visualViewport: window.visualViewport ?? null,
+    innerHeight: window.innerHeight,
+    keyboardInset,
+    keyboardOpen: root.dataset.keyboardOpen === 'true',
+    bottomNav,
+    safeBottom,
+  });
+}
+
+/** Scroll a focused input above the virtual keyboard and bottom chrome. */
+export function scrollFocusedInputIntoView(
+  target: HTMLElement,
+  boundary: HTMLElement | null = null,
+) {
+  const scrollParent = findScrollParent(target, boundary ?? document.body);
+  target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const rect = target.getBoundingClientRect();
+  const visibleBottom = getVisibleBottom();
+  const overflow = computeInputScrollOverflow(rect.bottom, visibleBottom);
 
   if (overflow <= 0) return;
 
@@ -68,13 +108,127 @@ export function useMobileInputScroll(
     const container = containerRef.current;
     if (!container) return;
 
+    let activeTarget: HTMLElement | null = null;
+    let vvCleanup: (() => void) | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scrollActive = () => {
+      if (!activeTarget) return;
+      scrollFocusedInputIntoView(activeTarget, container);
+    };
+
+    const detachVvListener = () => {
+      vvCleanup?.();
+      vvCleanup = null;
+    };
+
+    const attachVvListener = () => {
+      detachVvListener();
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const onResize = () => scrollActive();
+      vv.addEventListener('resize', onResize);
+      vv.addEventListener('scroll', onResize);
+      vvCleanup = () => {
+        vv.removeEventListener('resize', onResize);
+        vv.removeEventListener('scroll', onResize);
+      };
+    };
+
     const handleFocus = (e: FocusEvent) => {
       const target = e.target;
       if (!isFocusableInput(target)) return;
-      setTimeout(() => scrollInputIntoView(target, container), 200);
+
+      activeTarget = target;
+      attachVvListener();
+      requestAnimationFrame(scrollActive);
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = setTimeout(scrollActive, 300);
+    };
+
+    const handleBlur = () => {
+      activeTarget = null;
+      detachVvListener();
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
     };
 
     container.addEventListener('focusin', handleFocus);
-    return () => container.removeEventListener('focusin', handleFocus);
+    container.addEventListener('focusout', handleBlur);
+
+    return () => {
+      container.removeEventListener('focusin', handleFocus);
+      container.removeEventListener('focusout', handleBlur);
+      detachVvListener();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [containerRef, enabled]);
+}
+
+/** Global scroll-into-view for all inputs — mount once at app root. */
+export function useGlobalMobileInputScroll(options: UseMobileInputScrollOptions = {}) {
+  const { enabled = true } = options;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let activeTarget: HTMLElement | null = null;
+    let vvCleanup: (() => void) | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scrollActive = () => {
+      if (!activeTarget) return;
+      scrollFocusedInputIntoView(activeTarget, null);
+    };
+
+    const detachVvListener = () => {
+      vvCleanup?.();
+      vvCleanup = null;
+    };
+
+    const attachVvListener = () => {
+      detachVvListener();
+      const vv = window.visualViewport;
+      if (!vv) return;
+      const onResize = () => scrollActive();
+      vv.addEventListener('resize', onResize);
+      vv.addEventListener('scroll', onResize);
+      vvCleanup = () => {
+        vv.removeEventListener('resize', onResize);
+        vv.removeEventListener('scroll', onResize);
+      };
+    };
+
+    const handleFocus = (e: FocusEvent) => {
+      const target = e.target;
+      if (!isFocusableInput(target)) return;
+
+      activeTarget = target;
+      attachVvListener();
+      requestAnimationFrame(scrollActive);
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = setTimeout(scrollActive, 300);
+    };
+
+    const handleBlur = () => {
+      activeTarget = null;
+      detachVvListener();
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+    };
+
+    document.addEventListener('focusin', handleFocus);
+    document.addEventListener('focusout', handleBlur);
+
+    return () => {
+      document.removeEventListener('focusin', handleFocus);
+      document.removeEventListener('focusout', handleBlur);
+      detachVvListener();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [enabled]);
 }

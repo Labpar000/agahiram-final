@@ -347,7 +347,7 @@ function StoryViewerContent({ params }: { params: Promise<{ userId: string }> })
           </AnimatePresence>
 
           {/* Footer overlay */}
-          <div className="absolute inset-x-0 bottom-0 z-[var(--z-chrome)]">
+          <div className="absolute inset-x-0 z-[var(--z-chrome)] bottom-[calc(var(--keyboard-inset)+var(--safe-bottom))]">
             {isOwner ? (
               <OwnerFooter
                 viewersCount={activeStory?.viewerCount ?? 0}

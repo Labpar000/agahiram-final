@@ -82,7 +82,7 @@ export function FeedPostVideo({
         ref={videoRef}
         fit="cover"
         poster={poster}
-        preload="auto"
+        preload={active && inView ? 'metadata' : 'none'}
         className={className}
         onClick={onTap}
       />

@@ -8,6 +8,7 @@ import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { SOCKET_EVENTS, type JwtPayload } from '@agahiram/shared';
+import { extractSocketToken } from '../common/socket-auth';
 import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
@@ -28,12 +29,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
 
   async handleConnection(client: Socket) {
     try {
-      const token =
-        (client.handshake.auth?.token as string) ??
-        (client.handshake.headers.cookie as string | undefined)
-          ?.split(';')
-          .find((c) => c.trim().startsWith('accessToken='))
-          ?.split('=')[1];
+      const token = extractSocketToken(client);
 
       if (!token) {
         client.disconnect();

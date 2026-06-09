@@ -109,6 +109,35 @@ export class ShopsService {
     return shop;
   }
 
+  async deleteShop(userId: string, shopId: string) {
+    const shop = await this.prisma.shop.findUnique({
+      where: { id: shopId },
+      select: { id: true, userId: true, logo: true, coverImage: true },
+    });
+    if (!shop) throw new NotFoundException('فروشگاه یافت نشد');
+    if (shop.userId !== userId) throw new ForbiddenException('دسترسی مجاز نیست');
+
+    await this.prisma.$transaction([
+      this.prisma.shop.delete({ where: { id: shopId } }),
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { isBusiness: false, businessExpiresAt: null },
+      }),
+    ]);
+
+    for (const url of [shop.logo, shop.coverImage]) {
+      const key = this.minio.getKeyFromUrl(url);
+      if (!key) continue;
+      try {
+        await this.minio.deleteObject(key);
+      } catch {
+        // best-effort media cleanup
+      }
+    }
+
+    return { deleted: true };
+  }
+
   async updateShop(userId: string, slug: string, dto: UpdateShopInput) {
     const shop = await this.prisma.shop.findUnique({ where: { slug } });
     if (!shop) throw new NotFoundException('فروشگاه یافت نشد');
@@ -157,7 +186,14 @@ export class ShopsService {
           viewCount: true,
           createdAt: true,
           media: {
-            select: { id: true, url: true, thumbnailUrl: true, type: true, order: true },
+            select: {
+              id: true,
+              url: true,
+              thumbnailUrl: true,
+              hlsUrl: true,
+              type: true,
+              order: true,
+            },
             orderBy: { order: 'asc' },
             take: 1,
           },
@@ -174,6 +210,7 @@ export class ShopsService {
           ...m,
           url: this.minio.toServedUrl(m.url) ?? m.url,
           thumbnailUrl: this.minio.toServedUrl(m.thumbnailUrl),
+          hlsUrl: this.minio.toServedUrl(m.hlsUrl),
         })),
       })),
       total,

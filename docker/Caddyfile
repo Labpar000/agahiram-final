@@ -36,15 +36,17 @@ www.{$DOMAIN:agahiram.ir} {
         uri strip_prefix /livekit
         reverse_proxy livekit:7880 {
             header_up Host {host}
+            header_up Connection {>Connection}
+            header_up Upgrade {>Upgrade}
             transport http {
                 versions 1.1
             }
         }
     }
 
-    # MinIO (browser presigned uploads). Uses /storage on the apex domain so
-    # uploads work even when s3.<DOMAIN> has no DNS record yet.
+    # MinIO public reads — long cache, direct to object storage (no API hop).
     handle_path /storage/* {
+        header Cache-Control "public, max-age=31536000, immutable"
         request_body {
             max_size 250MB
         }

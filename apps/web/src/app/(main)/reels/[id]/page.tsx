@@ -1,10 +1,11 @@
 'use client';
 
-import { use, useEffect } from 'react';
+import { use, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { InfiniteData } from '@tanstack/react-query';
 import type { PostSummary } from '@agahiram/shared';
+import { listPostVideos } from '@agahiram/shared';
 import { LoadingState } from '@agahiram/ui';
 import { ReelsViewer } from '@/components/reels-viewer';
 import { apiClient, assertSuccess } from '@/lib/api';
@@ -12,7 +13,7 @@ import { profileTabQueryKey } from '@/lib/query-cache-profile';
 import { findPostInClientCache } from '@/lib/query-cache-posts';
 import { buildPostPathFromSummary } from '@/lib/post-url';
 import { fetchReelsPage, fetchUserReelsPage } from '@/lib/query-definitions';
-import { toReelItem } from '@/lib/reel-url';
+import { expandPostToReelItems, isReelPost } from '@/lib/reel-url';
 
 type ReelsPage = Awaited<ReturnType<typeof fetchReelsPage>>;
 
@@ -20,6 +21,7 @@ export default function ReelDeepLinkPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const searchParams = useSearchParams();
   const username = searchParams.get('user')?.trim() || undefined;
+  const mediaId = searchParams.get('media')?.trim() || undefined;
   const router = useRouter();
   const qc = useQueryClient();
 
@@ -31,17 +33,27 @@ export default function ReelDeepLinkPage({ params }: { params: Promise<{ id: str
     initialData: cached,
   });
 
+  const videos = useMemo(() => (post ? listPostVideos(post) : []), [post]);
+  const hasReels = isReelPost(post) || videos.length > 0;
+
   useEffect(() => {
-    if (!post || post.type === 'reel') return;
+    if (!post || hasReels) return;
     const href = post.category?.slug != null ? buildPostPathFromSummary(post) : `/post/${post.id}`;
     router.replace(href);
-  }, [post, router]);
+  }, [post, hasReels, router]);
 
   const profileCache = username
     ? qc.getQueryData<InfiniteData<ReelsPage>>(profileTabQueryKey(username, 'reels'))
     : undefined;
 
-  const seedReel = post?.type === 'reel' ? toReelItem(post) : null;
+  const seedReel = useMemo(() => {
+    if (!post || !hasReels) return null;
+    const items = expandPostToReelItems(post);
+    if (mediaId) {
+      return items.find((item) => item.mediaId === mediaId) ?? items[0] ?? null;
+    }
+    return items[0] ?? null;
+  }, [post, hasReels, mediaId]);
 
   if (isLoading && !post) {
     return (
@@ -51,7 +63,7 @@ export default function ReelDeepLinkPage({ params }: { params: Promise<{ id: str
     );
   }
 
-  if (post && post.type !== 'reel') {
+  if (post && !hasReels) {
     return null;
   }
 
@@ -63,6 +75,7 @@ export default function ReelDeepLinkPage({ params }: { params: Promise<{ id: str
       }
       playbackActive
       startReelId={id}
+      startMediaId={mediaId}
       seedReel={seedReel}
       initialData={username ? profileCache : undefined}
     />

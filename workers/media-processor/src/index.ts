@@ -3,10 +3,6 @@ import IORedis from 'ioredis';
 import { BULL_QUEUES } from '@agahiram/shared';
 import { processImageJob } from './processors/image.processor';
 import { processVideoJob } from './processors/video.processor';
-import {
-  processSearchIndexJob,
-  processSearchIndexStoryJob,
-} from './processors/search-index.processor';
 import { processNotificationJob } from './processors/notification.processor';
 import { processStoryCleanupJob } from './processors/story-cleanup.processor';
 import { processStoryMediaJob } from './processors/story-media.processor';
@@ -27,26 +23,6 @@ new Worker(
     if (job.name === 'story-media') return processStoryMediaJob(job.data);
   },
   { connection, concurrency: 2 },
-);
-
-new Worker(
-  BULL_QUEUES.SEARCH_INDEX,
-  async (job) => {
-    console.log(`[search] ${job.name} - ${job.id}`);
-    if (job.name === 'index-story') return processSearchIndexStoryJob(job.data);
-    if (job.name === 'remove') {
-      if (job.data.storyId) {
-        return processSearchIndexStoryJob({ storyId: job.data.storyId, remove: true });
-      }
-      if (job.data.postId) {
-        return processSearchIndexJob({ postId: job.data.postId, remove: true });
-      }
-      return;
-    }
-    if (job.name === 'index') return processSearchIndexJob(job.data);
-    return processSearchIndexJob(job.data);
-  },
-  { connection, concurrency: 5 },
 );
 
 new Worker(

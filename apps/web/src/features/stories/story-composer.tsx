@@ -267,7 +267,7 @@ export function StoryComposer({
           <DrawerHeader>
             <DrawerTitle>افزودن استیکر</DrawerTitle>
           </DrawerHeader>
-          <DrawerBody className="pb-5">
+          <DrawerBody className="pb-[var(--drawer-input-bottom)]">
             <StoryStickerEditorPanel onAdd={(s) => setStickers((prev) => [...prev, s])} />
           </DrawerBody>
         </DrawerContent>
@@ -278,7 +278,7 @@ export function StoryComposer({
           <DrawerHeader>
             <DrawerTitle>تنظیمات پیشرفته</DrawerTitle>
           </DrawerHeader>
-          <DrawerBody className="space-y-3 pb-5 text-xs">
+          <DrawerBody className="space-y-3 pb-[var(--drawer-input-bottom)] text-xs">
             <div className="flex flex-wrap gap-2">
               <select
                 className="rounded-lg border border-border bg-background px-2 py-1"

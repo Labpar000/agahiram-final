@@ -36,14 +36,7 @@ export function CommentComposerBar({
   inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
 }) {
   return (
-    <form
-      onSubmit={onSubmit}
-      className={cn(
-        'bg-surface/95 p-3 backdrop-blur-md',
-        variant === 'drawer' ? 'pb-[max(0.75rem,var(--safe-bottom))]' : undefined,
-        className,
-      )}
-    >
+    <form onSubmit={onSubmit} className={cn('bg-surface/95 p-3 backdrop-blur-md', className)}>
       <div className="flex items-center gap-2">
         <input
           ref={inputRef}
@@ -73,17 +66,12 @@ export function CommentComposerBar({
 }
 
 export function CommentLoginPrompt({
-  variant = 'drawer',
+  variant: _variant = 'drawer',
 }: {
   variant?: CommentComposerBarVariant;
 }) {
   return (
-    <div
-      className={cn(
-        'bg-surface/95 p-4 text-center text-sm text-muted-foreground',
-        variant === 'drawer' && 'pb-[max(0.75rem,var(--safe-bottom))]',
-      )}
-    >
+    <div className={cn('bg-surface/95 p-4 text-center text-sm text-muted-foreground')}>
       برای ارسال نظر{' '}
       <a href="/login" className="font-semibold text-ig-link hover:underline">
         وارد شوید

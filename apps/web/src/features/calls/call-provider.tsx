@@ -71,18 +71,33 @@ type ConnectedPayload = {
 
 type MissedPayload = { callId: string; silent?: boolean };
 
+type SerializedCall = {
+  id: string;
+  conversationId: string;
+  initiatorId: string;
+  calleeId: string;
+  status: string;
+  type: string;
+  initiator?: CallPeer;
+  callee?: CallPeer;
+};
+
 async function requestCallMedia(): Promise<boolean> {
+  let stream: MediaStream | null = null;
   try {
-    await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     return true;
   } catch {
     toast.error('دسترسی به دوربین و میکروفون لازم است');
     return false;
+  } finally {
+    stream?.getTracks().forEach((t) => t.stop());
   }
 }
 
 export function CallProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const userId = useAuthStore((s) => s.user?.id);
   const [phase, setPhase] = useState<CallPhase>('idle');
   const [callId, setCallId] = useState<string | null>(null);
   const [_conversationId, setConversationId] = useState<string | null>(null);
@@ -94,6 +109,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   phaseRef.current = phase;
   const callRoleRef = useRef(callRole);
   callRoleRef.current = callRole;
+  const recoveryDoneRef = useRef(false);
 
   const reset = useCallback(() => {
     stopRingtone();
@@ -149,6 +165,47 @@ export function CallProvider({ children }: { children: ReactNode }) {
     reset();
   }, [callId, reset]);
 
+  const restoreActiveCall = useCallback(
+    async (call: SerializedCall) => {
+      if (phaseRef.current !== 'idle' || !userId) return;
+
+      const isInitiator = call.initiatorId === userId;
+      const isCallee = call.calleeId === userId;
+      if (!isInitiator && !isCallee) return;
+
+      const other = isInitiator ? call.callee : call.initiator;
+      if (!other) return;
+
+      setCallId(call.id);
+      setConversationId(call.conversationId);
+      setPeer(other);
+      setCallRole(isInitiator ? 'initiator' : 'callee');
+
+      if (call.status === 'ringing') {
+        if (isCallee) {
+          setPhase('incoming');
+          startRingtone();
+        } else {
+          setPhase('outgoing');
+          startRingtone();
+        }
+        return;
+      }
+
+      if (call.status === 'active') {
+        const tokenRes = await apiClient.post<{ token: string; livekitUrl: string }>(
+          `/calls/${call.id}/refresh-token`,
+          {},
+        );
+        if (!tokenRes.success || !tokenRes.data) return;
+        setToken(tokenRes.data.token);
+        setLivekitUrl(tokenRes.data.livekitUrl);
+        setPhase('active');
+      }
+    },
+    [userId],
+  );
+
   const startOutgoingCall = useCallback(async (convId: string, other: CallPeer) => {
     if (phaseRef.current !== 'idle') return;
     const ok = await requestCallMedia();
@@ -181,6 +238,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthenticated) {
       disconnectCallSocket();
+      recoveryDoneRef.current = false;
       reset();
       return;
     }
@@ -230,7 +288,18 @@ export function CallProvider({ children }: { children: ReactNode }) {
     socket.on(CALL_EVENTS.CANCEL, onCancel);
     socket.on(CALL_EVENTS.BUSY, onBusy);
 
+    const onSocketConnect = () => {
+      if (phaseRef.current !== 'idle') return;
+      void (async () => {
+        const r = await apiClient.get<{ call: SerializedCall | null }>('/calls/active');
+        if (!r.success || !r.data?.call) return;
+        await restoreActiveCall(r.data.call);
+      })();
+    };
+    socket.on('connect', onSocketConnect);
+
     return () => {
+      socket.off('connect', onSocketConnect);
       socket.off(CALL_EVENTS.INVITE, onInvite);
       socket.off(CALL_EVENTS.CONNECTED, onConnected);
       socket.off(CALL_EVENTS.END, onEnd);
@@ -239,7 +308,37 @@ export function CallProvider({ children }: { children: ReactNode }) {
       socket.off(CALL_EVENTS.CANCEL, onCancel);
       socket.off(CALL_EVENTS.BUSY, onBusy);
     };
-  }, [isAuthenticated, reset]);
+  }, [isAuthenticated, reset, restoreActiveCall]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId || recoveryDoneRef.current) return;
+    recoveryDoneRef.current = true;
+
+    void (async () => {
+      const r = await apiClient.get<{ call: SerializedCall | null }>('/calls/active');
+      if (!r.success || !r.data?.call) return;
+      await restoreActiveCall(r.data.call);
+    })();
+  }, [isAuthenticated, userId, restoreActiveCall]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return;
+
+    const tryRestoreFromUrl = () => {
+      if (phaseRef.current !== 'idle') return;
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('restoreCall') !== '1') return;
+      void (async () => {
+        const r = await apiClient.get<{ call: SerializedCall | null }>('/calls/active');
+        if (!r.success || !r.data?.call) return;
+        await restoreActiveCall(r.data.call);
+      })();
+    };
+
+    tryRestoreFromUrl();
+    window.addEventListener('focus', tryRestoreFromUrl);
+    return () => window.removeEventListener('focus', tryRestoreFromUrl);
+  }, [isAuthenticated, userId, restoreActiveCall]);
 
   const value = useMemo(
     () => ({
@@ -265,8 +364,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
       {phase === 'outgoing' && peer ? (
         <OutgoingCallScreen peer={peer} onCancel={() => void cancelOutgoing()} />
       ) : null}
-      {phase === 'active' && peer && token && livekitUrl ? (
+      {phase === 'active' && peer && token && livekitUrl && callId ? (
         <ActiveCallView
+          callId={callId}
           token={token}
           livekitUrl={livekitUrl}
           peer={peer}

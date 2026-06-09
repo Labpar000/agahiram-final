@@ -24,6 +24,8 @@ export function PostDetailSwipe({ postId, children }: { postId: string; children
   );
 
   const onTouchStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('.post-media-carousel')) return;
     const t = e.touches[0];
     if (!t) return;
     startRef.current = { x: t.clientX, y: t.clientY, t: Date.now() };

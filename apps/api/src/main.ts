@@ -36,6 +36,13 @@ async function bootstrap() {
   );
 
   const fastify = app.getHttpAdapter().getInstance();
+  fastify.addContentTypeParser(
+    'application/webhook+json',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      done(null, body);
+    },
+  );
   for (const contentType of UPLOAD_CONTENT_TYPES) {
     fastify.addContentTypeParser(
       contentType,

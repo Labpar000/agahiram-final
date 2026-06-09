@@ -61,6 +61,12 @@ export enum PriceType {
   CALL_FOR_PRICE = 'callForPrice',
 }
 
+export enum ContactPreference {
+  BOTH = 'BOTH',
+  CALL_ONLY = 'CALL_ONLY',
+  MESSAGE_ONLY = 'MESSAGE_ONLY',
+}
+
 export enum MediaType {
   IMAGE = 'image',
   VIDEO = 'video',
@@ -206,7 +212,7 @@ export interface PostSummary {
     name: string;
     slug?: string;
   } | null;
-  contactPreference?: 'BOTH' | 'CALL_ONLY' | 'MESSAGE_ONLY';
+  contactPreference?: ContactPreference;
   media: Array<{
     id: string;
     url: string;
@@ -217,6 +223,7 @@ export interface PostSummary {
     width?: number | null;
     height?: number | null;
     hlsUrl?: string | null;
+    duration?: number | null;
   }>;
 }
 
@@ -255,7 +262,7 @@ export interface SearchFilters {
   onlyPromoted?: boolean;
   lat?: number;
   lng?: number;
-  sortBy?: 'newest' | 'cheapest' | 'nearest' | 'mostViewed' | 'relevance';
+  sortBy?: 'newest' | 'cheapest' | 'mostExpensive' | 'nearest' | 'mostViewed' | 'relevance';
   attributes?: Record<string, string>;
   cursor?: string;
   limit?: number;
@@ -263,7 +270,7 @@ export interface SearchFilters {
 
 export interface SearchSuggestionItem {
   text: string;
-  kind?: 'post' | 'user' | 'category';
+  kind?: 'post' | 'user' | 'category' | 'city';
   postId?: string;
   userId?: string;
   username?: string | null;
@@ -333,6 +340,9 @@ export interface HighlightGroup {
 export interface ReelItem extends PostSummary {
   hlsUrl: string | null;
   duration: number | null;
+  /** Unique feed id for this video clip (`postId:mediaId`). */
+  reelKey: string;
+  mediaId: string;
 }
 
 export interface AdminStats {

@@ -108,12 +108,24 @@ self.addEventListener(
     try {
       const payload = event.data.json();
       const title = String(payload.title ?? 'آگهی‌رام');
+      const notifType = String(payload.type ?? '');
+      const tag =
+        notifType === 'incomingCall' && payload.callId
+          ? `incoming-call-${payload.callId}`
+          : String(payload.tag ?? 'agahiram-notification');
       const options: NotificationOptions = {
         body: String(payload.body ?? ''),
         icon: '/icons/icon-192.png',
         badge: '/icons/icon-72.png',
-        tag: String(payload.tag ?? 'agahiram-notification'),
-        data: (payload.data ?? {}) as Record<string, unknown>,
+        tag,
+        data: {
+          url: payload.url,
+          type: payload.type,
+          conversationId: payload.conversationId,
+          callId: payload.callId,
+          postId: payload.postId,
+          ...((payload.data ?? {}) as Record<string, unknown>),
+        } as Record<string, unknown>,
         // @ts-expect-error — vibrate is an extended NotificationOptions feature
         vibrate: [200, 100, 200],
         renotify: true,
@@ -139,10 +151,15 @@ self.addEventListener(
     },
   ) => {
     event.notification.close();
-    const data = event.notification.data;
-    let url = '/feed';
-    if (data?.postId) url = `/post/${data.postId}`;
-    if (data?.conversationId) url = `/messages/${data.conversationId}`;
+    const data = event.notification.data as Record<string, unknown> | undefined;
+    let url = typeof data?.url === 'string' && data.url ? data.url : '/feed';
+    if (!data?.url) {
+      if (data?.postId) url = `/post/${String(data.postId)}`;
+      if (data?.conversationId) url = `/messages/${String(data.conversationId)}`;
+    }
+    if (data?.type === 'incomingCall' && data.conversationId) {
+      url = `/messages/${String(data.conversationId)}?restoreCall=1`;
+    }
 
     event.waitUntil(
       self.clients.matchAll({ type: 'window' }).then(
@@ -214,9 +231,24 @@ registerRoute(
   'GET',
 );
 
-// Images — CacheFirst
+// Public media — CacheFirst (direct /storage/ or API proxy for legacy URLs)
 registerRoute(
-  /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp)$/i,
+  ({ url, request }) =>
+    request.method === 'GET' &&
+    (url.pathname.startsWith('/storage/') || url.pathname.includes('/media/object')),
+  new CacheFirst({
+    cacheName: 'media',
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 256, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+      { handlerDidError: offlineFallback },
+    ],
+  }),
+  'GET',
+);
+
+// Remote CDN images — CacheFirst
+registerRoute(
+  /^https:\/\/.*\.(png|jpg|jpeg|svg|gif|webp|avif)$/i,
   new CacheFirst({
     cacheName: 'images',
     plugins: [

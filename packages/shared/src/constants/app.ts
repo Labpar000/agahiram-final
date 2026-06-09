@@ -23,6 +23,8 @@ export const MAX_IMAGE_UPLOAD_BYTES = 15 * 1024 * 1024; // 15MB
 export const MAX_VIDEO_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
 export const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB ≈ 5min opus
 export const MAX_VOICE_DURATION_MS = 5 * 60 * 1000;
+/** How long after send a text DM can still be edited (Instagram-style). */
+export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const;
 export const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'] as const;
 export const ALLOWED_AUDIO_TYPES = [
@@ -49,6 +51,8 @@ export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 50;
 
 export const MEILI_INDEX_POSTS = 'posts';
+export const MEILI_INDEX_USERS = 'users';
+export const MEILI_INDEX_CATEGORIES = 'categories';
 
 export const MEDIA_FOLDERS = {
   POSTS: 'posts',
@@ -67,6 +71,8 @@ export const SOCKET_EVENTS = {
   DISCONNECT: 'disconnect',
   MESSAGE_SEND: 'message:send',
   MESSAGE_RECEIVE: 'message:receive',
+  MESSAGE_UPDATE: 'message:update',
+  MESSAGE_DELETE: 'message:delete',
   MESSAGE_READ: 'message:read',
   TYPING_START: 'typing:start',
   TYPING_STOP: 'typing:stop',
@@ -96,6 +102,7 @@ export const BULL_QUEUES = {
   MEDIA_PROCESSING: 'media-processing',
   NOTIFICATIONS: 'notifications',
   SEARCH_INDEX: 'search-index',
+  SEARCH_ALERT_MATCH: 'search-alert-match',
   STORY_CLEANUP: 'story-cleanup',
   STORY_SCHEDULED: 'story-scheduled',
   CALL_TIMEOUT: 'call-timeout',

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { Award, ShoppingBag } from 'lucide-react';
 import {
   keepPreviousData,
@@ -12,7 +11,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { cn, formatPersianNumber, getPostCoverMedia, pickThumbnailSrc } from '@agahiram/shared';
+import { cn, formatPersianNumber } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -24,6 +23,7 @@ import {
   IgBookmark,
   IgComment,
   IgGrid,
+  IgLink,
   IgMore,
   IgReels,
   IgSettings,
@@ -37,11 +37,11 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient, assertSuccess } from '@/lib/api';
+import { fetchUserReelsPage } from '@/lib/query-definitions';
 import { profileTabQueryKey } from '@/lib/query-cache-profile';
 import { karmaTier } from '@/lib/reputation';
-import { PostLink } from '@/components/post-link';
+import { ProfileGridTile } from '@/components/profile-grid-tile';
 import { useAuth } from '@/hooks/useAuth';
-import { AdStatusBadge } from '@/components/ad-status-badge';
 import { ProfileHighlights } from '@/components/profile-highlights';
 import { ReportDialog } from '@/components/report-dialog';
 import { ShopProfileCard } from '@/components/shop-profile-card';
@@ -73,6 +73,7 @@ export interface Profile {
   name: string | null;
   bio: string | null;
   avatar: string | null;
+  website: string | null;
   isVerified: boolean;
   isBusiness: boolean;
   isPrivate: boolean;
@@ -81,6 +82,10 @@ export interface Profile {
   followingCount: number;
   postsCount: number;
   isFollowing: boolean;
+}
+
+function formatWebsiteLabel(url: string): string {
+  return url.replace(/^https?:\/\//, '').replace(/\/$/, '');
 }
 
 interface UserReputation {
@@ -141,11 +146,11 @@ export function ProfileClient({ username }: { username: string }) {
   } = useInfiniteQuery({
     queryKey: profileTabQueryKey(username, tab),
     queryFn: async ({ pageParam }) => {
+      if (tab === 'reels') {
+        return fetchUserReelsPage(username, pageParam as string | undefined);
+      }
       let endpoint: string;
       switch (tab) {
-        case 'reels':
-          endpoint = `/posts/user/${username}/reels`;
-          break;
         case 'saved':
           endpoint = `/posts/user/${username}/saved`;
           break;
@@ -311,6 +316,19 @@ export function ProfileClient({ username }: { username: string }) {
             <p className="whitespace-pre-line text-sm leading-snug text-foreground/90">
               {profile.bio}
             </p>
+          ) : null}
+          {profile.website ? (
+            <a
+              href={profile.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex max-w-full items-center gap-1 text-sm font-semibold text-primary hover:underline"
+            >
+              <IgLink className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+              <span className="truncate" dir="ltr">
+                {formatWebsiteLabel(profile.website)}
+              </span>
+            </a>
           ) : null}
         </div>
 
@@ -584,34 +602,9 @@ function PostsGrid({
   }
   return (
     <div className="ig-grid-gap grid grid-cols-3">
-      {posts.map((p) => {
-        const cover = getPostCoverMedia(p.media);
-        const thumbSrc = cover ? pickThumbnailSrc(cover) : null;
-        return (
-          <PostLink
-            key={p.id}
-            postId={p.id}
-            post={p}
-            aria-label={p.title}
-            className="cv-tile relative aspect-square overflow-hidden bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-          >
-            {thumbSrc ? (
-              <Image
-                src={thumbSrc}
-                alt=""
-                fill
-                sizes="(max-width: 640px) 33vw, 200px"
-                className="object-cover"
-              />
-            ) : null}
-            {showStatus && tab === 'posts' ? (
-              <span className="absolute start-1 top-1 z-10">
-                <AdStatusBadge status={p.status} />
-              </span>
-            ) : null}
-          </PostLink>
-        );
-      })}
+      {posts.map((p) => (
+        <ProfileGridTile key={p.id} post={p} tab={tab} showStatus={showStatus} />
+      ))}
       {hasMore ? (
         <div className="col-span-3 flex justify-center py-3">
           <Button variant="outline" size="sm" isLoading={isFetchingMore} onClick={onLoadMore}>

@@ -130,6 +130,12 @@ export function useSavePost() {
         void endUserSession(qc);
       });
     },
+    onSuccess: (data, { postId, save }) => {
+      if (typeof data?.savesCount === 'number') {
+        patchPostInInfiniteQueries(qc, postId, { isSaved: save, savesCount: data.savesCount });
+        patchPostDetail(qc, postId, { isSaved: save, savesCount: data.savesCount });
+      }
+    },
     onSettled: (_data, _err, { postId }) => {
       if (me?.username) {
         void qc.invalidateQueries({

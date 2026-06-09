@@ -1,14 +1,24 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
   AdCampaignPauseReason,
+  AdCampaignStatus,
+  AdStatus,
   type AdAnalyticsQueryInput,
   type CreateAdInput,
   type CreateCampaignInput,
+  type CreateMyCampaignInput,
   type ReviewAdInput,
   type TargetingInput,
   type UpdateAdInput,
   type UpdateCampaignInput,
+  type UpdateMyAdInput,
+  type UpdateMyCampaignInput,
 } from '@agahiram/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -150,6 +160,238 @@ export class AdsService {
     });
 
     return this.serializeCampaign(updated);
+  }
+
+  /* ─────────────────────── Advertiser self-service ─────────────────────── */
+
+  private async assertCampaignOwner(userId: string, campaignId: string) {
+    const campaign = await this.prisma.adCampaign.findUnique({
+      where: { id: campaignId },
+      select: { advertiserId: true },
+    });
+    if (!campaign) throw new NotFoundException('کمپین تبلیغاتی یافت نشد');
+    if (campaign.advertiserId !== userId) {
+      throw new ForbiddenException('دسترسی به این کمپین مجاز نیست');
+    }
+    return campaign;
+  }
+
+  private async assertAdOwner(userId: string, adId: string) {
+    const ad = await this.prisma.ad.findUnique({
+      where: { id: adId },
+      include: { campaign: { select: { advertiserId: true } } },
+    });
+    if (!ad) throw new NotFoundException('تبلیغ یافت نشد');
+    if (ad.campaign.advertiserId !== userId) {
+      throw new ForbiddenException('دسترسی به این تبلیغ مجاز نیست');
+    }
+    return ad;
+  }
+
+  private async assertWalletForActivation(campaignId: string) {
+    const campaign = await this.prisma.adCampaign.findUnique({
+      where: { id: campaignId },
+      include: {
+        advertiser: { select: { walletBalance: true } },
+        ads: { where: { status: 'APPROVED' as never }, select: { id: true }, take: 1 },
+      },
+    });
+    if (!campaign) throw new NotFoundException('کمپین تبلیغاتی یافت نشد');
+
+    const minCost = campaign.bidType === 'CPM' ? campaign.bidAmount / 1000n : campaign.bidAmount;
+    if (minCost <= 0n || campaign.advertiser.walletBalance < minCost) {
+      throw new BadRequestException(
+        'موجودی کیف پول برای فعال‌سازی کمپین کافی نیست. لطفاً کیف پول را شارژ کنید.',
+      );
+    }
+
+    if (campaign.ads.length === 0) {
+      throw new BadRequestException(
+        'حداقل یک تبلیغ تأییدشده لازم است. ابتدا تبلیغ بسازید و منتظر تأیید بمانید.',
+      );
+    }
+  }
+
+  private async assertBudgetIncrease(campaignId: string, newBudget: number) {
+    const campaign = await this.prisma.adCampaign.findUnique({
+      where: { id: campaignId },
+      select: { totalSpent: true },
+    });
+    if (!campaign) throw new NotFoundException('کمپین تبلیغاتی یافت نشد');
+    if (BigInt(Math.floor(newBudget)) < campaign.totalSpent) {
+      throw new BadRequestException('بودجه جدید نمی‌تواند کمتر از هزینه مصرف‌شده باشد');
+    }
+  }
+
+  async getMyOverview(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { walletBalance: true },
+    });
+    if (!user) throw new NotFoundException('کاربر یافت نشد');
+
+    const [activeCampaigns, pendingAds, spendAgg] = await Promise.all([
+      this.prisma.adCampaign.count({
+        where: { advertiserId: userId, status: 'ACTIVE' as never },
+      }),
+      this.prisma.ad.count({
+        where: {
+          status: 'PENDING_REVIEW' as never,
+          campaign: { advertiserId: userId },
+        },
+      }),
+      this.prisma.adPayment.aggregate({
+        where: {
+          status: 'DEBITED',
+          campaign: { advertiserId: userId },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return {
+      walletBalance: user.walletBalance.toString(),
+      activeCampaigns,
+      pendingAds,
+      totalSpent: (spendAgg._sum.amount ?? 0n).toString(),
+    };
+  }
+
+  async createMyCampaign(userId: string, input: CreateMyCampaignInput) {
+    return this.createCampaign(userId, { ...input, advertiserId: userId }, 'user');
+  }
+
+  async getMyCampaign(userId: string, id: string) {
+    await this.assertCampaignOwner(userId, id);
+    const campaign = await this.getCampaign(id);
+    const advertiser = (campaign as { advertiser?: Record<string, unknown> }).advertiser;
+    if (advertiser && 'phone' in advertiser) {
+      const { phone: _phone, ...rest } = advertiser;
+      return { ...campaign, advertiser: rest };
+    }
+    return campaign;
+  }
+
+  async updateMyCampaign(userId: string, id: string, input: UpdateMyCampaignInput) {
+    await this.assertCampaignOwner(userId, id);
+
+    if (input.status === AdCampaignStatus.ACTIVE) {
+      await this.assertWalletForActivation(id);
+    }
+    if (input.budget !== undefined) {
+      await this.assertBudgetIncrease(id, input.budget);
+    }
+
+    return this.updateCampaign(userId, id, input as UpdateCampaignInput, 'user');
+  }
+
+  async getMyCampaignAnalytics(userId: string, campaignId: string, query?: AdAnalyticsQueryInput) {
+    await this.assertCampaignOwner(userId, campaignId);
+    return this.campaignAnalytics(campaignId, query);
+  }
+
+  async listMyAds(
+    userId: string,
+    filters: {
+      campaignId?: string;
+      status?: string;
+      slot?: string;
+      page?: number;
+      pageSize?: number;
+    },
+  ) {
+    if (filters.campaignId) {
+      await this.assertCampaignOwner(userId, filters.campaignId);
+    }
+
+    const where: Record<string, unknown> = {
+      campaign: { advertiserId: userId },
+    };
+    if (filters.campaignId) where.campaignId = filters.campaignId;
+    if (filters.status) where.status = filters.status;
+    if (filters.slot) where.slot = filters.slot;
+
+    const page = filters.page ?? 1;
+    const pageSize = filters.pageSize ?? 20;
+    const [data, total] = await Promise.all([
+      this.prisma.ad.findMany({
+        where: where as never,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          campaign: {
+            select: { id: true, name: true },
+          },
+        },
+      }),
+      this.prisma.ad.count({ where: where as never }),
+    ]);
+
+    return {
+      data: data.map((a) => this.serializeAd(a)),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+    };
+  }
+
+  async createMyAd(userId: string, input: CreateAdInput) {
+    await this.assertCampaignOwner(userId, input.campaignId);
+    return this.createAd(userId, input, 'user');
+  }
+
+  async getMyAd(userId: string, id: string) {
+    await this.assertAdOwner(userId, id);
+    return this.getAd(id);
+  }
+
+  async updateMyAd(userId: string, id: string, input: UpdateMyAdInput) {
+    const ad = await this.assertAdOwner(userId, id);
+    if (ad.status !== AdStatus.PENDING_REVIEW && ad.status !== AdStatus.REJECTED) {
+      throw new BadRequestException('فقط تبلیغ‌های در انتظار یا رد شده قابل ویرایش هستند');
+    }
+
+    const data: Record<string, unknown> = {};
+    if (input.title !== undefined) data.title = sanitizeInput(input.title);
+    if (input.description !== undefined) data.description = sanitizeInput(input.description);
+    if (input.mediaUrl !== undefined) data.mediaUrl = sanitizeUrl(input.mediaUrl);
+    if (input.redirectUrl !== undefined) data.redirectUrl = sanitizeUrl(input.redirectUrl);
+    if (ad.status === AdStatus.REJECTED) {
+      data.status = AdStatus.PENDING_REVIEW;
+      data.adminNote = null;
+      data.reviewedAt = null;
+      data.reviewedById = null;
+    }
+
+    const updated = await this.prisma.ad.update({ where: { id }, data: data as never });
+
+    await this.audit.log({
+      actor: { sub: userId, role: 'user' },
+      action: 'AD_UPDATED',
+      target: `ad:${id}`,
+      payload: input as Record<string, unknown>,
+    });
+
+    return this.serializeAd(updated);
+  }
+
+  async deleteMyAd(userId: string, id: string) {
+    const ad = await this.assertAdOwner(userId, id);
+    if (ad.status !== AdStatus.PENDING_REVIEW && ad.status !== AdStatus.REJECTED) {
+      throw new BadRequestException('فقط تبلیغ‌های در انتظار یا رد شده قابل حذف هستند');
+    }
+    if (ad.impressions > 0) {
+      throw new BadRequestException('تبلیغی که نمایش داده شده قابل حذف نیست');
+    }
+
+    return this.deleteAd(userId, id, 'user');
+  }
+
+  async getMyAdAnalytics(userId: string, adId: string, query?: AdAnalyticsQueryInput) {
+    await this.assertAdOwner(userId, adId);
+    return this.adAnalytics(adId, query);
   }
 
   /* ─────────────────────── Ads ─────────────────────── */

@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { apiClient } from './api';
 import { useAuthStore } from './auth-store';
+import { disconnectCallSocket } from './call-socket';
 import { disconnectSocket } from './socket';
 
 /** Clear client auth state without calling the API or navigating away. */
@@ -8,6 +9,7 @@ export function clearLocalSession(queryClient?: QueryClient) {
   useAuthStore.getState().logout();
   void useAuthStore.persist.clearStorage();
   disconnectSocket();
+  disconnectCallSocket();
   queryClient?.setQueryData(['auth', 'me'], null);
   queryClient?.clear();
 }

@@ -42,6 +42,9 @@ interface Payload {
   reason?: string;
   message?: string;
   mentioned?: boolean;
+  title?: string;
+  body?: string;
+  searchAlertId?: string;
 }
 
 type IconCmp = React.ComponentType<{ className?: string; filled?: boolean; strokeWidth?: number }>;
@@ -83,12 +86,19 @@ function buildHref(notif: Notif): string | null {
     case NotificationType.MESSAGE:
       return p.conversationId ? `/messages/${p.conversationId}` : '/messages';
     case NotificationType.INCOMING_CALL:
+      return p.conversationId
+        ? `/messages/${p.conversationId}?restoreCall=1`
+        : '/messages?restoreCall=1';
     case NotificationType.MISSED_CALL:
       return p.conversationId ? `/messages/${p.conversationId}` : '/messages';
     case NotificationType.STORY_MENTION: {
       const storyUserId = p.fromUserId ?? p.fromUser?.id ?? p.userId;
       return storyUserId ? `/stories/${storyUserId}` : null;
     }
+    case NotificationType.SYSTEM_ANNOUNCEMENT:
+      if (p.postId) return `/post/${p.postId}`;
+      if (p.searchAlertId) return '/settings/notifications';
+      return null;
     default:
       return null;
   }
@@ -124,6 +134,10 @@ function buildMessage(notif: Notif): string {
       return `قیمت یکی از آگهی‌های ذخیره‌شده شما کاهش یافت`;
     case NotificationType.STORY_MENTION:
       return `${u} شما را در استوری منشن کرد`;
+    case NotificationType.SYSTEM_ANNOUNCEMENT:
+    case NotificationType.BROADCAST:
+      if (p.title && p.body) return `${p.title}: ${p.body}`;
+      return p.title ?? p.body ?? 'اعلان جدید';
     default:
       return 'اعلان جدید';
   }

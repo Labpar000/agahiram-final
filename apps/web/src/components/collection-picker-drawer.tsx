@@ -75,7 +75,7 @@ export function CollectionPickerDrawer({ open, onOpenChange, postId, onSaved }: 
         <DrawerHeader className="border-b border-border px-4 py-3">
           <h2 className="text-base font-semibold">ذخیره در مجموعه</h2>
         </DrawerHeader>
-        <DrawerBody className="space-y-2">
+        <DrawerBody className="space-y-2 pb-[var(--drawer-input-bottom)]">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">در حال بارگذاری…</p>
           ) : collections.length === 0 ? (
@@ -123,7 +123,7 @@ export function CollectionPickerDrawer({ open, onOpenChange, postId, onSaved }: 
             </Button>
           </div>
         </DrawerBody>
-        <DrawerFooter>
+        <DrawerFooter className="pb-[var(--drawer-input-bottom)]">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             بستن
           </Button>

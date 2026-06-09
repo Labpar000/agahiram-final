@@ -74,6 +74,16 @@ export class PostsController {
     return this.postsService.getUserSaved(username, userId, cursor);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('user/:username/deleted')
+  userDeleted(
+    @CurrentUser('sub') userId: string,
+    @Param('username') username: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    return this.postsService.getUserDeleted(username, userId, cursor);
+  }
+
   @Public()
   @Get('user/:username')
   userPosts(

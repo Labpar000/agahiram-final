@@ -112,7 +112,9 @@ export class PushService implements OnModuleInit {
         return {
           title: 'تماس ورودی',
           body: `${payload.initiatorName ?? 'کاربر'} در حال تماس است`,
-          url: `/messages/${payload.conversationId ?? ''}`,
+          url: payload.conversationId
+            ? `/messages/${payload.conversationId}?restoreCall=1`
+            : '/messages?restoreCall=1',
           type,
         };
       case 'missedCall':

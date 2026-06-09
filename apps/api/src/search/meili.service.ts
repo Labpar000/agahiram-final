@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { MeiliSearch, type Index } from 'meilisearch';
-import { MEILI_INDEX_POSTS, MEILI_INDEX_STORIES } from '@agahiram/shared';
+import {
+  MEILI_INDEX_CATEGORIES,
+  MEILI_INDEX_POSTS,
+  MEILI_INDEX_STORIES,
+  MEILI_INDEX_USERS,
+} from '@agahiram/shared';
 
 @Injectable()
 export class MeiliService implements OnModuleInit {
@@ -8,6 +13,8 @@ export class MeiliService implements OnModuleInit {
   public readonly client: MeiliSearch;
   public postsIndex!: Index;
   public storiesIndex!: Index;
+  public usersIndex!: Index;
+  public categoriesIndex!: Index;
 
   constructor() {
     const key = process.env.MEILI_MASTER_KEY;
@@ -25,8 +32,12 @@ export class MeiliService implements OnModuleInit {
       await this.client.health();
       this.postsIndex = this.client.index(MEILI_INDEX_POSTS);
       this.storiesIndex = this.client.index(MEILI_INDEX_STORIES);
+      this.usersIndex = this.client.index(MEILI_INDEX_USERS);
+      this.categoriesIndex = this.client.index(MEILI_INDEX_CATEGORIES);
       await this.ensureIndexSettings();
       await this.ensureStoriesIndexSettings();
+      await this.ensureUsersIndexSettings();
+      await this.ensureCategoriesIndexSettings();
       this.logger.log('MeiliSearch connected');
     } catch (e) {
       this.logger.warn(`MeiliSearch not available: ${(e as Error).message}`);
@@ -50,6 +61,7 @@ export class MeiliService implements OnModuleInit {
           'userName',
           'normalizedUsername',
           'normalizedUserName',
+          'attributeText',
         ],
         filterableAttributes: [
           'categoryId',
@@ -63,8 +75,10 @@ export class MeiliService implements OnModuleInit {
           'userIsPrivate',
           'isPromoted',
           'boostExpiresAt',
+          'hasImage',
+          'hasVideo',
         ],
-        sortableAttributes: ['price', 'createdAt', 'viewCount'],
+        sortableAttributes: ['price', 'createdAt', 'viewCount', '_geo'],
         rankingRules: ['words', 'typo', 'proximity', 'attribute', 'exactness'],
         typoTolerance: { enabled: true, minWordSizeForTypos: { oneTypo: 3, twoTypos: 6 } },
       });
@@ -110,5 +124,41 @@ export class MeiliService implements OnModuleInit {
   async deleteStory(id: string) {
     if (!this.storiesIndex) return;
     await this.storiesIndex.deleteDocument(id);
+  }
+
+  private async ensureUsersIndexSettings() {
+    try {
+      await this.client.createIndex(MEILI_INDEX_USERS, { primaryKey: 'id' }).catch(() => null);
+      await this.usersIndex.updateSettings({
+        searchableAttributes: ['normalizedUsername', 'normalizedName', 'username', 'name'],
+        filterableAttributes: ['isPrivate', 'isVerified', 'isBusiness'],
+        sortableAttributes: ['isVerified', 'createdAt'],
+      });
+    } catch (e) {
+      this.logger.warn(`Users settings update failed: ${(e as Error).message}`);
+    }
+  }
+
+  private async ensureCategoriesIndexSettings() {
+    try {
+      await this.client.createIndex(MEILI_INDEX_CATEGORIES, { primaryKey: 'id' }).catch(() => null);
+      await this.categoriesIndex.updateSettings({
+        searchableAttributes: ['normalizedName', 'name', 'slug'],
+        filterableAttributes: ['slug'],
+        sortableAttributes: ['name'],
+      });
+    } catch (e) {
+      this.logger.warn(`Categories settings update failed: ${(e as Error).message}`);
+    }
+  }
+
+  async indexUser(doc: Record<string, unknown>) {
+    if (!this.usersIndex) return;
+    await this.usersIndex.addDocuments([doc]);
+  }
+
+  async deleteUser(id: string) {
+    if (!this.usersIndex) return;
+    await this.usersIndex.deleteDocument(id);
   }
 }

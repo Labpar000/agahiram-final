@@ -2,8 +2,8 @@
 
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useMutation } from '@tanstack/react-query';
-import { ALLOWED_VIDEO_TYPES, MAX_VIDEO_UPLOAD_BYTES } from '@agahiram/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { ALLOWED_VIDEO_TYPES, MAX_VIDEO_UPLOAD_BYTES, type PostSummary } from '@agahiram/shared';
 import {
   Button,
   IconButton,
@@ -15,6 +15,9 @@ import {
   toast,
 } from '@agahiram/ui';
 import { apiClient } from '@/lib/api';
+import { useAuthStore } from '@/lib/auth-store';
+import { prependReelsPost } from '@/lib/query-cache-posts';
+import { prependProfilePost } from '@/lib/query-cache-profile';
 import { useUploadManager } from '@/lib/upload-manager';
 import {
   isVideoFile,
@@ -24,6 +27,8 @@ import {
 
 export default function CreateReelPage() {
   const router = useRouter();
+  const qc = useQueryClient();
+  const myUsername = useAuthStore((s) => s.user?.username);
   const { uploadFile } = useUploadManager();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [_file, setFile] = useState<File | null>(null);
@@ -106,7 +111,7 @@ export default function CreateReelPage() {
       );
       const cityId = cities.data?.data?.[0]?.id;
       if (!cityId) throw new Error('شهر یافت نشد');
-      const r = await apiClient.post('/posts/reels', {
+      const r = await apiClient.post<PostSummary>('/posts/reels', {
         title,
         categoryId,
         cityId,
@@ -118,7 +123,11 @@ export default function CreateReelPage() {
       if (!r.success) throw new Error(r.error ?? 'خطا در انتشار');
       return r.data;
     },
-    onSuccess: () => {
+    onSuccess: (post) => {
+      if (post) {
+        prependReelsPost(qc, post);
+        if (myUsername) prependProfilePost(qc, myUsername, post);
+      }
       toast.success('ریل منتشر شد');
       router.push('/reels');
     },

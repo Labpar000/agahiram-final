@@ -52,6 +52,7 @@ function isFreshDataPath(path: string): boolean {
     p.startsWith('/posts/feed') ||
     p.startsWith('/posts/reels') ||
     p.startsWith('/posts/explore') ||
+    p.startsWith('/search') ||
     p.startsWith('/auth/') ||
     p.startsWith('/messages') ||
     p.startsWith('/notifications')

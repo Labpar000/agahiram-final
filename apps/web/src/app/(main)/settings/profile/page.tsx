@@ -128,7 +128,11 @@ export default function ProfileSettingsPage() {
         storyArchiveEnabled,
       });
       if (user?.username) {
-        patchProfileQuery(qc, user.username, { name, username });
+        patchProfileQuery(qc, user.username, {
+          name,
+          username,
+          website: website.trim() || null,
+        });
       }
       if (cityId && provinceId) {
         setDefaultCity(cityId, provinceId);

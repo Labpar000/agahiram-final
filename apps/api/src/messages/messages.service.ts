@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { SendMessageInput } from '@agahiram/shared';
+import { MESSAGE_EDIT_WINDOW_MS } from '@agahiram/shared';
 import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
@@ -26,6 +27,17 @@ export class MessagesService {
       select: { id: true },
     });
     if (block) throw new ForbiddenException('امکان ارسال پیام به این کاربر وجود ندارد');
+  }
+
+  private async assertPostAllowsMessage(postId: string) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      select: { contactPreference: true },
+    });
+    if (!post) throw new NotFoundException('آگهی یافت نشد');
+    if (post.contactPreference === 'CALL_ONLY') {
+      throw new ForbiddenException('فروشنده فقط تماس می‌پذیرد');
+    }
   }
 
   async getUnreadCount(userId: string) {
@@ -250,6 +262,10 @@ export class MessagesService {
   }
 
   async send(senderId: string, input: SendMessageInput) {
+    if (input.postId) {
+      await this.assertPostAllowsMessage(input.postId);
+    }
+
     let conversationId = input.conversationId;
 
     if (!conversationId) {
@@ -330,11 +346,14 @@ export class MessagesService {
     return { message, conversationId, recipientUserId: recipient?.userId };
   }
 
-  async startWithUser(userId: string, otherUsername: string) {
+  async startWithUser(userId: string, otherUsername: string, postId?: string) {
     const other = await this.prisma.user.findUnique({ where: { username: otherUsername } });
     if (!other) throw new NotFoundException();
     if (other.id === userId) throw new BadRequestException('نمی‌توانید به خودتان پیام بدهید');
     await this.assertNotBlocked(userId, other.id);
+    if (postId) {
+      await this.assertPostAllowsMessage(postId);
+    }
 
     const existing = await this.prisma.conversation.findFirst({
       where: {
@@ -354,5 +373,73 @@ export class MessagesService {
       },
     });
     return { conversationId: conv.id };
+  }
+
+  async updateMessage(userId: string, messageId: string, content: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        conversation: {
+          include: { participants: { select: { userId: true } } },
+        },
+      },
+    });
+    if (!message) throw new NotFoundException();
+    if (message.senderId !== userId) throw new ForbiddenException();
+    if (message.type !== 'text') {
+      throw new BadRequestException('فقط پیام متنی قابل ویرایش است');
+    }
+    const ageMs = Date.now() - message.createdAt.getTime();
+    if (ageMs > MESSAGE_EDIT_WINDOW_MS) {
+      throw new BadRequestException('مهلت ویرایش پیام به پایان رسیده است');
+    }
+
+    const updated = await this.prisma.message.update({
+      where: { id: messageId },
+      data: { content, editedAt: new Date() },
+      include: {
+        sender: { select: { id: true, username: true, name: true, avatar: true } },
+      },
+    });
+
+    await this.prisma.conversation.update({
+      where: { id: message.conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    const recipient = message.conversation.participants.find((p) => p.userId !== userId);
+    return {
+      message: updated,
+      conversationId: message.conversationId,
+      recipientUserId: recipient?.userId,
+    };
+  }
+
+  async deleteMessage(userId: string, messageId: string) {
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      include: {
+        conversation: {
+          include: { participants: { select: { userId: true } } },
+        },
+      },
+    });
+    if (!message) throw new NotFoundException();
+    if (message.senderId !== userId) throw new ForbiddenException();
+
+    await this.prisma.message.delete({ where: { id: messageId } });
+
+    await this.prisma.conversation.update({
+      where: { id: message.conversationId },
+      data: { updatedAt: new Date() },
+    });
+
+    const recipient = message.conversation.participants.find((p) => p.userId !== userId);
+    return {
+      messageId,
+      conversationId: message.conversationId,
+      senderId: userId,
+      recipientUserId: recipient?.userId,
+    };
   }
 }

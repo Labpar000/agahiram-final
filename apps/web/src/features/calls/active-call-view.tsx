@@ -1,9 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Room, RoomEvent, Track } from 'livekit-client';
+import {
+  ConnectionQuality,
+  DisconnectReason,
+  Room,
+  RoomEvent,
+  Track,
+  VideoPresets,
+} from 'livekit-client';
+import { toast } from '@agahiram/ui';
 import { Avatar, AvatarFallback, AvatarImage, IgClose, IgMic, IgVideoCall } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
+import { apiClient } from '@/lib/api';
 
 type CallPeer = {
   id: string;
@@ -12,35 +21,98 @@ type CallPeer = {
 };
 
 type ActiveCallViewProps = {
+  callId: string;
   token: string;
   livekitUrl: string;
   peer: CallPeer;
   onEnd: () => void;
 };
 
-export function ActiveCallView({ token, livekitUrl, peer, onEnd }: ActiveCallViewProps) {
+const TOKEN_REFRESH_MS = 8 * 60 * 1000;
+const DISCONNECT_GRACE_MS = 15_000;
+
+function qualityLabel(quality: ConnectionQuality): string {
+  if (quality === ConnectionQuality.Excellent || quality === ConnectionQuality.Good) {
+    return 'اتصال خوب';
+  }
+  if (quality === ConnectionQuality.Poor) return 'اتصال ضعیف';
+  return 'در حال بررسی…';
+}
+
+function qualityTone(quality: ConnectionQuality): string {
+  if (quality === ConnectionQuality.Excellent || quality === ConnectionQuality.Good) {
+    return 'bg-emerald-500';
+  }
+  if (quality === ConnectionQuality.Poor) return 'bg-amber-500';
+  return 'bg-white/40';
+}
+
+export function ActiveCallView({ callId, token, livekitUrl, peer, onEnd }: ActiveCallViewProps) {
   const roomRef = useRef<Room | null>(null);
+  const tokenRef = useRef(token);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
   const endedRef = useRef(false);
   const onEndRef = useRef(onEnd);
+  const disconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onEndRef.current = onEnd;
+  tokenRef.current = token;
 
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+  const micOnRef = useRef(micOn);
+  const camOnRef = useRef(camOn);
+  micOnRef.current = micOn;
+  camOnRef.current = camOn;
   const [connected, setConnected] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>(
+    ConnectionQuality.Unknown,
+  );
   const [elapsed, setElapsed] = useState(0);
 
   const handleEnd = () => {
     if (endedRef.current) return;
     endedRef.current = true;
+    if (disconnectTimerRef.current) {
+      clearTimeout(disconnectTimerRef.current);
+      disconnectTimerRef.current = null;
+    }
     onEndRef.current();
+  };
+
+  const attachLocalPreview = (room: Room) => {
+    const cam = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+    if (cam && localVideoRef.current) cam.attach(localVideoRef.current);
+  };
+
+  const refreshToken = async (): Promise<string | null> => {
+    const r = await apiClient.post<{ token: string }>(`/calls/${callId}/refresh-token`, {});
+    if (!r.success || !r.data?.token) return null;
+    tokenRef.current = r.data.token;
+    return r.data.token;
   };
 
   useEffect(() => {
     endedRef.current = false;
-    const room = new Room({ adaptiveStream: true, dynacast: true });
+    const room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      audioCaptureDefaults: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h720.resolution,
+        facingMode: 'user',
+      },
+      publishDefaults: {
+        simulcast: true,
+        videoCodec: 'vp8',
+      },
+    });
     roomRef.current = room;
     const started = Date.now();
 
@@ -62,6 +134,35 @@ export function ActiveCallView({ token, livekitUrl, peer, onEnd }: ActiveCallVie
       }
     };
 
+    const scheduleDisconnectEnd = () => {
+      if (disconnectTimerRef.current) return;
+      disconnectTimerRef.current = setTimeout(() => {
+        handleEnd();
+      }, DISCONNECT_GRACE_MS);
+    };
+
+    const clearDisconnectEnd = () => {
+      if (disconnectTimerRef.current) {
+        clearTimeout(disconnectTimerRef.current);
+        disconnectTimerRef.current = null;
+      }
+    };
+
+    const tryReconnectWithFreshToken = async () => {
+      const fresh = await refreshToken();
+      if (!fresh || endedRef.current) return false;
+      try {
+        await room.connect(livekitUrl, fresh, { autoSubscribe: true });
+        await room.localParticipant.setMicrophoneEnabled(micOnRef.current);
+        await room.localParticipant.setCameraEnabled(camOnRef.current);
+        attachLocalPreview(room);
+        attachRemote();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
     room.on(RoomEvent.TrackSubscribed, (track) => {
       if (track.kind === Track.Kind.Video && remoteVideoRef.current) {
         track.attach(remoteVideoRef.current);
@@ -73,32 +174,65 @@ export function ActiveCallView({ token, livekitUrl, peer, onEnd }: ActiveCallVie
 
     room.on(RoomEvent.Connected, () => {
       setConnected(true);
+      setReconnecting(false);
+      clearDisconnectEnd();
       attachRemote();
-      const localVideo = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
-      if (localVideo && localVideoRef.current) localVideo.attach(localVideoRef.current);
+      attachLocalPreview(room);
     });
 
-    room.on(RoomEvent.Disconnected, handleEnd);
+    room.on(RoomEvent.Reconnecting, () => {
+      setReconnecting(true);
+      setConnected(false);
+    });
+
+    room.on(RoomEvent.Reconnected, () => {
+      setReconnecting(false);
+      setConnected(true);
+      clearDisconnectEnd();
+      attachRemote();
+      attachLocalPreview(room);
+    });
+
+    room.on(RoomEvent.Disconnected, (reason) => {
+      setConnected(false);
+      if (reason === DisconnectReason.CLIENT_INITIATED) {
+        handleEnd();
+        return;
+      }
+      void (async () => {
+        const ok = await tryReconnectWithFreshToken();
+        if (!ok) scheduleDisconnectEnd();
+      })();
+    });
+
+    room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+      if (participant.isLocal) setConnectionQuality(quality);
+    });
 
     void (async () => {
       try {
-        await room.connect(livekitUrl, token, { autoSubscribe: true });
+        await room.connect(livekitUrl, tokenRef.current, { autoSubscribe: true });
         await room.localParticipant.setMicrophoneEnabled(true);
         await room.localParticipant.setCameraEnabled(true);
-        const cam = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
-        if (cam && localVideoRef.current) cam.attach(localVideoRef.current);
+        attachLocalPreview(room);
       } catch {
+        toast.error('اتصال برقرار نشد — شبکه یا دسترسی دوربین را بررسی کنید');
         handleEnd();
       }
     })();
 
+    const refreshTimer = setInterval(() => {
+      void refreshToken();
+    }, TOKEN_REFRESH_MS);
+
     return () => {
       clearInterval(tick);
-      room.off(RoomEvent.Disconnected, handleEnd);
+      clearInterval(refreshTimer);
+      clearDisconnectEnd();
       void room.disconnect();
       roomRef.current = null;
     };
-  }, [livekitUrl, token]);
+  }, [livekitUrl, token, callId]);
 
   const toggleMic = async () => {
     const room = roomRef.current;
@@ -116,6 +250,8 @@ export function ActiveCallView({ token, livekitUrl, peer, onEnd }: ActiveCallVie
     setCamOn(next);
     if (!next && localVideoRef.current) {
       localVideoRef.current.srcObject = null;
+    } else if (next) {
+      attachLocalPreview(room);
     }
   };
 
@@ -133,7 +269,7 @@ export function ActiveCallView({ token, livekitUrl, peer, onEnd }: ActiveCallVie
       />
       {!connected ? (
         <div className="absolute inset-0 grid place-items-center bg-black/70">
-          <p className="text-sm">در حال اتصال…</p>
+          <p className="text-sm">{reconnecting ? 'در حال اتصال مجدد…' : 'در حال اتصال…'}</p>
         </div>
       ) : null}
 
@@ -150,6 +286,15 @@ export function ActiveCallView({ token, livekitUrl, peer, onEnd }: ActiveCallVie
             </p>
           </div>
         </div>
+        {connected ? (
+          <div className="flex items-center gap-1.5 text-xs text-white/70">
+            <span
+              aria-hidden
+              className={cn('size-2 rounded-full', qualityTone(connectionQuality))}
+            />
+            <span>{qualityLabel(connectionQuality)}</span>
+          </div>
+        ) : null}
       </div>
 
       <video

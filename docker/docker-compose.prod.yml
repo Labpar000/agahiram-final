@@ -75,7 +75,11 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
       mc mb --ignore-existing local/${MINIO_BUCKET:-agahiram} &&
-      echo 'bucket ready (no anonymous download — media served via API proxy)';
+      mc anonymous set download local/${MINIO_BUCKET:-agahiram}/posts &&
+      mc anonymous set download local/${MINIO_BUCKET:-agahiram}/avatars &&
+      mc anonymous set download local/${MINIO_BUCKET:-agahiram}/reels &&
+      mc anonymous set download local/${MINIO_BUCKET:-agahiram}/stories &&
+      echo 'bucket ready (public read: posts/avatars/reels/stories; messages via API proxy)';
       "
     networks:
       - agahiram
@@ -153,6 +157,8 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
       - "50000-50100:50000-50100/udp"
     networks:
       - agahiram

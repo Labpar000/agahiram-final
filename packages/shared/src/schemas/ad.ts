@@ -13,36 +13,53 @@ export const targetingSchema = z
   })
   .optional();
 
-export const createCampaignSchema = z
-  .object({
-    advertiserId: z.string().uuid('شناسه تبلیغ‌دهنده الزامی است'),
-    name: z.string().min(1, 'نام کمپین الزامی است').max(200),
-    budget: z.number().int().min(10000, 'حداقل بودجه ۱۰,۰۰۰ تومان'),
-    dailyBudget: z.number().int().min(10000).optional(),
-    bidType: z.nativeEnum(BidType),
-    bidAmount: z.number().int().min(100),
-    startDate: z.string().datetime(),
-    endDate: z.string().datetime().optional(),
-    targeting: targetingSchema,
-  })
-  .refine(
-    (data) => {
-      if (!data.endDate) return true;
-      return new Date(data.endDate) > new Date(data.startDate);
-    },
-    { message: 'تاریخ پایان باید بعد از تاریخ شروع باشد', path: ['endDate'] },
-  )
-  .refine(
-    (data) => {
-      if (!data.dailyBudget) return true;
-      return data.dailyBudget <= data.budget;
-    },
-    { message: 'بودجه روزانه نمی‌تواند بیشتر از بودجه کل باشد', path: ['dailyBudget'] },
-  );
+const campaignBaseSchema = z.object({
+  advertiserId: z.string().uuid('شناسه تبلیغ‌دهنده الزامی است'),
+  name: z.string().min(1, 'نام کمپین الزامی است').max(200),
+  budget: z.number().int().min(10000, 'حداقل بودجه ۱۰,۰۰۰ تومان'),
+  dailyBudget: z.number().int().min(10000).optional(),
+  bidType: z.nativeEnum(BidType),
+  bidAmount: z.number().int().min(100),
+  startDate: z.string().datetime(),
+  endDate: z.string().datetime().optional(),
+  targeting: targetingSchema,
+});
+
+const campaignRefinements = <T extends z.ZodTypeAny>(schema: T) =>
+  schema
+    .refine(
+      (data: { endDate?: string; startDate: string }) => {
+        if (!data.endDate) return true;
+        return new Date(data.endDate) > new Date(data.startDate);
+      },
+      { message: 'تاریخ پایان باید بعد از تاریخ شروع باشد', path: ['endDate'] },
+    )
+    .refine(
+      (data: { dailyBudget?: number; budget: number }) => {
+        if (!data.dailyBudget) return true;
+        return data.dailyBudget <= data.budget;
+      },
+      { message: 'بودجه روزانه نمی‌تواند بیشتر از بودجه کل باشد', path: ['dailyBudget'] },
+    );
+
+export const createCampaignSchema = campaignRefinements(campaignBaseSchema);
+
+export const createMyCampaignSchema = campaignRefinements(
+  campaignBaseSchema.omit({ advertiserId: true }),
+);
 
 export const updateCampaignSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   status: z.nativeEnum(AdCampaignStatus).optional(),
+  budget: z.number().int().min(10000).optional(),
+  dailyBudget: z.number().int().min(10000).nullable().optional(),
+  endDate: z.string().datetime().nullable().optional(),
+});
+
+/** Advertiser self-service: only safe fields, status limited to ACTIVE/PAUSED */
+export const updateMyCampaignSchema = z.object({
+  name: z.string().min(1).max(200).optional(),
+  status: z.enum([AdCampaignStatus.ACTIVE, AdCampaignStatus.PAUSED]).optional(),
   budget: z.number().int().min(10000).optional(),
   dailyBudget: z.number().int().min(10000).nullable().optional(),
   endDate: z.string().datetime().nullable().optional(),
@@ -59,6 +76,14 @@ export const createAdSchema = z.object({
 
 export const updateAdSchema = z.object({
   status: z.nativeEnum(AdStatus).optional(),
+  title: z.preprocess(emptyToUndefined, z.string().min(1).max(100).optional()),
+  description: z.preprocess(emptyToUndefined, z.string().max(5000).optional()),
+  mediaUrl: z.preprocess(emptyToUndefined, z.string().url('آدرس تصویر معتبر نیست').optional()),
+  redirectUrl: z.preprocess(emptyToUndefined, z.string().url('آدرس مقصد معتبر نیست').optional()),
+});
+
+/** Advertiser resubmit after rejection — no status field */
+export const updateMyAdSchema = z.object({
   title: z.preprocess(emptyToUndefined, z.string().min(1).max(100).optional()),
   description: z.preprocess(emptyToUndefined, z.string().max(5000).optional()),
   mediaUrl: z.preprocess(emptyToUndefined, z.string().url('آدرس تصویر معتبر نیست').optional()),
@@ -97,9 +122,12 @@ export const adAnalyticsQuerySchema = z.object({
 
 export type TargetingInput = z.infer<typeof targetingSchema>;
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type CreateMyCampaignInput = z.infer<typeof createMyCampaignSchema>;
 export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
+export type UpdateMyCampaignInput = z.infer<typeof updateMyCampaignSchema>;
 export type CreateAdInput = z.infer<typeof createAdSchema>;
 export type UpdateAdInput = z.infer<typeof updateAdSchema>;
+export type UpdateMyAdInput = z.infer<typeof updateMyAdSchema>;
 export type ReviewAdInput = z.infer<typeof reviewAdSchema>;
 export type AdServeInput = z.infer<typeof adServeSchema>;
 export type AdImpressionInput = z.infer<typeof adImpressionSchema>;

@@ -71,7 +71,7 @@ function ShopCreationWizard({ onCreated }: { onCreated: () => void }) {
   const createMutation = useMutation({
     mutationFn: async () => {
       const r = await apiClient.post('/shops', {
-        shopType: 'SHOP',
+        shopType: 'ONLINE_STORE',
         slug: form.slug,
         name: form.name,
         description: form.description || undefined,
@@ -315,12 +315,22 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
         </p>
       </div>
 
-      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+      <Dialog
+        open={deleteOpen}
+        onOpenChange={(open) => {
+          setDeleteOpen(open);
+          if (!open) setDeleteConfirm('');
+        }}
+      >
         <DialogContent size="sm">
           <DialogHeader>
             <DialogTitle>حذف فروشگاه</DialogTitle>
             <DialogDescription>
-              این عملیات قابل بازگشت نیست. نام فروشگاه را برای تأیید وارد کنید:
+              این عملیات قابل بازگشت نیست. برای تأیید، نام کاربری{' '}
+              <span dir="ltr" className="font-mono text-foreground">
+                @{shop.slug}
+              </span>{' '}
+              را وارد کنید:
             </DialogDescription>
           </DialogHeader>
           <Input
@@ -328,6 +338,7 @@ function ShopDashboard({ shop }: { shop: ShopData }) {
             value={deleteConfirm}
             onChange={(e) => setDeleteConfirm(e.target.value)}
             placeholder={shop.slug}
+            autoComplete="off"
           />
           <DialogFooter>
             <Button

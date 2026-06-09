@@ -1,4 +1,5 @@
 import {
+  buildReelKey,
   MediaType,
   PostStatus,
   PostType,
@@ -97,20 +98,25 @@ export const mockStories: StoryItem[] = Array.from({ length: 8 }, (_, i) => ({
   },
 }));
 
-export const mockReels: ReelItem[] = mockPosts.slice(0, 6).map((p, i) => ({
-  ...p,
-  type: PostType.REEL,
-  hlsUrl: null,
-  duration: 30 + i * 5,
-  media: [
-    {
-      ...p.media[0]!,
-      type: MediaType.VIDEO,
-      url: `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4`,
-      hlsUrl: null,
-    },
-  ],
-}));
+export const mockReels: ReelItem[] = mockPosts.slice(0, 6).map((p, i) => {
+  const mediaId = p.media[0]!.id;
+  return {
+    ...p,
+    type: PostType.REEL,
+    hlsUrl: null,
+    duration: 30 + i * 5,
+    reelKey: buildReelKey(p.id, mediaId),
+    mediaId,
+    media: [
+      {
+        ...p.media[0]!,
+        type: MediaType.VIDEO,
+        url: `https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4`,
+        hlsUrl: null,
+      },
+    ],
+  };
+});
 
 export const mockConversations: ConversationSummary[] = Array.from({ length: 6 }, (_, i) => ({
   id: `conv-${i}`,

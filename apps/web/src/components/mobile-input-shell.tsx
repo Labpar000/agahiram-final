@@ -2,7 +2,6 @@
 
 import { useRef, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { cn } from '@agahiram/shared';
-import { useMobileInputScroll } from '@/hooks/use-mobile-input';
 
 type MobileInputShellProps = {
   children: ReactNode;
@@ -13,7 +12,7 @@ type MobileInputShellProps = {
   style?: CSSProperties;
   /** CSS length for scroll-area padding-bottom (reserves space above composer). */
   composerPadding?: string;
-  /** When true, composer sticks above bottom nav (page routes). */
+  /** When true, composer sticks above bottom nav + keyboard (page routes). */
   stickyComposer?: boolean;
   scrollRef?: RefObject<HTMLDivElement | null>;
 };
@@ -34,12 +33,10 @@ export function MobileInputShell({
   scrollRef: externalScrollRef,
 }: MobileInputShellProps) {
   const internalScrollRef = useRef<HTMLDivElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
   const scrollRef = externalScrollRef ?? internalScrollRef;
-  useMobileInputScroll(shellRef);
 
   return (
-    <div ref={shellRef} className={cn('flex min-h-0 flex-1 flex-col', className)} style={style}>
+    <div className={cn('flex min-h-0 flex-1 flex-col', className)} style={style}>
       <div
         ref={scrollRef}
         className={cn('min-h-0 flex-1 overflow-y-auto', scrollClassName)}
@@ -50,8 +47,7 @@ export function MobileInputShell({
       <div
         className={cn(
           'relative shrink-0 border-t border-border bg-surface/95 backdrop-blur-md',
-          stickyComposer &&
-            'sticky bottom-[calc(var(--bottom-nav)+var(--safe-bottom))] z-[var(--z-raised)]',
+          stickyComposer && 'sticky-above-keyboard z-[var(--z-raised)]',
           composerClassName,
         )}
       >

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PriceType, PostType } from '../types';
+import { ContactPreference, PriceType, PostType } from '../types';
 
 export const createPostSchema = z.object({
   title: z.string().min(3, 'عنوان باید حداقل 3 کاراکتر باشد').max(100),
@@ -12,6 +12,7 @@ export const createPostSchema = z.object({
   lat: z.number().min(-90).max(90).optional().nullable(),
   lng: z.number().min(-180).max(180).optional().nullable(),
   hideExactLocation: z.boolean().default(false),
+  contactPreference: z.nativeEnum(ContactPreference).default(ContactPreference.BOTH),
   type: z.nativeEnum(PostType).default(PostType.POST),
   attributes: z.record(z.string()).optional(),
   mediaKeys: z

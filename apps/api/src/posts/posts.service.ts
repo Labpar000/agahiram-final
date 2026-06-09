@@ -11,14 +11,22 @@ import { Queue } from 'bullmq';
 import {
   BANNED_WORDS,
   BULL_QUEUES,
+  ContactPreference,
+  MAX_REEL_DURATION,
+  parseReelKey,
+  listPostVideos,
   POST_EXPIRY_DAYS,
   PostType,
+  reelItemFromVideo,
   toIranDateKey,
   toIranHour,
   type CreatePostInput,
   type CreateReelInput,
+  type PostSummary,
+  type ReelItem,
   type UpdatePostInput,
 } from '@agahiram/shared';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../media/minio.service';
 import { MediaService } from '../media/media.service';
@@ -81,11 +89,12 @@ export class PostsService {
     const lower = `${input.title} ${input.description ?? ''}`.toLowerCase();
     const hasBanned = BANNED_WORDS.some((w) => lower.includes(w.toLowerCase()));
     const s = this.settings.getCached();
-    /* Auto-approval is keyed to settings.postsRequireApproval: when toggled OFF
-     * we still queue indexing on `approved`; when ON we keep pendingReview so
-     * moderators get a chance to look. Banned-word hits always go to review. */
+    /* Reels publish immediately (unless banned words). Classified posts follow
+     * settings.postsRequireApproval so moderators can review listings first. */
     const status: 'approved' | 'pendingReview' =
-      !s.postsRequireApproval && !hasBanned ? 'approved' : 'pendingReview';
+      !hasBanned && (input.type === PostType.REEL || !s.postsRequireApproval)
+        ? 'approved'
+        : 'pendingReview';
 
     const category = await this.prisma.category.findUnique({
       where: { id: input.categoryId },
@@ -103,6 +112,15 @@ export class PostsService {
 
     const mediaKeys = this.normalizeMediaKeys(input.mediaKeys);
 
+    if (input.type === PostType.REEL) {
+      if (mediaKeys.length !== 1 || mediaKeys[0]?.type !== 'video') {
+        throw new BadRequestException('ریل فقط می‌تواند یک ویدیو داشته باشد');
+      }
+      if (!mediaKeys[0].key.startsWith('reels/')) {
+        throw new BadRequestException('فایل ریل باید از مسیر reels آپلود شده باشد');
+      }
+    }
+
     const post = await this.prisma.post.create({
       data: {
         userId,
@@ -116,6 +134,7 @@ export class PostsService {
         lat: input.lat,
         lng: input.lng,
         hideExactLocation: input.hideExactLocation,
+        contactPreference: input.contactPreference,
         type: input.type,
         status,
         expiresAt,
@@ -173,6 +192,12 @@ export class PostsService {
   }
 
   async createReel(userId: string, input: CreateReelInput) {
+    if (input.duration > MAX_REEL_DURATION) {
+      throw new BadRequestException(`حداکثر طول ریل ${MAX_REEL_DURATION} ثانیه است`);
+    }
+    if (!input.mediaKey.startsWith('reels/')) {
+      throw new BadRequestException('فایل ریل نامعتبر است');
+    }
     return this.create(userId, {
       title: input.title,
       description: input.description,
@@ -182,6 +207,7 @@ export class PostsService {
       cityId: input.cityId,
       type: PostType.REEL,
       hideExactLocation: false,
+      contactPreference: ContactPreference.BOTH,
       mediaKeys: [
         {
           key: input.mediaKey,
@@ -229,6 +255,9 @@ export class PostsService {
         ...(input.lng !== undefined && { lng: input.lng }),
         ...(input.hideExactLocation !== undefined && {
           hideExactLocation: input.hideExactLocation,
+        }),
+        ...(input.contactPreference !== undefined && {
+          contactPreference: input.contactPreference,
         }),
         ...(mediaKeys &&
           mediaKeys.length > 0 && {
@@ -416,9 +445,12 @@ export class PostsService {
 
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      select: { userId: true, user: { select: { phone: true } } },
+      select: { userId: true, contactPreference: true, user: { select: { phone: true } } },
     });
     if (!post) throw new NotFoundException();
+    if (post.contactPreference === 'MESSAGE_ONLY') {
+      throw new ForbiddenException('فروشنده فقط پیام می‌پذیرد');
+    }
 
     const blocked = await this.prisma.block.findFirst({
       where: {
@@ -505,7 +537,7 @@ export class PostsService {
     }
     const where = {
       userId: user.id,
-      status: isOwner ? undefined : ('approved' as const),
+      ...(isOwner ? { status: { not: 'deleted' as const } } : { status: 'approved' as const }),
     };
 
     const posts = await this.prisma.post.findMany({
@@ -536,16 +568,151 @@ export class PostsService {
     if (!isOwner && !(await this.canViewUserPosts(user.id, viewerId))) {
       return { data: [], nextCursor: null, hasMore: false };
     }
-    const posts = await this.prisma.post.findMany({
-      where: {
-        userId: user.id,
-        type: 'reel',
-        status: isOwner ? undefined : 'approved',
+
+    const statusFilter: Prisma.PostWhereInput = isOwner
+      ? { OR: [{ status: 'approved' }, { status: 'pendingReview' }] }
+      : { status: 'approved' };
+
+    return this.buildReelFeedPage(
+      {
+        AND: [
+          { userId: user.id },
+          { media: { some: { type: 'video' } } },
+          this.reelNotExpiredFilter(),
+          statusFilter,
+        ],
       },
+      cursor,
+      limit,
+      viewerId,
+    );
+  }
+
+  /** Hide expired listings from public reels feeds. */
+  reelNotExpiredFilter(): Prisma.PostWhereInput {
+    return { OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] };
+  }
+
+  /**
+   * Paginated reels feed: one entry per video slide. Carousel posts with multiple
+   * videos become multiple reels; image slides are never included.
+   */
+  async buildReelFeedPage(
+    where: Prisma.PostWhereInput,
+    cursor: string | undefined,
+    limit: number,
+    viewerId?: string,
+  ) {
+    const parsed = cursor ? parseReelKey(cursor) : null;
+    let resume: { postId: string; mediaId: string | null } | null =
+      parsed && 'mediaId' in parsed && parsed.mediaId
+        ? { postId: parsed.postId, mediaId: parsed.mediaId }
+        : parsed && 'legacy' in parsed && parsed.legacy
+          ? { postId: parsed.postId, mediaId: null }
+          : null;
+
+    let postPageCursor: string | undefined = resume?.postId;
+    let includeCursorPost = !!resume;
+
+    if (parsed) {
+      const postExists = await this.prisma.post.findUnique({
+        where: { id: parsed.postId },
+        select: { id: true },
+      });
+      if (!postExists) {
+        resume = null;
+        postPageCursor = undefined;
+        includeCursorPost = false;
+      }
+    } else if (cursor) {
+      resume = null;
+      postPageCursor = undefined;
+      includeCursorPost = false;
+    }
+
+    const items: ReelItem[] = [];
+    let dbHasMore = true;
+    const batchSize = Math.max(limit * 3, 15);
+
+    while (items.length <= limit && dbHasMore) {
+      const posts = await this.prisma.post.findMany({
+        where,
+        include: this.fullInclude(),
+        take: batchSize + 1,
+        ...(postPageCursor
+          ? includeCursorPost
+            ? { cursor: { id: postPageCursor } }
+            : { skip: 1, cursor: { id: postPageCursor } }
+          : {}),
+        orderBy: { createdAt: 'desc' },
+      });
+
+      dbHasMore = posts.length > batchSize;
+      const batch = posts.slice(0, batchSize);
+      if (batch.length === 0) break;
+
+      includeCursorPost = false;
+
+      for (const post of batch) {
+        const summary = this.toSummary(post) as PostSummary;
+        const videos = listPostVideos(summary);
+
+        for (const video of videos) {
+          if (resume && post.id === resume.postId) {
+            if (resume.mediaId) {
+              const mediaIds = videos.map((v) => v.id);
+              if (!mediaIds.includes(resume.mediaId)) {
+                resume = null;
+              } else if (video.id === resume.mediaId) {
+                resume = null;
+                continue;
+              } else {
+                continue;
+              }
+            } else {
+              resume = null;
+              continue;
+            }
+          }
+
+          const raw = post.media.find((m: { id: string }) => m.id === video.id);
+          items.push(
+            reelItemFromVideo(
+              summary,
+              video,
+              (raw as { duration?: number | null } | undefined)?.duration ?? null,
+            ),
+          );
+          if (items.length > limit) break;
+        }
+        if (items.length > limit) break;
+      }
+
+      postPageCursor = batch[batch.length - 1]!.id;
+    }
+
+    const hasMore = items.length > limit || dbHasMore;
+    const page = items.slice(0, limit);
+    const data = await this.attachViewerState(page, viewerId);
+    const last = page[page.length - 1];
+    return {
+      data,
+      nextCursor: hasMore && last ? last.reelKey : null,
+      hasMore,
+    };
+  }
+
+  async getUserDeleted(username: string, viewerId: string, cursor?: string, limit = 12) {
+    const user = await this.prisma.user.findUnique({ where: { username } });
+    if (!user) throw new NotFoundException();
+    if (viewerId !== user.id) throw new ForbiddenException();
+
+    const posts = await this.prisma.post.findMany({
+      where: { userId: user.id, status: 'deleted' },
       include: this.fullInclude(),
       take: limit + 1,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-      orderBy: { createdAt: 'desc' },
+      orderBy: { updatedAt: 'desc' },
     });
 
     const hasMore = posts.length > limit;
@@ -633,6 +800,7 @@ export class PostsService {
       type: post.type,
       isPromoted: post.isPromoted,
       commentsEnabled: post.commentsEnabled ?? true,
+      contactPreference: post.contactPreference ?? 'BOTH',
       qualityScore: post.qualityScore ?? 0,
       viewCount: post.viewCount,
       likesCount: post._count?.likes ?? 0,
@@ -647,6 +815,7 @@ export class PostsService {
         ...media,
         url: this.minio.toServedUrl(media.url) ?? media.url,
         thumbnailUrl: this.minio.toServedUrl(media.thumbnailUrl),
+        hlsUrl: this.minio.toServedUrl(media.hlsUrl),
       })),
     };
   }

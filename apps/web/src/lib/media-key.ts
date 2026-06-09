@@ -1,1 +1,7 @@
-export { mediaKeyFromUrl, toServedMediaUrl, pickThumbnailSrc } from '@agahiram/shared';
+export {
+  mediaKeyFromUrl,
+  toServedMediaUrl,
+  pickThumbnailSrc,
+  pickFeedImageSrc,
+  isPreOptimizedMediaUrl,
+} from '@agahiram/shared';

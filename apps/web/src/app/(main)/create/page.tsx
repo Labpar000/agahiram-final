@@ -11,6 +11,7 @@ import {
   MAX_IMAGE_UPLOAD_BYTES,
   MAX_VIDEO_UPLOAD_BYTES,
   PostStatus,
+  listPostVideos,
   type PostSummary,
 } from '@agahiram/shared';
 import { prependProfilePost } from '@/lib/query-cache-profile';
@@ -465,7 +466,7 @@ export default function CreatePage() {
       const enrichedPost = { ...post, status: post.status ?? PostStatus.PENDING_REVIEW };
       prependFeedPost(qc, enrichedPost);
       prependExplorePost(qc, enrichedPost);
-      if (enrichedPost.type === 'reel') {
+      if (listPostVideos(enrichedPost).length > 0) {
         prependReelsPost(qc, enrichedPost);
       }
       if (myUsername) {
@@ -505,8 +506,8 @@ export default function CreatePage() {
       className="bg-background"
       style={{
         paddingBottom: showBottomBar
-          ? 'calc(var(--bottom-nav) + var(--safe-bottom) + 4.5rem)'
-          : 'calc(var(--bottom-nav) + var(--safe-bottom) + 1rem)',
+          ? 'calc(var(--input-bar-bottom) + 4.5rem)'
+          : 'calc(var(--input-bar-bottom) + 1rem)',
       }}
     >
       {/* Header */}
@@ -558,7 +559,7 @@ export default function CreatePage() {
               <IgLocation className="size-5" strokeWidth={1.75} aria-hidden /> موقعیت مکانی
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">شهر آگهی شما کجاست؟</p>
-            <div className="mt-4 h-[min(28rem,70svh)] overflow-hidden rounded-2xl border border-border">
+            <div className="mt-4 h-[min(28rem,70svh)] overflow-y-auto rounded-2xl border border-border">
               <CityLocationPicker
                 embedded
                 currentCityId={cityId || undefined}
@@ -1016,9 +1017,8 @@ export default function CreatePage() {
       {/* Fixed bottom bar — only on steps that require explicit user action */}
       {showBottomBar && (
         <div
-          className="fixed inset-x-0 z-[var(--z-overlay)] border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
+          className="bottom-above-chrome fixed inset-x-0 z-[var(--z-overlay)] border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
           data-fixed-bottom-chrome
-          style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
         >
           <div className="mx-auto max-w-2xl">
             <Button

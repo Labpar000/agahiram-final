@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Megaphone } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { SettingsHeader } from '@/features/settings/components/settings-header';
 import { SettingsSection } from '@/features/settings/components/settings-section';
@@ -12,6 +13,7 @@ import {
   IgMoon,
   IgShield,
   IgShop,
+  IgTrash,
   IgUser,
   IgWallet,
   Separator,
@@ -19,6 +21,17 @@ import {
 } from '@agahiram/ui';
 
 const SETTINGS_SECTIONS = [
+  {
+    label: 'کسب‌وکار',
+    items: [
+      {
+        icon: Megaphone,
+        label: 'تبلیغات',
+        href: '/promote',
+        desc: 'سفارش و مدیریت تبلیغات',
+      },
+    ],
+  },
   {
     label: 'روش استفاده از آگهی‌رام',
     items: [
@@ -45,6 +58,12 @@ const SETTINGS_SECTIONS = [
         label: 'حریم خصوصی',
         href: '/settings/privacy',
         desc: 'حساب‌های مسدود و بی‌صدا',
+      },
+      {
+        icon: IgTrash,
+        label: 'حذف‌شده‌ها',
+        href: '/settings/deleted',
+        desc: 'آگهی‌هایی که حذف کرده‌اید',
       },
     ],
   },

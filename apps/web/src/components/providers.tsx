@@ -11,6 +11,7 @@ import { SwUpdateBanner } from '@/components/sw-update-banner';
 import { SwRegistrationInstaller } from '@/components/sw-registration-installer';
 import { WebPushRegister } from '@/components/web-push-register';
 import { CallProvider } from '@/features/calls/call-provider';
+import { PushClickHandler } from '@/components/push-click-handler';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [client] = useState(
@@ -37,6 +38,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <WebPushRegister />
           <UploadManagerProvider>
             <CallProvider>
+              <PushClickHandler />
               <TooltipProvider>
                 <SwUpdateBanner />
                 {children}

@@ -15,6 +15,8 @@ import {
   formatRelativeTimeFa,
   formatPhoneFa,
   getPostCoverMedia,
+  isPreOptimizedMediaUrl,
+  pickFeedImageSrc,
   toServedMediaUrl,
 } from '@agahiram/shared';
 import {
@@ -41,8 +43,10 @@ import {
 import { apiClient } from '@/lib/api';
 import { handleEngagementError } from '@/lib/engagement-auth';
 import { useLikePost, useSavePost } from '@/hooks/usePosts';
+import { patchPostDetail, patchPostInInfiniteQueries } from '@/lib/query-cache-posts';
 import { runEngagementAction } from '@/lib/inp';
 import { PostLink } from '@/components/post-link';
+import { buildPostPathFromSummary } from '@/lib/post-url';
 import { ReportDialog } from '@/components/report-dialog';
 import { hasViewedPostLocally, markPostViewedLocally } from '@/lib/viewer-hash';
 import { karmaTier, qualityLabel } from '@/lib/reputation';
@@ -76,6 +80,9 @@ export function PostCard({
   const [liked, setLiked] = useState(initialLiked ?? post.isLiked ?? false);
   const [saved, setSaved] = useState(initialSaved ?? post.isSaved ?? false);
   const [likeCount, setLikeCount] = useState(post.likesCount);
+  const [commentsCount, setCommentsCount] = useState(post.commentsCount);
+  const [saveCount, setSaveCount] = useState(post.savesCount ?? 0);
+  const [shareCount, setShareCount] = useState(post.sharesCount ?? 0);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [collectionPickerOpen, setCollectionPickerOpen] = useState(false);
@@ -90,7 +97,10 @@ export function PostCard({
 
   useEffect(() => {
     setLikeCount(post.likesCount);
-  }, [post.likesCount]);
+    setCommentsCount(post.commentsCount);
+    setSaveCount(post.savesCount ?? 0);
+    setShareCount(post.sharesCount ?? 0);
+  }, [post.likesCount, post.commentsCount, post.savesCount, post.sharesCount]);
 
   const [contactRevealed, setContactRevealed] = useState(false);
   const [contactPhone, setContactPhone] = useState<string | null>(null);
@@ -104,6 +114,7 @@ export function PostCard({
     dragThreshold: 12,
   });
   const [activeIndex, setActiveIndex] = useState(0);
+  const carouselDraggedRef = useRef(false);
 
   // "Seen" indicator: backend marks `viewedByMe` for authenticated users; for
   // anonymous viewers we keep a small bounded localStorage cache so cards they
@@ -135,12 +146,48 @@ export function PostCard({
   useEffect(() => {
     if (!embla) return;
     const onSelect = () => setActiveIndex(embla.selectedScrollSnap());
+    const onScroll = () => {
+      carouselDraggedRef.current = true;
+    };
+    const onPointerDown = () => {
+      carouselDraggedRef.current = false;
+    };
     embla.on('select', onSelect);
+    embla.on('scroll', onScroll);
+    embla.on('pointerDown', onPointerDown);
     onSelect();
     return () => {
       embla.off('select', onSelect);
+      embla.off('scroll', onScroll);
+      embla.off('pointerDown', onPointerDown);
     };
   }, [embla]);
+
+  useEffect(() => {
+    if (!embla) return;
+    embla.reInit();
+  }, [embla, aspectRatio, post.media.length]);
+
+  const onImageSlideClick = useCallback(
+    (e: MouseEvent<HTMLDivElement>) => {
+      e.stopPropagation();
+      if (carouselDraggedRef.current) {
+        carouselDraggedRef.current = false;
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTapRef.current < 320) return;
+      lastTapRef.current = now;
+      if (!enableCommentsDrawer) return;
+      markViewedLocally();
+      window.setTimeout(() => {
+        if (lastTapRef.current === now) {
+          router.push(buildPostPathFromSummary(post));
+        }
+      }, 320);
+    },
+    [enableCommentsDrawer, markViewedLocally, post, router],
+  );
 
   const onLikeToggle = useCallback(
     (forceLike?: boolean) => {
@@ -177,11 +224,18 @@ export function PostCard({
     }
     const next = !saved;
     setSaved(next);
+    setSaveCount((c) => Math.max(0, c + (next ? 1 : -1)));
     runEngagementAction(`save-${post.id}`, () => {
       saveMutation.mutate(
         { postId: post.id, save: next },
         {
-          onError: () => setSaved(!next),
+          onSuccess: (data) => {
+            if (typeof data?.savesCount === 'number') setSaveCount(data.savesCount);
+          },
+          onError: () => {
+            setSaved(!next);
+            setSaveCount((c) => Math.max(0, c + (next ? -1 : 1)));
+          },
         },
       );
     });
@@ -255,10 +309,17 @@ export function PostCard({
         await navigator.clipboard.writeText(url);
         toast.success('لینک کپی شد');
       }
+      setShareCount((c) => c + 1);
+      const res = await apiClient.post<{ sharesCount: number }>(`/posts/${post.id}/share`, {});
+      if (res.success && typeof res.data?.sharesCount === 'number') {
+        setShareCount(res.data.sharesCount);
+        patchPostInInfiniteQueries(qc, post.id, { sharesCount: res.data.sharesCount });
+        patchPostDetail(qc, post.id, { sharesCount: res.data.sharesCount });
+      }
     } catch {
       /* user cancelled */
     }
-  }, [post.id, post.title, post.media]);
+  }, [post.id, post.title, post.media, qc]);
 
   const [messaging, setMessaging] = useState(false);
   const onSendMessage = useCallback(async () => {
@@ -266,7 +327,7 @@ export function PostCard({
     setMessaging(true);
     try {
       const r = await apiClient.post<{ conversationId: string }>(
-        `/messages/start/${post.user.username}`,
+        `/messages/start/${post.user.username}?postId=${encodeURIComponent(post.id)}`,
       );
       if (r.success && r.data) {
         router.push(`/messages/${r.data.conversationId}`);
@@ -276,7 +337,7 @@ export function PostCard({
     } finally {
       setMessaging(false);
     }
-  }, [messaging, post.user.username, router]);
+  }, [messaging, post.id, post.user.username, router]);
 
   return (
     <article className="border-b-[0.5px] border-[var(--ig-tab-border)] bg-surface">
@@ -350,84 +411,83 @@ export function PostCard({
             دیده‌شده
           </span>
         ) : null}
-        <div
-          ref={emblaRef}
-          className="post-media-carousel relative overflow-hidden bg-muted"
-          style={aspectRatioStyle(aspectRatio)}
-          onClick={onDoubleTap}
-        >
-          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
-          <div className="flex h-full min-h-0">
-            {post.media.length === 0 ? (
-              <div className="grid size-full place-items-center bg-surface-muted p-6 text-center text-sm text-muted-foreground">
-                این آگهی رسانه‌ای ندارد
-              </div>
-            ) : (
-              post.media.map((m, i) => {
-                const inWindow = Math.abs(i - activeIndex) <= 1;
-                if (!inWindow) {
-                  return (
+        <div className="relative">
+          <div
+            ref={emblaRef}
+            className="post-media-carousel overflow-hidden bg-muted"
+            style={aspectRatioStyle(aspectRatio)}
+            onClick={onDoubleTap}
+            aria-roledescription="carousel"
+            aria-label={`اسلاید ${activeIndex + 1} از ${post.media.length}`}
+          >
+            <div className="flex h-full min-h-0">
+              {post.media.length === 0 ? (
+                <div className="grid size-full place-items-center bg-surface-muted p-6 text-center text-sm text-muted-foreground">
+                  این آگهی رسانه‌ای ندارد
+                </div>
+              ) : (
+                post.media.map((m, i) => {
+                  const inWindow = Math.abs(i - activeIndex) <= 1;
+                  const imageSrc = pickFeedImageSrc(m) ?? toServedMediaUrl(m.url) ?? m.url;
+                  if (!inWindow) {
+                    return (
+                      <div
+                        key={m.id ?? i}
+                        className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden bg-muted"
+                        aria-hidden
+                      />
+                    );
+                  }
+                  return m.type === 'video' ? (
                     <div
                       key={m.id ?? i}
-                      className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden bg-muted"
-                      aria-hidden
-                    />
-                  );
-                }
-                return m.type === 'video' ? (
-                  <div
-                    key={m.id ?? i}
-                    className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden"
-                  >
-                    <FeedPostVideo
-                      id={`${post.id}-${m.id ?? i}`}
-                      hlsUrl={m.hlsUrl}
-                      mp4Url={m.url}
-                      poster={m.thumbnailUrl ?? undefined}
-                      className="size-full"
-                      active={activeIndex === i}
-                      onDoubleTap={() => {
-                        void onLikeToggle(true);
-                        setBurst((b) => b + 1);
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <PostLink
-                    key={m.id ?? i}
-                    postId={post.id}
-                    post={post}
-                    className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                    onClick={(e: MouseEvent<HTMLAnchorElement>) => {
-                      const now = Date.now();
-                      if (now - lastTapRef.current < 320) {
-                        e.preventDefault();
-                        return;
-                      }
-                      lastTapRef.current = now;
-                      e.preventDefault();
-                      markViewedLocally();
-                      window.setTimeout(() => {
-                        if (lastTapRef.current === now) {
-                          router.push(`/post/${post.id}`);
+                      className="post-media-slide relative h-full min-w-full shrink-0 overflow-hidden"
+                    >
+                      <FeedPostVideo
+                        id={`${post.id}-${m.id ?? i}`}
+                        hlsUrl={m.hlsUrl}
+                        mp4Url={m.url}
+                        poster={m.thumbnailUrl ?? undefined}
+                        className="size-full"
+                        active={activeIndex === i}
+                        onDoubleTap={() => {
+                          void onLikeToggle(true);
+                          setBurst((b) => b + 1);
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      key={m.id ?? i}
+                      role="button"
+                      tabIndex={0}
+                      className="post-media-slide relative h-full min-w-full shrink-0 cursor-pointer overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                      onClick={onImageSlideClick}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onImageSlideClick(e as unknown as MouseEvent<HTMLDivElement>);
                         }
-                      }, 320);
-                    }}
-                  >
-                    <Image
-                      src={toServedMediaUrl(m.url) ?? m.url}
-                      alt={post.title}
-                      fill
-                      sizes="(max-width: 640px) 100vw, 600px"
-                      className="object-cover"
-                      priority={priority && i === 0}
-                      loading={priority && i === 0 ? 'eager' : 'lazy'}
-                    />
-                  </PostLink>
-                );
-              })
-            )}
+                      }}
+                    >
+                      <Image
+                        src={imageSrc}
+                        alt={`${post.title} — تصویر ${i + 1}`}
+                        fill
+                        sizes="(max-width: 640px) 100vw, 600px"
+                        className="pointer-events-none object-cover select-none"
+                        draggable={false}
+                        priority={priority && i === 0}
+                        loading={priority && i === 0 ? 'eager' : 'lazy'}
+                        unoptimized={isPreOptimizedMediaUrl(imageSrc)}
+                      />
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-16 bg-gradient-to-b from-black/10 via-black/5 to-transparent" />
           <HeartBurst trigger={burst} />
         </div>
 
@@ -484,17 +544,11 @@ export function PostCard({
           commentLabel="نظرات"
           shareLabel="اشتراک‌گذاری"
           saveLabel={saved ? 'حذف از ذخیره‌ها' : 'ذخیره'}
+          likeCount={likeCount}
+          commentCount={commentsCount}
+          shareCount={shareCount}
+          saveCount={saveCount}
         />
-
-        {likeCount > 0 ? (
-          <p
-            key={likeCount}
-            className="count-in mt-2 text-sm font-semibold leading-tight"
-            aria-label={`${formatPersianNumber(likeCount)} پسند`}
-          >
-            {formatPersianNumber(likeCount)} پسند
-          </p>
-        ) : null}
 
         {/* Caption — IG-style username + title */}
         <div className="mt-1 space-y-0.5 text-sm leading-snug">
@@ -525,16 +579,6 @@ export function PostCard({
             </p>
           ) : null}
         </div>
-
-        {post.commentsCount > 0 ? (
-          <PostLink
-            postId={post.id}
-            post={post}
-            className="mt-1 block w-fit text-sm text-muted-foreground tap-none hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            مشاهده {formatPersianNumber(post.commentsCount)} نظر
-          </PostLink>
-        ) : null}
 
         {/* Agahiram marketplace block */}
         <div className="mt-2 space-y-2 border-t border-border-subtle pt-2.5">

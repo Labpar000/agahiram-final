@@ -177,6 +177,7 @@ export class UsersService {
       name: user.name,
       bio: user.bio,
       avatar: user.avatar,
+      website: user.website,
       isVerified: user.isVerified,
       isBusiness: user.isBusiness,
       isPrivate: user.isPrivate,
@@ -234,6 +235,9 @@ export class UsersService {
         createdAt: true,
       },
     });
+    if (input.username !== undefined || input.isPrivate !== undefined || input.name !== undefined) {
+      await this.searchQueue.add('index-user', { userId }, { removeOnComplete: true });
+    }
     if (input.username !== undefined || input.isPrivate !== undefined) {
       const posts = await this.prisma.post.findMany({
         where: { userId },
@@ -525,6 +529,7 @@ export class UsersService {
           { name: { contains: query, mode: 'insensitive' } },
         ],
         isBanned: false,
+        isPrivate: false,
       },
       select: { id: true, username: true, name: true, avatar: true, isVerified: true },
       take: limit,

@@ -57,6 +57,7 @@ import { AdsModule } from './ads/ads.module';
     }),
     BullModule.registerQueue(
       { name: BULL_QUEUES.SEARCH_INDEX },
+      { name: BULL_QUEUES.SEARCH_ALERT_MATCH },
       { name: BULL_QUEUES.NOTIFICATIONS },
       { name: BULL_QUEUES.STORY_CLEANUP },
       { name: BULL_QUEUES.MEDIA_PROCESSING },

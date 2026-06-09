@@ -91,6 +91,15 @@ export function setupVideoSource(
   if (!hls && !mp4) return noopSourceHandle;
 
   if (hls && supportsNativeHls(video)) {
+    if (mp4) {
+      video.addEventListener(
+        'error',
+        () => {
+          video.src = mp4;
+        },
+        { once: true },
+      );
+    }
     video.src = hls;
     return {
       ready: whenVideoCanPlay(video),
@@ -109,6 +118,18 @@ export function setupVideoSource(
       resolveReady = resolve;
     });
 
+    const attachMp4Fallback = () => {
+      if (!mp4) return;
+      try {
+        instance?.destroy();
+      } catch {
+        /* noop */
+      }
+      instance = null;
+      video.src = mp4;
+      void whenVideoCanPlay(video).then(() => resolveReady?.());
+    };
+
     void import('hls.js')
       .then(({ default: Hls }) => {
         if (cancelled || !video.isConnected) {
@@ -117,9 +138,15 @@ export function setupVideoSource(
         }
         if (Hls.isSupported()) {
           instance = new Hls({
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
+            // Tuned for slow/mobile networks (Iran): smaller buffer, longer timeouts.
+            maxBufferLength: 12,
+            maxMaxBufferLength: 24,
+            maxBufferSize: 20 * 1000 * 1000,
+            maxBufferHole: 0.5,
             enableWorker: true,
+            fragLoadingTimeOut: 25_000,
+            manifestLoadingTimeOut: 15_000,
+            levelLoadingTimeOut: 15_000,
           });
           instance.on(Hls.Events.MANIFEST_PARSED, () => resolveReady?.());
           instance.on(Hls.Events.ERROR, (_event, data) => {
@@ -128,6 +155,8 @@ export function setupVideoSource(
               instance.recoverMediaError();
             } else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
               instance.startLoad();
+            } else if (mp4) {
+              attachMp4Fallback();
             }
           });
           instance.loadSource(hls);
@@ -137,7 +166,14 @@ export function setupVideoSource(
           void whenVideoCanPlay(video).then(() => resolveReady?.());
         }
       })
-      .catch(() => resolveReady?.());
+      .catch(() => {
+        if (mp4 && !cancelled && video.isConnected) {
+          video.src = mp4;
+          void whenVideoCanPlay(video).then(() => resolveReady?.());
+        } else {
+          resolveReady?.();
+        }
+      });
 
     return {
       ready,

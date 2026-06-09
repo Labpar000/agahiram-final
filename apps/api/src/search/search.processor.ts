@@ -9,7 +9,13 @@ export class SearchIndexProcessor extends WorkerHost {
     super();
   }
 
-  async process(job: Job<{ postId?: string; storyId?: string; remove?: boolean }>) {
+  async process(
+    job: Job<{ postId?: string; storyId?: string; userId?: string; remove?: boolean }>,
+  ) {
+    if (job.name === 'index-user' && job.data.userId) {
+      await this.searchService.indexUser(job.data.userId);
+      return;
+    }
     if (job.name === 'index-story') {
       if (job.data.remove && job.data.storyId) {
         await this.searchService.deleteStory(job.data.storyId);

@@ -94,8 +94,20 @@ function Inner() {
                   کد پیگیری: <span className="font-mono">{refId}</span>
                 </p>
               ) : null}
-              <Button variant="brand" size="lg" fullWidth onClick={() => router.push('/feed')}>
-                بازگشت به آگهی‌گرام
+              <Button
+                variant="brand"
+                size="lg"
+                fullWidth
+                onClick={() => {
+                  const stored =
+                    typeof window !== 'undefined'
+                      ? sessionStorage.getItem('paymentReturnUrl')
+                      : null;
+                  if (stored) sessionStorage.removeItem('paymentReturnUrl');
+                  router.push(stored && stored.startsWith('/') ? stored : '/feed');
+                }}
+              >
+                بازگشت
               </Button>
             </>
           )}

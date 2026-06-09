@@ -32,6 +32,11 @@ import {
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import {
+  findPostInClientCache,
+  patchPostDetail,
+  patchPostInInfiniteQueries,
+} from '@/lib/query-cache-posts';
+import {
   insertMention,
   parseMentionQuery,
   commentContainsMention,
@@ -46,7 +51,6 @@ import {
   type CommentRow,
 } from '@/lib/query-cache-comments';
 import { ReportDialog } from '@/components/report-dialog';
-import { useMobileInputScroll } from '@/hooks/use-mobile-input';
 import { CommentComposerBar, CommentLoginPrompt } from '@/components/comment-composer-bar';
 import { profilePath } from '@/lib/profile-path';
 
@@ -610,6 +614,10 @@ function useCommentSectionState({
       if (created && !vars.parentId && ctx?.tempId) {
         removeCommentFromCache(qc, postId, ctx.tempId);
         prependCommentToCache(qc, postId, created as CommentRow);
+        const hit = findPostInClientCache(qc, postId);
+        const commentsCount = (hit?.commentsCount ?? 0) + 1;
+        patchPostInInfiniteQueries(qc, postId, { commentsCount });
+        patchPostDetail(qc, postId, { commentsCount });
       }
       if (vars.parentId) {
         qc.invalidateQueries({ queryKey: ['comment-replies', vars.parentId] });
@@ -942,8 +950,7 @@ export function CommentComposer({ variant = 'page' }: { variant?: CommentSection
       <div
         className={cn(
           'border-t border-border',
-          !isDrawer &&
-            'sticky bottom-[calc(var(--bottom-nav)+var(--safe-bottom))] z-[var(--z-raised)] bg-surface/95 backdrop-blur-md',
+          !isDrawer && 'sticky-above-keyboard z-[var(--z-raised)] bg-surface/95 backdrop-blur-md',
         )}
       >
         <CommentLoginPrompt variant={variant} />
@@ -955,8 +962,7 @@ export function CommentComposer({ variant = 'page' }: { variant?: CommentSection
     <div
       className={cn(
         'relative border-t border-border',
-        !isDrawer &&
-          'sticky bottom-[calc(var(--bottom-nav)+var(--safe-bottom))] z-[var(--z-raised)] bg-surface/95 backdrop-blur-md',
+        !isDrawer && 'sticky-above-keyboard z-[var(--z-raised)] bg-surface/95 backdrop-blur-md',
       )}
     >
       {ctx.replyTo ? (
@@ -1039,8 +1045,6 @@ export function CommentSection({
   variant?: CommentSectionVariant;
 }) {
   const isDrawer = variant === 'drawer';
-  const sectionRef = useRef<HTMLElement>(null);
-  useMobileInputScroll(sectionRef, { enabled: !isDrawer });
 
   return (
     <CommentSectionProvider
@@ -1050,7 +1054,6 @@ export function CommentSection({
       highlightCommentId={highlightCommentId}
     >
       <section
-        ref={sectionRef}
         className={cn(
           'bg-surface',
           isDrawer

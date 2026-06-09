@@ -147,6 +147,11 @@
   --vv-height: 100svh;
   --vv-offset-top: 0px;
   --keyboard-inset: 0px;
+  --bottom-chrome: calc(var(--bottom-nav) + var(--safe-bottom));
+  --input-bar-bottom: calc(var(--bottom-chrome) + var(--keyboard-inset));
+  --composer-stack-keyboard: calc(var(--composer-stack) + var(--keyboard-inset));
+  --chat-composer-stack-keyboard: calc(var(--chat-composer-stack) + var(--keyboard-inset));
+  --drawer-input-bottom: calc(var(--safe-bottom) + var(--keyboard-inset));
 
   /* Typography metrics (Vazirmatn tuned) */
   --leading-tight: 1.25;

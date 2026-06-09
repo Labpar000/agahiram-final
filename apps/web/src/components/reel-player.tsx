@@ -14,7 +14,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'framer-motion';
 import useEmblaCarousel from 'embla-carousel-react';
@@ -24,7 +23,7 @@ import {
   formatPersianNumber,
   formatPersianPrice,
   formatPhoneFa,
-  getPostCoverMedia,
+  listPostVideos,
 } from '@agahiram/shared';
 import {
   Avatar,
@@ -60,6 +59,7 @@ import {
   setReelsMutedPreference,
   applySafariVideoAttrs,
 } from '@/lib/video-playback';
+import { buildReelPath } from '@/lib/reel-url';
 import { ReelCommentSheet } from '@/components/reel-comment-sheet';
 import { ReportDialog } from '@/components/report-dialog';
 
@@ -83,8 +83,11 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const saveMutation = useSavePost();
   const prefersReducedMotion = useReducedMotion() ?? false;
   const lastTapRef = useRef(0);
-  const videoId = `reel-${reel.id}`;
-  const hasMultipleMedia = reel.media.length > 1;
+  const videoClips = listPostVideos(reel);
+  const primaryVideo = videoClips[0];
+  const videoId = `reel-${reel.reelKey}`;
+  // Feed delivers one clip per slot — never carousel inside a reel tile.
+  const hasMultipleMedia = false;
 
   const [emblaRef, embla] = useEmblaCarousel({
     direction: 'rtl',
@@ -95,14 +98,14 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const [mediaIndex, setMediaIndex] = useState(0);
   const [carouselVideo, setCarouselVideo] = useState<ReelVideoControls | null>(null);
 
-  const activeMedia = reel.media[mediaIndex] ?? reel.media[0];
+  const activeMedia = videoClips[mediaIndex] ?? primaryVideo;
   const isVideoSlide = activeMedia?.type === 'video';
 
   useEffect(() => {
     setMediaIndex(0);
     embla?.scrollTo(0, true);
     setCarouselVideo(null);
-  }, [reel.id, embla]);
+  }, [reel.reelKey, embla]);
 
   useEffect(() => {
     if (!embla) return;
@@ -133,8 +136,8 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   const singleVideo = useManagedVideo({
     id: videoId,
     kind: 'reel',
-    hlsUrl: reel.hlsUrl ?? reel.media[0]?.hlsUrl,
-    mp4Url: reel.media[0]?.url,
+    hlsUrl: reel.hlsUrl ?? primaryVideo?.hlsUrl,
+    mp4Url: primaryVideo?.url,
     active: active && !hasMultipleMedia,
     loop: true,
     muted,
@@ -307,7 +310,11 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
   }, [saved, reel.id, isAuthenticated, endSession, saveMutation]);
 
   const onShare = useCallback(async () => {
-    const url = `${window.location.origin}/post/${reel.id}`;
+    const path = buildReelPath(reel.id, {
+      user: reel.user.username,
+      mediaId: reel.mediaId,
+    });
+    const url = `${window.location.origin}${path}`;
     try {
       if (navigator.share) {
         await navigator.share({ title: reel.title, url });
@@ -323,7 +330,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     } catch {
       /* user cancelled */
     }
-  }, [reel.id, reel.title]);
+  }, [reel.id, reel.mediaId, reel.title, reel.user.username]);
 
   const onContact = useCallback(async () => {
     if (contactRevealed) {
@@ -358,7 +365,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     setMessaging(true);
     try {
       const r = await apiClient.post<{ conversationId: string }>(
-        `/messages/start/${reel.user.username}`,
+        `/messages/start/${reel.user.username}?postId=${encodeURIComponent(reel.id)}`,
       );
       if (r.success && r.data) {
         router.push(`/messages/${r.data.conversationId}`);
@@ -368,7 +375,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     } finally {
       setMessaging(false);
     }
-  }, [messaging, reel.user.username, router]);
+  }, [messaging, reel.id, reel.user.username, router]);
 
   const onVideoTap = useCallback(() => {
     const now = Date.now();
@@ -456,6 +463,14 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
     [videoRef],
   );
 
+  if (!primaryVideo) {
+    return (
+      <div className="relative grid h-full min-h-0 w-full place-items-center bg-black p-6 text-center text-white">
+        <p className="text-sm">ویدیویی برای نمایش وجود ندارد</p>
+      </div>
+    );
+  }
+
   return (
     <div ref={containerRef} className="relative h-full min-h-0 w-full snap-start bg-black">
       {/* z-index 0: Media (single video or carousel) */}
@@ -466,7 +481,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           onClick={onVideoTap}
         >
           <div className="flex h-full min-h-0">
-            {reel.media.map((m, i) => {
+            {videoClips.map((m, i) => {
               const inWindow = Math.abs(i - mediaIndex) <= 1;
               if (!inWindow) {
                 return (
@@ -483,13 +498,11 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
                   media={m}
                   slideIndex={i}
                   mediaIndex={mediaIndex}
-                  reelId={reel.id}
+                  reelKey={reel.reelKey}
                   reelActive={active}
                   muted={muted}
                   onError={() => setVideoError(true)}
-                  onControlsChange={
-                    i === mediaIndex && m.type === 'video' ? setCarouselVideo : undefined
-                  }
+                  onControlsChange={i === mediaIndex ? setCarouselVideo : undefined}
                 />
               );
             })}
@@ -500,8 +513,8 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
           ref={setVideoRef}
           playsInline
           muted={muted}
-          preload="auto"
-          poster={getPostCoverMedia(reel.media)?.thumbnailUrl ?? undefined}
+          preload="metadata"
+          poster={primaryVideo?.thumbnailUrl ?? undefined}
           className="absolute inset-0 size-full object-cover select-none [-webkit-touch-callout:none] [transform:translateZ(0)]"
           onClick={onVideoTap}
           onError={() => setVideoError(true)}
@@ -515,7 +528,7 @@ export function ReelPlayer({ reel, active = true }: { reel: ReelItem; active?: b
 
       {hasMultipleMedia ? (
         <CarouselDots
-          count={reel.media.length}
+          count={videoClips.length}
           activeIndex={mediaIndex}
           className="pointer-events-none absolute inset-x-0 top-3 z-[3]"
         />
@@ -838,7 +851,7 @@ function ReelCarouselSlide({
   media,
   slideIndex,
   mediaIndex,
-  reelId,
+  reelKey,
   reelActive,
   muted,
   onError,
@@ -847,14 +860,14 @@ function ReelCarouselSlide({
   media: ReelMedia;
   slideIndex: number;
   mediaIndex: number;
-  reelId: string;
+  reelKey: string;
   reelActive: boolean;
   muted: boolean;
   onError: () => void;
   onControlsChange?: (controls: ReelVideoControls | null) => void;
 }) {
   const isActiveSlide = mediaIndex === slideIndex;
-  const videoId = `reel-${reelId}-${media.id ?? slideIndex}`;
+  const videoId = `reel-${reelKey}-${media.id ?? slideIndex}`;
 
   const { videoRef, containerRef, playing, progress, togglePlay, seek } = useManagedVideo({
     id: videoId,
@@ -882,41 +895,26 @@ function ReelCarouselSlide({
 
   useEffect(() => {
     if (!onControlsChange) return;
-    if (media.type !== 'video' || !isActiveSlide) {
+    if (!isActiveSlide) {
       onControlsChange(null);
       return;
     }
     onControlsChange({ playing, progress, togglePlay, seek });
-  }, [onControlsChange, media.type, isActiveSlide, playing, progress, togglePlay, seek]);
-
-  if (media.type === 'video') {
-    return (
-      <div
-        ref={containerRef}
-        className="reel-media-slide relative h-full min-w-full shrink-0 bg-black"
-      >
-        <video
-          ref={setVideoRef}
-          playsInline
-          muted={muted}
-          preload="auto"
-          poster={media.thumbnailUrl ?? undefined}
-          className="size-full object-cover select-none [-webkit-touch-callout:none] [transform:translateZ(0)]"
-          onError={onError}
-        />
-      </div>
-    );
-  }
+  }, [onControlsChange, isActiveSlide, playing, progress, togglePlay, seek]);
 
   return (
-    <div className="reel-media-slide relative h-full min-w-full shrink-0 bg-black">
-      <Image
-        src={media.url}
-        alt=""
-        fill
-        sizes="100vw"
-        className="object-cover select-none"
-        priority={isActiveSlide}
+    <div
+      ref={containerRef}
+      className="reel-media-slide relative h-full min-w-full shrink-0 bg-black"
+    >
+      <video
+        ref={setVideoRef}
+        playsInline
+        muted={muted}
+        preload={isActiveSlide ? 'metadata' : 'none'}
+        poster={media.thumbnailUrl ?? undefined}
+        className="size-full object-cover select-none [-webkit-touch-callout:none] [transform:translateZ(0)]"
+        onError={onError}
       />
     </div>
   );

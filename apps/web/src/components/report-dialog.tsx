@@ -60,7 +60,7 @@ export function ReportDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-h-[min(90svh,calc(var(--vv-height,100svh)-2rem))] max-w-sm overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

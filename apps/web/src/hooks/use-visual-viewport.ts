@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 
+export const KEYBOARD_OPEN_THRESHOLD_PX = 80;
+
 export function computeVisualViewportVars(
   innerHeight: number,
   vv?: Pick<VisualViewport, 'height' | 'offsetTop'> | null,
@@ -11,18 +13,30 @@ export function computeVisualViewportVars(
       vvHeight: `${innerHeight}px`,
       vvOffsetTop: '0px',
       keyboardInset: '0px',
+      keyboardInsetPx: 0,
     };
   }
 
-  const keyboardInset = Math.max(0, innerHeight - vv.height - vv.offsetTop);
+  const keyboardInsetPx = Math.max(0, innerHeight - vv.height - vv.offsetTop);
   return {
     vvHeight: `${vv.height}px`,
     vvOffsetTop: `${vv.offsetTop}px`,
-    keyboardInset: `${keyboardInset}px`,
+    keyboardInset: `${keyboardInsetPx}px`,
+    keyboardInsetPx,
   };
 }
 
-function syncVisualViewportVars() {
+export function isKeyboardOpen(keyboardInsetPx: number, hasFocusedInput: boolean): boolean {
+  return keyboardInsetPx > KEYBOARD_OPEN_THRESHOLD_PX || hasFocusedInput;
+}
+
+function isFocusableInput(el: EventTarget | null): el is HTMLElement {
+  if (!(el instanceof HTMLElement)) return false;
+  const tag = el.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+}
+
+function syncVisualViewportVars(hasFocusedInput = false) {
   const root = document.documentElement;
   const vv = window.visualViewport;
   const vars = computeVisualViewportVars(window.innerHeight, vv ?? null);
@@ -30,6 +44,12 @@ function syncVisualViewportVars() {
   root.style.setProperty('--vv-height', vars.vvHeight);
   root.style.setProperty('--vv-offset-top', vars.vvOffsetTop);
   root.style.setProperty('--keyboard-inset', vars.keyboardInset);
+
+  if (isKeyboardOpen(vars.keyboardInsetPx, hasFocusedInput)) {
+    root.dataset.keyboardOpen = 'true';
+  } else {
+    delete root.dataset.keyboardOpen;
+  }
 }
 
 /**
@@ -38,22 +58,48 @@ function syncVisualViewportVars() {
  */
 export function useVisualViewport() {
   useEffect(() => {
-    syncVisualViewportVars();
+    let focusedInput = false;
+
+    const sync = () => syncVisualViewportVars(focusedInput);
+
+    const onFocusIn = (e: FocusEvent) => {
+      if (!isFocusableInput(e.target)) return;
+      focusedInput = true;
+      sync();
+    };
+
+    const onFocusOut = () => {
+      window.setTimeout(() => {
+        focusedInput = isFocusableInput(document.activeElement);
+        sync();
+      }, 0);
+    };
+
+    sync();
+
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
 
     const vv = window.visualViewport;
     if (!vv) {
-      window.addEventListener('resize', syncVisualViewportVars);
-      return () => window.removeEventListener('resize', syncVisualViewportVars);
+      window.addEventListener('resize', sync);
+      return () => {
+        window.removeEventListener('resize', sync);
+        document.removeEventListener('focusin', onFocusIn);
+        document.removeEventListener('focusout', onFocusOut);
+      };
     }
 
-    vv.addEventListener('resize', syncVisualViewportVars);
-    vv.addEventListener('scroll', syncVisualViewportVars);
-    window.addEventListener('orientationchange', syncVisualViewportVars);
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    window.addEventListener('orientationchange', sync);
 
     return () => {
-      vv.removeEventListener('resize', syncVisualViewportVars);
-      vv.removeEventListener('scroll', syncVisualViewportVars);
-      window.removeEventListener('orientationchange', syncVisualViewportVars);
+      vv.removeEventListener('resize', sync);
+      vv.removeEventListener('scroll', sync);
+      window.removeEventListener('orientationchange', sync);
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
     };
   }, []);
 }

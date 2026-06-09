@@ -42,6 +42,7 @@ function Inner() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
+  const [otpSessionKey, setOtpSessionKey] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [isVerifying, setIsVerifying] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -77,6 +78,7 @@ function Inner() {
     try {
       await sendOtp.mutateAsync({ phone });
       setStep('otp');
+      setOtpSessionKey((k) => k + 1);
       startCountdown(120);
       toast.success('کد تأیید ارسال شد');
     } catch (err) {
@@ -88,6 +90,7 @@ function Inner() {
     if (secondsLeft > 0) return;
     try {
       await sendOtp.mutateAsync({ phone });
+      setOtpSessionKey((k) => k + 1);
       startCountdown(120);
       toast.success('کد جدید ارسال شد');
     } catch (err) {
@@ -227,6 +230,7 @@ function Inner() {
                   if (!isVerifying) void handleVerify(v);
                 }}
                 autoFocus
+                webOtpSessionKey={otpSessionKey}
                 invalid={code.length === 6 && verifyOtp.isError}
               />
             </div>

@@ -35,6 +35,17 @@ type CanViewOptions = { discover?: boolean };
 
 const STORY_IMAGE_MS = 5_000;
 
+function mapStoryMediaUrls(
+  minio: MinioService,
+  s: { mediaUrl: string; thumbnailUrl?: string | null; hlsUrl?: string | null },
+) {
+  return {
+    mediaUrl: minio.toServedUrl(s.mediaUrl) ?? s.mediaUrl,
+    thumbnailUrl: minio.toServedUrl(s.thumbnailUrl),
+    hlsUrl: minio.toServedUrl(s.hlsUrl),
+  };
+}
+
 export type CreateStoryInput = {
   mediaKey?: string;
   type: 'image' | 'video';
@@ -535,7 +546,7 @@ export class StoriesService {
       isMe: viewerId === uId,
       stories: filtered.map((s) => ({
         id: s.id,
-        mediaUrl: s.mediaUrl,
+        ...mapStoryMediaUrls(this.minio, s),
         type: s.type,
         expiresAt: s.expiresAt.toISOString(),
         linkedPostId: s.linkedPostId,
@@ -550,8 +561,6 @@ export class StoriesService {
         stickers: serializeStickersForViewer(s.stickers, viewerId, uId),
         altText: s.altText,
         hashtag: s.hashtag,
-        thumbnailUrl: s.thumbnailUrl,
-        hlsUrl: s.hlsUrl,
       })),
       hasUnviewed: viewerId
         ? filtered.some((s) => (Array.isArray(s.views) ? s.views.length === 0 : true))
@@ -610,7 +619,7 @@ export class StoriesService {
       isMe: uId === userId,
       stories: items.map((s) => ({
         id: s.id,
-        mediaUrl: s.mediaUrl,
+        ...mapStoryMediaUrls(this.minio, s),
         type: s.type,
         expiresAt: s.expiresAt.toISOString(),
         linkedPostId: s.linkedPostId,
@@ -625,8 +634,6 @@ export class StoriesService {
         stickers: serializeStickersForViewer(s.stickers, userId, uId),
         altText: s.altText,
         hashtag: s.hashtag,
-        thumbnailUrl: s.thumbnailUrl,
-        hlsUrl: s.hlsUrl,
       })),
       hasUnviewed: items.some((s) => s.views.length === 0),
       viewerCount: uId === userId ? items.reduce((sum, s) => sum + s._count.views, 0) : undefined,
@@ -985,7 +992,7 @@ export class StoriesService {
     return {
       data: data.map((s) => ({
         id: s.id,
-        mediaUrl: s.mediaUrl,
+        ...mapStoryMediaUrls(this.minio, s),
         type: s.type,
         audience: s.audience,
         hashtag: s.hashtag,
@@ -1111,8 +1118,7 @@ export class StoriesService {
     return {
       id: s.id,
       userId: s.userId,
-      mediaUrl: s.mediaUrl,
-      thumbnailUrl: s.thumbnailUrl,
+      ...mapStoryMediaUrls(this.minio, s),
       type: s.type,
       overlayJson: s.overlayJson,
       createdAt: s.createdAt.toISOString(),

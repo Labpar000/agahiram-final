@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   forwardRef,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -34,6 +35,16 @@ export class CallsService {
     private readonly notifications: NotificationsService,
     @InjectQueue(BULL_QUEUES.CALL_TIMEOUT) private readonly callTimeoutQueue: Queue,
   ) {}
+
+  private assertLivekitReady() {
+    if (!this.livekit.isConfigured()) {
+      throw new ServiceUnavailableException('سرویس تماس تصویری در حال حاضر در دسترس نیست');
+    }
+  }
+
+  private callTypeLabel(type: string): string {
+    return type === 'audio' ? 'تماس صوتی' : 'تماس تصویری';
+  }
 
   private async assertNotBlocked(a: string, b: string) {
     const block = await this.prisma.block.findFirst({
@@ -120,7 +131,39 @@ export class CallsService {
     };
   }
 
+  private async postCallEventMessage(
+    call: {
+      conversationId: string;
+      initiatorId: string;
+      calleeId: string;
+      type: string;
+    },
+    content: string,
+  ) {
+    const callEventMessage = await this.prisma.message.create({
+      data: {
+        conversationId: call.conversationId,
+        senderId: call.initiatorId,
+        type: 'call_event',
+        content,
+      },
+      include: {
+        sender: { select: { id: true, username: true, name: true, avatar: true } },
+      },
+    });
+
+    this.messagesGateway.broadcastMessage({
+      message: {
+        ...callEventMessage,
+        createdAt: callEventMessage.createdAt.toISOString(),
+      },
+      conversationId: call.conversationId,
+      recipientUserId: call.calleeId,
+    });
+  }
+
   async create(userId: string, input: CreateCallInput) {
+    this.assertLivekitReady();
     await this.assertParticipant(userId, input.conversationId);
     await this.assertNotBusy(userId);
 
@@ -182,6 +225,7 @@ export class CallsService {
     await this.scheduleRingTimeout(call.id);
 
     return {
+      call: this.serializeCall(call),
       token: initiatorToken,
       livekitUrl,
       roomName,
@@ -189,6 +233,7 @@ export class CallsService {
   }
 
   async accept(userId: string, callId: string) {
+    this.assertLivekitReady();
     const call = await this.prisma.call.findUnique({
       where: { id: callId },
       include: {
@@ -250,7 +295,13 @@ export class CallsService {
   }
 
   async reject(userId: string, callId: string) {
-    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    const call = await this.prisma.call.findUnique({
+      where: { id: callId },
+      include: {
+        initiator: { select: { id: true, username: true, name: true, avatar: true } },
+        callee: { select: { id: true, username: true, name: true, avatar: true } },
+      },
+    });
     if (!call) throw new NotFoundException();
     if (call.calleeId !== userId) throw new ForbiddenException();
     if (call.status !== 'ringing') throw new BadRequestException();
@@ -258,6 +309,8 @@ export class CallsService {
     const updated = await this.endCallRecord(call, 'rejected', userId);
     await this.clearRingTimer(callId);
     await this.livekit.deleteRoom(call.roomName);
+
+    await this.postCallEventMessage(call, `${this.callTypeLabel(call.type)} رد شد`);
 
     this.gateway.emitToUser(call.initiatorId, CALL_EVENTS.REJECT, { callId });
     return { call: this.serializeCall(updated) };
@@ -285,9 +338,14 @@ export class CallsService {
       return { call: this.serializeCall(call) };
     }
 
+    const wasActive = call.status === 'active';
     const updated = await this.endCallRecord(call, 'ended', userId);
     await this.clearRingTimer(callId);
     await this.livekit.deleteRoom(call.roomName);
+
+    if (wasActive) {
+      await this.postCallEventMessage(call, `${this.callTypeLabel(call.type)} پایان یافت`);
+    }
 
     const otherId = call.initiatorId === userId ? call.calleeId : call.initiatorId;
     this.gateway.emitToUser(otherId, CALL_EVENTS.END, { callId });
@@ -296,8 +354,43 @@ export class CallsService {
     return { call: this.serializeCall(updated) };
   }
 
+  async refreshToken(userId: string, callId: string) {
+    this.assertLivekitReady();
+    const call = await this.prisma.call.findUnique({
+      where: { id: callId },
+      include: {
+        initiator: { select: { username: true } },
+        callee: { select: { username: true } },
+      },
+    });
+    if (!call) throw new NotFoundException();
+    if (call.initiatorId !== userId && call.calleeId !== userId) throw new ForbiddenException();
+    if (!['ringing', 'active'].includes(call.status)) {
+      throw new BadRequestException('تماس فعال نیست');
+    }
+
+    const identity = call.initiatorId === userId ? call.initiatorId : call.calleeId;
+    const displayName =
+      call.initiatorId === userId
+        ? (call.initiator.username ?? undefined)
+        : (call.callee.username ?? undefined);
+
+    const token = await this.livekit.mintToken(call.roomName, identity, displayName);
+    return {
+      token,
+      livekitUrl: this.livekit.getPublicUrl(),
+      roomName: call.roomName,
+    };
+  }
+
   async getCall(userId: string, callId: string) {
-    const call = await this.prisma.call.findUnique({ where: { id: callId } });
+    const call = await this.prisma.call.findUnique({
+      where: { id: callId },
+      include: {
+        initiator: { select: { id: true, username: true, name: true, avatar: true } },
+        callee: { select: { id: true, username: true, name: true, avatar: true } },
+      },
+    });
     if (!call) throw new NotFoundException();
     if (call.initiatorId !== userId && call.calleeId !== userId) throw new ForbiddenException();
     return { call: this.serializeCall(call) };
@@ -310,8 +403,59 @@ export class CallsService {
         OR: [{ initiatorId: userId }, { calleeId: userId }],
       },
       orderBy: { createdAt: 'desc' },
+      include: {
+        initiator: { select: { id: true, username: true, name: true, avatar: true } },
+        callee: { select: { id: true, username: true, name: true, avatar: true } },
+      },
     });
     return { call: call ? this.serializeCall(call) : null };
+  }
+
+  /** Handle LiveKit webhook events for abandoned calls. */
+  async handleLivekitWebhook(event: string, roomName: string) {
+    if (!roomName.startsWith('call-')) return;
+
+    const call = await this.prisma.call.findUnique({ where: { roomName } });
+    if (!call) return;
+
+    if (event === 'room_finished') {
+      await this.finalizeAbandonedCall(call, roomName, call.status === 'active');
+      return;
+    }
+
+    // 1:1 room — any participant leaving an active call ends the session.
+    if (event === 'participant_left' && call.status === 'active') {
+      await this.finalizeAbandonedCall(call, roomName, true);
+    }
+  }
+
+  private async finalizeAbandonedCall(
+    call: {
+      id: string;
+      conversationId: string;
+      initiatorId: string;
+      calleeId: string;
+      type: string;
+      status: string;
+      answeredAt: Date | null;
+      startedAt: Date | null;
+      roomName: string;
+    },
+    roomName: string,
+    postChatMessage: boolean,
+  ) {
+    if (!ACTIVE_STATUSES.includes(call.status as (typeof ACTIVE_STATUSES)[number])) return;
+
+    await this.endCallRecord(call, 'ended', 'livekit-webhook');
+    await this.clearRingTimer(call.id);
+    await this.livekit.deleteRoom(roomName);
+
+    this.gateway.emitToUser(call.initiatorId, CALL_EVENTS.END, { callId: call.id });
+    this.gateway.emitToUser(call.calleeId, CALL_EVENTS.END, { callId: call.id });
+
+    if (postChatMessage) {
+      await this.postCallEventMessage(call, `${this.callTypeLabel(call.type)} پایان یافت`);
+    }
   }
 
   public async markMissed(callId: string) {
@@ -335,26 +479,7 @@ export class CallsService {
       calleeId: call.calleeId,
     });
 
-    const callEventMessage = await this.prisma.message.create({
-      data: {
-        conversationId: call.conversationId,
-        senderId: call.initiatorId,
-        type: 'call_event',
-        content: 'تماس تصویری از دست رفته',
-      },
-      include: {
-        sender: { select: { id: true, username: true, name: true, avatar: true } },
-      },
-    });
-
-    this.messagesGateway.broadcastMessage({
-      message: {
-        ...callEventMessage,
-        createdAt: callEventMessage.createdAt.toISOString(),
-      },
-      conversationId: call.conversationId,
-      recipientUserId: call.calleeId,
-    });
+    await this.postCallEventMessage(call, `${this.callTypeLabel(call.type)} از دست رفته`);
 
     this.gateway.emitToUser(call.initiatorId, CALL_EVENTS.MISSED, { callId });
     this.gateway.emitToUser(call.calleeId, CALL_EVENTS.MISSED, { callId, silent: true });

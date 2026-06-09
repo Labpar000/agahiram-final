@@ -41,7 +41,7 @@ const nextConfig = {
     ],
     localPatterns: [
       { pathname: '/api/v1/media/object' },
-      { pathname: '/**', search: '' },
+      { pathname: '/storage/**' },
     ],
   },
   experimental: {

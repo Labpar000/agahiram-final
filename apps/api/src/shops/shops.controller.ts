@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -52,6 +53,12 @@ export class ShopsController {
     @Body(new ZodValidationPipe(updateShopSchema)) body: UpdateShopInput,
   ) {
     return this.shopsService.updateShop(userId, slug, body);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  delete(@CurrentUser('sub') userId: string, @Param('id') id: string) {
+    return this.shopsService.deleteShop(userId, id);
   }
 
   @Public()

@@ -872,6 +872,7 @@ model Message {
   storyId        String?
   metadata       Json?
   isRead         Boolean     @default(false)
+  editedAt       DateTime?
   createdAt      DateTime    @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -987,8 +988,24 @@ model SearchAlert {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
-  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  city City? @relation(fields: [cityId], references: [id])
+  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city          City?                     @relation(fields: [cityId], references: [id])
+  notifications SearchAlertNotification[]
+
+  @@index([userId, isActive])
+}
+
+model SearchAlertNotification {
+  id        String   @id @default(uuid())
+  alertId   String
+  postId    String
+  createdAt DateTime @default(now())
+
+  alert SearchAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, postId])
+  @@index([alertId])
+  @@index([postId])
 }
 
 model LiveStream {

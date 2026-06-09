@@ -53,7 +53,36 @@ main {
   textarea,
   select {
     font-size: max(16px, 1em);
+    scroll-margin-bottom: var(--input-bar-bottom);
   }
+}
+
+/* Keyboard-aware positioning — uses runtime --keyboard-inset from VisualViewportSync */
+.bottom-above-chrome {
+  bottom: var(--input-bar-bottom);
+}
+
+.sticky-above-keyboard {
+  position: sticky;
+  bottom: var(--input-bar-bottom);
+}
+
+.pb-keyboard {
+  padding-bottom: var(--keyboard-inset);
+}
+
+/* Hide bottom nav while virtual keyboard is open (IG-style) */
+html[data-keyboard-open] nav[aria-label='ناوبری اصلی'] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html[data-keyboard-open] [data-main-chrome] {
+  padding-bottom: var(--safe-bottom) !important;
+}
+
+html[data-keyboard-open] {
+  --bottom-chrome: var(--safe-bottom);
 }
 
 /* iOS: fixed bottom chrome must not be clipped by transformed ancestors. */

@@ -175,7 +175,7 @@ export function StoryCommentsSheet({
 
         {open ? (
           <>
-            <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0 pb-[var(--composer-stack)]">
+            <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0 pb-[var(--composer-stack-keyboard)]">
               {isLoading ? (
                 <StoryCommentListSkeleton />
               ) : comments.length === 0 ? (
@@ -202,7 +202,7 @@ export function StoryCommentsSheet({
             </DrawerBody>
 
             {showComposerFooter ? (
-              <DrawerFooter className="relative z-[var(--z-raised)] shrink-0 border-t border-border bg-surface/95 p-0">
+              <DrawerFooter className="relative z-[var(--z-raised)] shrink-0 border-t border-border bg-surface/95 p-0 pb-[var(--drawer-input-bottom)]">
                 {me ? (
                   <CommentComposerBar
                     variant="drawer"

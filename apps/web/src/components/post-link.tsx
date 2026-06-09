@@ -4,19 +4,23 @@ import { useCallback, useEffect, useRef, type ComponentProps } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
-import type { PostSummary } from '@agahiram/shared';
+import type { PostSummary, ReelItem } from '@agahiram/shared';
+import { listPostVideos } from '@agahiram/shared';
 import { prefetchPostBundle } from '@/lib/prefetch-post';
 import { buildPostPathFromSummary } from '@/lib/post-url';
 import { buildReelPathFromSummary, isReelPost } from '@/lib/reel-url';
 
 type PostLinkProps = Omit<ComponentProps<typeof Link>, 'href' | 'prefetch'> & {
   postId: string;
-  post?: PostSummary;
+  post?: PostSummary & Partial<ReelItem>;
+  /** Open in reels viewer (one clip per carousel video). */
+  preferReels?: boolean;
 };
 
 export function PostLink({
   postId,
   post,
+  preferReels = false,
   children,
   onMouseEnter,
   onFocus,
@@ -28,8 +32,10 @@ export function PostLink({
   const ref = useRef<HTMLAnchorElement>(null);
 
   const href = post
-    ? isReelPost(post)
-      ? buildReelPathFromSummary(post)
+    ? preferReels || isReelPost(post)
+      ? buildReelPathFromSummary(post, {
+          mediaId: post.mediaId ?? listPostVideos(post)[0]?.id,
+        })
       : post.category?.slug != null
         ? buildPostPathFromSummary(post)
         : `/post/${postId}`

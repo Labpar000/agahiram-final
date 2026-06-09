@@ -7,6 +7,7 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { SOCKET_EVENTS, type JwtPayload } from '@agahiram/shared';
+import { extractSocketToken } from '../common/socket-auth';
 import { getCorsOrigins } from '../config/cors';
 
 @WebSocketGateway({
@@ -21,7 +22,11 @@ export class StoriesGateway implements OnGatewayConnection {
 
   handleConnection(@ConnectedSocket() socket: Socket) {
     try {
-      const token = (socket.handshake.auth?.token as string | undefined) ?? '';
+      const token = extractSocketToken(socket);
+      if (!token) {
+        socket.disconnect();
+        return;
+      }
       const payload = this.jwt.verify<JwtPayload>(token);
       socket.data.userId = payload.sub;
       socket.join(`user:${payload.sub}`);
