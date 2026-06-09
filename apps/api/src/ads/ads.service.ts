@@ -1,13 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { MediaAccessService } from '../media/media-access.service';
 
 @Injectable()
 export class AdsService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly mediaAccess: MediaAccessService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /* ─────────────────────── Campaigns ─────────────────────── */
 
@@ -34,7 +31,7 @@ export class AdsService {
         bidAmount: BigInt(input.bidAmount),
         startDate: new Date(input.startDate),
         endDate: input.endDate ? new Date(input.endDate) : null,
-        targeting: input.targeting ?? undefined,
+        targeting: (input.targeting as Prisma.InputJsonValue | undefined) ?? undefined,
       },
     });
   }

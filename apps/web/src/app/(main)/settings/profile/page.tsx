@@ -44,13 +44,6 @@ export default function ProfileSettingsPage() {
     }
   }, [user]);
 
-  if (!isAuthenticated) {
-    router.replace('/login');
-    return null;
-  }
-
-  const usernameParse = usernameSchema.safeParse(username);
-
   const avatarMutation = useMutation({
     mutationFn: async (file: File) => {
       setAvatarUploading(true);
@@ -93,6 +86,15 @@ export default function ProfileSettingsPage() {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+  useEffect(() => {
+    if (!isAuthenticated) router.replace('/login');
+  }, [isAuthenticated, router]);
+
+  const usernameParse = usernameSchema.safeParse(username);
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="bg-background min-h-svh pb-8">

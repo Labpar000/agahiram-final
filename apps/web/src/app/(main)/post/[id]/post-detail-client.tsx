@@ -84,11 +84,9 @@ export function PostDetailClient({ id }: { id: string }) {
 
   const isOwner = !!me && data?.user?.id === me.id;
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
   const deletePost = useMutation({
     mutationFn: async (reason: DeleteReason) => {
-      const r = await apiClient.delete(`/posts/${id}`, { reason });
+      const r = await apiClient.delete(`/posts/${id}`, { body: JSON.stringify({ reason }) });
       if (!r.success) throw new Error(r.error ?? 'خطا در حذف');
     },
     onSuccess: () => {
