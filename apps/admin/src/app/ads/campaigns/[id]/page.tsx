@@ -3,7 +3,16 @@
 import { use, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BarChart3, Eye, MousePointer, Play, Pause, CheckCircle, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  BarChart3,
+  Eye,
+  MousePointer,
+  Play,
+  Pause,
+  CheckCircle,
+  Plus,
+} from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
 import {
   Badge,
@@ -27,6 +36,7 @@ import {
   Spinner,
   toast,
 } from '@agahiram/ui';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import Shell from '../../../layout-shell';
 import { apiClient } from '@/lib/api';
 
@@ -54,6 +64,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     redirectUrl: '',
     slot: 'EXPLORE_FEED',
   });
+  const [statusConfirm, setStatusConfirm] = useState<{ open: boolean; targetStatus: string }>({
+    open: false,
+    targetStatus: '',
+  });
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin', 'campaign', id],
@@ -67,10 +81,39 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
     },
     onSuccess: () => {
       toast.success('ذخیره شد');
+      setStatusConfirm({ open: false, targetStatus: '' });
       void refetch();
     },
     onError: (e) => toast.error((e as Error).message),
   });
+
+  const createAdMutation = useMutation({
+    mutationFn: async (body: typeof adForm) => {
+      const r = await apiClient.post('/ads/admin/ads', {
+        campaignId: id,
+        ...body,
+      });
+      if (!r.success) throw new Error(r.error ?? 'خطا');
+      return r.data;
+    },
+    onSuccess: () => {
+      toast.success('تبلیغ جدید ایجاد شد');
+      setNewAdOpen(false);
+      setAdForm({
+        title: '',
+        description: '',
+        mediaUrl: '',
+        redirectUrl: '',
+        slot: 'EXPLORE_FEED',
+      });
+      qc.invalidateQueries({ queryKey: ['admin', 'campaign', id] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  const handleStatusChange = (targetStatus: string) => {
+    setStatusConfirm({ open: true, targetStatus });
+  };
 
   if (isLoading)
     return (
@@ -91,6 +134,27 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const totalImpressions = c.ads?.reduce((s: number, a: any) => s + a.impressions, 0) ?? 0;
   const totalClicks = c.ads?.reduce((s: number, a: any) => s + a.clicks, 0) ?? 0;
   const ctr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : '0';
+
+  const statusConfirmLabels: Record<
+    string,
+    { title: string; desc: string; tone: 'primary' | 'destructive' | 'brand' }
+  > = {
+    ACTIVE: {
+      title: 'فعال‌سازی کمپین',
+      desc: 'آیا از فعال‌سازی این کمپین اطمینان دارید؟',
+      tone: 'brand',
+    },
+    PAUSED: {
+      title: 'توقف کمپین',
+      desc: 'آیا از توقف این کمپین اطمینان دارید؟ تبلیغات متوقف خواهند شد.',
+      tone: 'primary',
+    },
+    COMPLETED: {
+      title: 'پایان کمپین',
+      desc: 'آیا از پایان این کمپین اطمینان دارید؟ این عملیات قابل بازگشت نیست.',
+      tone: 'destructive',
+    },
+  };
 
   return (
     <Shell>
@@ -155,7 +219,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <Button
             size="sm"
             variant="brand"
-            onClick={() => updateCampaign.mutate({ status: 'ACTIVE' })}
+            onClick={() => handleStatusChange('ACTIVE')}
             isLoading={updateCampaign.isPending}
           >
             <Play className="size-4 me-1" />
@@ -166,7 +230,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <Button
             size="sm"
             variant="outline"
-            onClick={() => updateCampaign.mutate({ status: 'PAUSED' })}
+            onClick={() => handleStatusChange('PAUSED')}
             isLoading={updateCampaign.isPending}
           >
             <Pause className="size-4 me-1" />
@@ -177,7 +241,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           <Button
             size="sm"
             variant="brand"
-            onClick={() => updateCampaign.mutate({ status: 'ACTIVE' })}
+            onClick={() => handleStatusChange('ACTIVE')}
             isLoading={updateCampaign.isPending}
           >
             <Play className="size-4 me-1" />
@@ -189,7 +253,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
             size="sm"
             variant="outline"
             className="text-destructive"
-            onClick={() => updateCampaign.mutate({ status: 'COMPLETED' })}
+            onClick={() => handleStatusChange('COMPLETED')}
             isLoading={updateCampaign.isPending}
           >
             <CheckCircle className="size-4 me-1" />
@@ -203,6 +267,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         <CardContent className="!p-4">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-bold text-sm">تبلیغات ({c.ads?.length ?? 0})</h3>
+            <Button size="sm" variant="brand" onClick={() => setNewAdOpen(true)}>
+              <Plus className="size-4 me-1" />
+              تبلیغ جدید
+            </Button>
           </div>
           {c.ads?.length === 0 ? (
             <p className="text-sm text-muted-foreground py-4 text-center">تبلیغی ثبت نشده</p>
@@ -261,6 +329,97 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
           )}
         </CardContent>
       </Card>
+
+      {/* New Ad Dialog */}
+      <Dialog open={newAdOpen} onOpenChange={setNewAdOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>ایجاد تبلیغ جدید</DialogTitle>
+            <DialogDescription>اطلاعات تبلیغ را وارد کنید</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="ad-title">عنوان</Label>
+              <Input
+                id="ad-title"
+                value={adForm.title}
+                onChange={(e) => setAdForm({ ...adForm, title: e.target.value })}
+                placeholder="عنوان تبلیغ (اختیاری)"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ad-desc">توضیحات</Label>
+              <Input
+                id="ad-desc"
+                value={adForm.description}
+                onChange={(e) => setAdForm({ ...adForm, description: e.target.value })}
+                placeholder="توضیح کوتاه (اختیاری)"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ad-media" required>
+                آدرس تصویر
+              </Label>
+              <Input
+                id="ad-media"
+                value={adForm.mediaUrl}
+                onChange={(e) => setAdForm({ ...adForm, mediaUrl: e.target.value })}
+                placeholder="https://..."
+                required
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ad-redirect">آدرس مقصد</Label>
+              <Input
+                id="ad-redirect"
+                value={adForm.redirectUrl}
+                onChange={(e) => setAdForm({ ...adForm, redirectUrl: e.target.value })}
+                placeholder="https://..."
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="ad-slot">محل نمایش</Label>
+              <Select value={adForm.slot} onValueChange={(v) => setAdForm({ ...adForm, slot: v })}>
+                <SelectTrigger id="ad-slot">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EXPLORE_FEED">اکسپلور</SelectItem>
+                  <SelectItem value="STORY">استوری</SelectItem>
+                  <SelectItem value="BANNER">بنر</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setNewAdOpen(false)}>
+              انصراف
+            </Button>
+            <Button
+              variant="brand"
+              disabled={!adForm.mediaUrl.trim()}
+              isLoading={createAdMutation.isPending}
+              onClick={() => createAdMutation.mutate(adForm)}
+            >
+              ایجاد تبلیغ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Change Confirmation */}
+      {statusConfirm.targetStatus && statusConfirmLabels[statusConfirm.targetStatus] && (
+        <ConfirmDialog
+          open={statusConfirm.open}
+          onOpenChange={(open) => setStatusConfirm((s) => ({ ...s, open }))}
+          title={statusConfirmLabels[statusConfirm.targetStatus].title}
+          description={statusConfirmLabels[statusConfirm.targetStatus].desc}
+          tone={statusConfirmLabels[statusConfirm.targetStatus].tone}
+          confirmLabel="تأیید"
+          isLoading={updateCampaign.isPending}
+          onConfirm={() => updateCampaign.mutate({ status: statusConfirm.targetStatus })}
+        />
+      )}
     </Shell>
   );
 }

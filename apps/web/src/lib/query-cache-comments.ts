@@ -31,7 +31,14 @@ export function patchCommentInCache(
       ...old,
       pages: old.pages.map((page) => ({
         ...page,
-        data: page.data.map((c) => (c.id === commentId ? { ...c, ...patch } : c)),
+        data: page.data.map((c) => {
+          if (c.id !== commentId) return c;
+          const merged = { ...c, ...patch };
+          if (typeof patch.likesCount === 'number') {
+            merged.likesCount = Math.max(0, patch.likesCount);
+          }
+          return merged;
+        }),
       })),
     };
   });

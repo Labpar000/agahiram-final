@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { sanitizeInput, sanitizeUrl, validateRedirectUrl } from '../common/utils/sanitize';
 
 @Injectable()
 export class AdsService {
@@ -21,14 +22,21 @@ export class AdsService {
       targeting?: Record<string, unknown>;
     },
   ) {
+    if (input.endDate && new Date(input.endDate) <= new Date(input.startDate)) {
+      throw new BadRequestException('تاریخ پایان باید بعد از تاریخ شروع باشد');
+    }
+    if (input.dailyBudget && input.dailyBudget > input.budget) {
+      throw new BadRequestException('بودجه روزانه نمی‌تواند بیشتر از بودجه کل باشد');
+    }
+
     return this.prisma.adCampaign.create({
       data: {
-        name: input.name,
+        name: sanitizeInput(input.name),
         advertiserId,
-        budget: BigInt(input.budget),
-        dailyBudget: input.dailyBudget ? BigInt(input.dailyBudget) : null,
+        budget: BigInt(Math.floor(input.budget)),
+        dailyBudget: input.dailyBudget ? BigInt(Math.floor(input.dailyBudget)) : null,
         bidType: input.bidType as any,
-        bidAmount: BigInt(input.bidAmount),
+        bidAmount: BigInt(Math.floor(input.bidAmount)),
         startDate: new Date(input.startDate),
         endDate: input.endDate ? new Date(input.endDate) : null,
         targeting: (input.targeting as Prisma.InputJsonValue | undefined) ?? undefined,
@@ -103,11 +111,11 @@ export class AdsService {
     },
   ) {
     const data: Record<string, unknown> = {};
-    if (input.name) data.name = input.name;
-    if (input.status) data.status = input.status;
-    if (input.budget !== undefined) data.budget = BigInt(input.budget);
+    if (input.name !== undefined) data.name = sanitizeInput(input.name);
+    if (input.status !== undefined) data.status = input.status;
+    if (input.budget !== undefined) data.budget = BigInt(Math.floor(input.budget));
     if (input.dailyBudget !== undefined)
-      data.dailyBudget = input.dailyBudget ? BigInt(input.dailyBudget) : null;
+      data.dailyBudget = input.dailyBudget ? BigInt(Math.floor(input.dailyBudget)) : null;
     if (input.endDate) data.endDate = new Date(input.endDate);
 
     return this.prisma.adCampaign.update({ where: { id }, data: data as any });
@@ -128,13 +136,16 @@ export class AdsService {
     const campaign = await this.prisma.adCampaign.findUnique({ where: { id: campaignId } });
     if (!campaign) throw new NotFoundException('کمپین یافت نشد');
 
+    const sanitizedMediaUrl = sanitizeUrl(input.mediaUrl);
+    const sanitizedRedirectUrl = input.redirectUrl ? sanitizeUrl(input.redirectUrl) : null;
+
     return this.prisma.ad.create({
       data: {
         campaignId,
-        title: input.title,
-        description: input.description,
-        mediaUrl: input.mediaUrl,
-        redirectUrl: input.redirectUrl,
+        title: input.title ? sanitizeInput(input.title) : null,
+        description: input.description ? sanitizeInput(input.description) : null,
+        mediaUrl: sanitizedMediaUrl,
+        redirectUrl: sanitizedRedirectUrl,
         slot: input.slot as any,
       },
     });
@@ -172,7 +183,7 @@ export class AdsService {
         ...(action === 'approve'
           ? { approvedById: adminId, approvedAt: new Date(), startsAt: new Date() }
           : { reviewedById: adminId, reviewedAt: new Date() }),
-        adminNote: note ?? null,
+        adminNote: note ? sanitizeInput(note) : null,
       },
     });
   }
@@ -258,10 +269,19 @@ export class AdsService {
       redirectUrl?: string;
     },
   ) {
-    return this.prisma.ad.update({ where: { id }, data: input as any });
+    const data: Record<string, unknown> = {};
+    if (input.status !== undefined) data.status = input.status;
+    if (input.title !== undefined) data.title = sanitizeInput(input.title);
+    if (input.description !== undefined) data.description = sanitizeInput(input.description);
+    if (input.redirectUrl !== undefined) data.redirectUrl = sanitizeUrl(input.redirectUrl);
+
+    return this.prisma.ad.update({ where: { id }, data: data as any });
   }
 
   async deleteAd(id: string) {
+    const existing = await this.prisma.ad.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('تبلیغ یافت نشد');
+
     await this.prisma.ad.delete({ where: { id } });
     return { ok: true };
   }
@@ -280,9 +300,9 @@ export class AdsService {
         },
       },
       include: {
-        campaign: { select: { targeting: true } },
+        campaign: { select: { targeting: true, bidAmount: true } },
       },
-      take: 20,
+      take: Math.max(20, limit * 3),
       orderBy: [{ impressions: 'asc' }, { createdAt: 'desc' }],
     });
 
@@ -309,15 +329,24 @@ export class AdsService {
     const ad = await this.prisma.ad.findUnique({ where: { id: adId } });
     if (!ad) return;
 
+    const bidAmount = ad.campaignId
+      ? (
+          await this.prisma.adCampaign.findUnique({
+            where: { id: ad.campaignId },
+            select: { bidAmount: true },
+          })
+        )?.bidAmount
+      : null;
+
+    const cpmCost =
+      ad.campaignId && bidAmount ? BigInt(Math.floor(Number(bidAmount) / 1000)) : BigInt(0);
+
     await this.prisma.$transaction([
       this.prisma.ad.update({
         where: { id: adId },
         data: {
           impressions: { increment: 1 },
-          ctr: ad.clicks > 0 ? (ad.clicks / (ad.impressions + 1)) * 100 : 0,
-          spent: ad.campaignId
-            ? { increment: BigInt(0 /* CPM calc handled by cron */) }
-            : undefined,
+          spent: ad.campaignId ? { increment: cpmCost } : undefined,
         },
       }),
       this.prisma.adImpression.create({
@@ -333,15 +362,19 @@ export class AdsService {
     await this.prisma.$transaction([
       this.prisma.ad.update({
         where: { id: adId },
-        data: {
-          clicks: { increment: 1 },
-          ctr: ((ad.clicks + 1) / Math.max(ad.impressions, 1)) * 100,
-        },
+        data: { clicks: { increment: 1 } },
       }),
       this.prisma.adClick.create({
         data: { adId, userId, ip, userAgent },
       }),
     ]);
+  }
+
+  getClickRedirectUrl(ad: Awaited<ReturnType<typeof this.getAd>>): string | null {
+    const url = (ad as any).redirectUrl;
+    if (!url) return null;
+    if (!validateRedirectUrl(url)) return null;
+    return url;
   }
 
   /* ─────────────────────── Analytics ─────────────────────── */
@@ -363,6 +396,16 @@ export class AdsService {
       orderBy: { createdAt: 'asc' },
     });
 
+    const grouped = new Map<string, number>();
+    for (const d of dailyImpressions) {
+      const key = d.createdAt.toISOString().slice(0, 10);
+      grouped.set(key, (grouped.get(key) ?? 0) + d._count);
+    }
+
+    const merged = Array.from(grouped.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
     return {
       overview: {
         campaigns,
@@ -371,10 +414,7 @@ export class AdsService {
         totalImpressions: impressions,
         totalClicks: clicks,
       },
-      dailyImpressions: dailyImpressions.slice(-30).map((d) => ({
-        date: d.createdAt.toISOString().slice(0, 10),
-        count: d._count,
-      })),
+      dailyImpressions: merged,
     };
   }
 

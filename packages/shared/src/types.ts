@@ -4,6 +4,32 @@ export enum UserRole {
   MODERATOR = 'moderator',
 }
 
+export enum AdStatus {
+  DRAFT = 'DRAFT',
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+export enum AdCampaignStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  COMPLETED = 'COMPLETED',
+  REJECTED = 'REJECTED',
+}
+
+export enum AdSlot {
+  STORY = 'STORY',
+  EXPLORE_FEED = 'EXPLORE_FEED',
+  BANNER = 'BANNER',
+}
+
+export enum BidType {
+  CPM = 'CPM',
+  CPC = 'CPC',
+}
+
 export enum PostStatus {
   DRAFT = 'draft',
   PENDING_REVIEW = 'pendingReview',

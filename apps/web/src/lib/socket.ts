@@ -1,7 +1,7 @@
 import { io, type Socket } from 'socket.io-client';
 import { SOCKET_EVENTS } from '@agahiram/shared';
 
-const SOCKET_ENV = process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:4000';
+const SOCKET_ENV = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:4000';
 
 export function resolveSocketOrigin(): string {
   const env = SOCKET_ENV.trim();

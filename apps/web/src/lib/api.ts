@@ -3,9 +3,11 @@ import { getViewerHash } from './viewer-hash';
 
 /** Browser uses same-origin /api/v1 (Next rewrite); SSR uses internal upstream. */
 function getApiBase(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+  const publicUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (publicUrl) return publicUrl;
   if (typeof window !== 'undefined') return '/api/v1';
-  const upstream = process.env.INTERNAL_API_URL ?? 'http://127.0.0.1:4000';
+  const upstream =
+    process.env.INTERNAL_API_URL || process.env.API_UPSTREAM_URL || 'http://127.0.0.1:4000';
   return `${upstream.replace(/\/$/, '')}/api/v1`;
 }
 

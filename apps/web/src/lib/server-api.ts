@@ -12,7 +12,7 @@ import type { ApiResponse } from '@agahiram/shared';
  * follow state, saved/liked flags) renders correctly on the first paint.
  */
 const INTERNAL_API_URL =
-  process.env.INTERNAL_API_URL ?? process.env.API_UPSTREAM_URL ?? 'http://127.0.0.1:4000';
+  process.env.INTERNAL_API_URL || process.env.API_UPSTREAM_URL || 'http://127.0.0.1:4000';
 
 type Params = Record<string, string | number | boolean | undefined>;
 

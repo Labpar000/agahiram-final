@@ -45,7 +45,7 @@ export class AdsController {
     const ua = req?.headers?.['user-agent'] as string | undefined;
     await this.ads.recordClick(id, userId, fwd ?? req?.ip, ua);
     const ad = await this.ads.getAd(id);
-    const redirectUrl = (ad as any).redirectUrl;
+    const redirectUrl = this.ads.getClickRedirectUrl(ad);
     if (redirectUrl) {
       return { redirect: redirectUrl };
     }
@@ -85,6 +85,13 @@ export class AdsController {
     return this.ads.updateCampaign(id, body as any);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @Post('admin/campaigns')
+  adminCreateCampaign(@CurrentUser('sub') adminId: string, @Body() body: Record<string, unknown>) {
+    return this.ads.createCampaign(adminId, body as any);
+  }
+
   /* ──────────── Admin ad management ──────────── */
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -111,6 +118,13 @@ export class AdsController {
   @Get('admin/ads/:id')
   adminAd(@Param('id') id: string) {
     return this.ads.getAd(id);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @Post('admin/ads')
+  adminCreateAd(@Body() body: Record<string, unknown>) {
+    return this.ads.createAd((body as any).campaignId, body as any);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
