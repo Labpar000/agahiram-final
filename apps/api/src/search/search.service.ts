@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MeiliService } from './meili.service';
@@ -17,7 +17,7 @@ export class SearchService {
   constructor(
     private readonly meili: MeiliService,
     private readonly prisma: PrismaService,
-    private readonly posts: PostsService,
+    @Inject(forwardRef(() => PostsService)) private readonly posts: PostsService,
     private readonly notifications: NotificationsService,
   ) {}
 

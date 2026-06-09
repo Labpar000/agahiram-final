@@ -1,6 +1,8 @@
 import {
   BadRequestException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -42,7 +44,7 @@ export class PostsService {
     private readonly media: MediaService,
     private readonly redis: RedisService,
     private readonly settings: SettingsService,
-    private readonly searchService: SearchService,
+    @Inject(forwardRef(() => SearchService)) private readonly searchService: SearchService,
     private readonly moduleRef: ModuleRef,
     @InjectQueue(BULL_QUEUES.SEARCH_INDEX) private readonly searchQueue: Queue,
     @InjectQueue(BULL_QUEUES.MEDIA_PROCESSING) private readonly mediaQueue: Queue,
