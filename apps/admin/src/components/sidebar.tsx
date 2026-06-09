@@ -45,7 +45,7 @@ interface NavItem {
   /** When set, only `admin` role sees the link (moderators are hidden). */
   adminOnly?: boolean;
   /** Optional async pill (e.g. pending count). */
-  badgeKey?: 'pending' | 'reports';
+  badgeKey?: 'pending' | 'reports' | 'adsPending';
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -69,7 +69,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/boost-plans', icon: TrendingUp, label: 'پلن‌های نردبان', adminOnly: true },
   { href: '/search-alerts', icon: Search, label: 'هشدار جستجو', adminOnly: true },
   { href: '/ads/campaigns', icon: BadgePercent, label: 'تبلیغات', adminOnly: true },
-  { href: '/ads/review', icon: ShieldCheck, label: 'بررسی تبلیغات' },
+  { href: '/ads/ads', icon: Megaphone, label: 'لیست تبلیغات', adminOnly: true },
+  { href: '/ads/review', icon: ShieldCheck, label: 'بررسی تبلیغات', badgeKey: 'adsPending' },
   { href: '/ads/reports', icon: BarChart3, label: 'آمار تبلیغات' },
   { href: '/broadcast', icon: Megaphone, label: 'اعلان همگانی', adminOnly: true },
   { href: '/live', icon: Radio, label: 'لایو', adminOnly: true },
@@ -84,12 +85,14 @@ function useBadgeCounts() {
   return useQuery({
     queryKey: ['admin', 'sidebar-badges'],
     queryFn: async () => {
-      const r = await apiClient.get<{ pendingPosts?: number; totalReports?: number }>(
-        '/admin/stats',
-      );
+      const [adminStats, adsStats] = await Promise.all([
+        apiClient.get<{ pendingPosts?: number; totalReports?: number }>('/admin/stats'),
+        apiClient.get<{ overview?: { pendingReviews?: number } }>('/ads/admin/stats'),
+      ]);
       return {
-        pending: r.data?.pendingPosts ?? 0,
-        reports: r.data?.totalReports ?? 0,
+        pending: adminStats.data?.pendingPosts ?? 0,
+        reports: adminStats.data?.totalReports ?? 0,
+        adsPending: adsStats.data?.overview?.pendingReviews ?? 0,
       };
     },
     staleTime: 30_000,

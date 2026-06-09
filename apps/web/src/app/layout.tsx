@@ -4,6 +4,7 @@ import './globals.css';
 import { Providers } from '@/components/providers';
 import { WebVitals } from '@/components/web-vitals';
 import { OrientationWarning } from '@/components/orientation-warning';
+import { VisualViewportSync } from '@/components/visual-viewport-sync';
 
 const vazir = localFont({
   src: '../fonts/Vazirmatn-Variable.woff2',
@@ -78,6 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           پرش به محتوای اصلی
         </a>
         <Providers>{children}</Providers>
+        <VisualViewportSync />
         <WebVitals />
         <OrientationWarning />
       </body>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { searchFiltersMaxHeightStyle } from '@/lib/mobile-layout';
 import {
   IgArrowBack,
   IgCheck,
@@ -156,12 +157,7 @@ export function SearchFiltersSheet({ open, onOpenChange, filters, onApply }: Pro
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent
-        className="overflow-hidden"
-        style={{
-          maxHeight: 'calc(100svh - var(--header-height) - var(--safe-top))',
-        }}
-      >
+      <DrawerContent className="overflow-hidden" style={searchFiltersMaxHeightStyle}>
         <DrawerHeader className="flex items-center justify-between gap-3 border-b border-border bg-surface/95 backdrop-blur">
           <DrawerTitle className="inline-flex items-center gap-2">
             {step !== 'main' ? (

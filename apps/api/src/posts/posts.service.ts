@@ -101,6 +101,8 @@ export class PostsService {
       await this.media.assertUploadConfirmed(userId, m.key);
     }
 
+    const mediaKeys = this.normalizeMediaKeys(input.mediaKeys);
+
     const post = await this.prisma.post.create({
       data: {
         userId,
@@ -118,11 +120,12 @@ export class PostsService {
         status,
         expiresAt,
         media: {
-          create: input.mediaKeys.map((m) => ({
+          create: mediaKeys.map((m) => ({
             url: m.key,
             thumbnailUrl: m.type === 'image' ? m.key : null,
             type: m.type,
             order: m.order,
+            isThumbnail: m.isThumbnail,
           })),
         },
         attributes: input.attributes
@@ -142,10 +145,15 @@ export class PostsService {
     });
 
     for (const media of post.media) {
+      const inputMedia = mediaKeys.find((m) => m.key === media.url);
       if (media.type === 'video') {
         await this.mediaQueue.add(
           'transcode',
-          { mediaId: media.id, postId: post.id },
+          {
+            mediaId: media.id,
+            postId: post.id,
+            coverTimeSec: inputMedia?.coverTimeSec ?? (inputMedia?.isThumbnail ? 0 : 1),
+          },
           { attempts: 2, removeOnComplete: true, removeOnFail: 50 },
         );
       } else {
@@ -174,7 +182,15 @@ export class PostsService {
       cityId: input.cityId,
       type: PostType.REEL,
       hideExactLocation: false,
-      mediaKeys: [{ key: input.mediaKey, type: 'video', order: 0 }],
+      mediaKeys: [
+        {
+          key: input.mediaKey,
+          type: 'video',
+          order: 0,
+          isThumbnail: true,
+          coverTimeSec: input.coverTime ?? 0,
+        },
+      ],
     });
   }
 
@@ -193,6 +209,11 @@ export class PostsService {
       await this.prisma.postMedia.deleteMany({ where: { postId: id } });
     }
 
+    const mediaKeys =
+      input.mediaKeys && input.mediaKeys.length > 0
+        ? this.normalizeMediaKeys(input.mediaKeys)
+        : undefined;
+
     const post = await this.prisma.post.update({
       where: { id },
       data: {
@@ -209,20 +230,44 @@ export class PostsService {
         ...(input.hideExactLocation !== undefined && {
           hideExactLocation: input.hideExactLocation,
         }),
-        ...(input.mediaKeys &&
-          input.mediaKeys.length > 0 && {
+        ...(mediaKeys &&
+          mediaKeys.length > 0 && {
             media: {
-              create: input.mediaKeys.map((m) => ({
+              create: mediaKeys.map((m) => ({
                 url: m.key,
                 thumbnailUrl: m.type === 'image' ? m.key : null,
                 type: m.type,
                 order: m.order,
+                isThumbnail: m.isThumbnail,
               })),
             },
           }),
       },
       include: this.fullInclude(),
     });
+
+    if (mediaKeys?.length) {
+      for (const media of post.media) {
+        const inputMedia = mediaKeys.find((m) => m.key === media.url);
+        if (media.type === 'video') {
+          await this.mediaQueue.add(
+            'transcode',
+            {
+              mediaId: media.id,
+              postId: post.id,
+              coverTimeSec: inputMedia?.coverTimeSec ?? (inputMedia?.isThumbnail ? 0 : 1),
+            },
+            { attempts: 2, removeOnComplete: true, removeOnFail: 50 },
+          );
+        } else {
+          await this.mediaQueue.add(
+            'optimize',
+            { mediaId: media.id, postId: post.id },
+            { attempts: 2, removeOnComplete: true, removeOnFail: 50 },
+          );
+        }
+      }
+    }
 
     await this.searchQueue.add('index', { postId: post.id });
     return this.toSummary(post);
@@ -543,6 +588,15 @@ export class PostsService {
     };
   }
 
+  normalizeMediaKeys(mediaKeys: CreatePostInput['mediaKeys']) {
+    const thumbIndex = mediaKeys.findIndex((m) => m.isThumbnail);
+    const coverIndex = thumbIndex >= 0 ? thumbIndex : 0;
+    return mediaKeys.map((m, i) => ({
+      ...m,
+      isThumbnail: i === coverIndex,
+    }));
+  }
+
   fullInclude() {
     return {
       user: {
@@ -583,6 +637,8 @@ export class PostsService {
       viewCount: post.viewCount,
       likesCount: post._count?.likes ?? 0,
       commentsCount: post._count?.comments ?? 0,
+      savesCount: post._count?.saves ?? 0,
+      sharesCount: post.shareCount ?? 0,
       createdAt: post.createdAt.toISOString(),
       user: post.user,
       category: post.category,
@@ -658,5 +714,17 @@ export class PostsService {
   ): Promise<Array<T & { viewedByMe: boolean; isLiked: boolean; isSaved: boolean }>> {
     const withViewed = await this.attachViewedByMe(summaries, viewerId);
     return this.attachEngagementByMe(withViewed, viewerId);
+  }
+
+  async recordShare(postId: string) {
+    const post = await this.prisma.post.findUnique({ where: { id: postId } });
+    if (!post || post.status !== 'approved') throw new NotFoundException();
+
+    const updated = await this.prisma.post.update({
+      where: { id: postId },
+      data: { shareCount: { increment: 1 } },
+      select: { shareCount: true },
+    });
+    return { sharesCount: updated.shareCount };
   }
 }

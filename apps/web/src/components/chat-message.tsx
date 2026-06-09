@@ -39,7 +39,8 @@ export function ChatMessage({
   isLastOfGroup = true,
 }: ChatMessageProps) {
   const [lightbox, setLightbox] = useState(false);
-  const voiceUploading = type === 'voice' && status === 'sending' && !content;
+  const voiceUploading =
+    type === 'voice' && status === 'sending' && (!content || content.startsWith('blob:'));
 
   return (
     <>
@@ -121,7 +122,7 @@ export function ChatMessage({
       </div>
       {lightbox && type === 'image' ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center bg-black/90 p-4"
           role="dialog"
           aria-modal="true"
           onClick={() => setLightbox(false)}

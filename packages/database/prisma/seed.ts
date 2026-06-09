@@ -245,12 +245,99 @@ async function seedAdmin() {
   console.log(`Admin users seeded (phones: ${adminPhones.join(', ')}).`);
 }
 
+async function seedAds() {
+  console.log('Seeding sample ad campaigns...');
+
+  const advertiser = await prisma.user.findFirst({
+    where: { role: 'admin' },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!advertiser) {
+    console.log('Skipping ads seed: no admin user found.');
+    return;
+  }
+
+  await prisma.user.update({
+    where: { id: advertiser.id },
+    data: { walletBalance: 10_000_000n },
+  });
+
+  const cpmCampaign = await prisma.adCampaign.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000101' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000101',
+      name: 'کمپین نمونه CPM',
+      advertiserId: advertiser.id,
+      status: 'ACTIVE',
+      budget: 5_000_000n,
+      bidType: 'CPM',
+      bidAmount: 5000n,
+      startDate: new Date(),
+    },
+  });
+
+  const cpcCampaign = await prisma.adCampaign.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000102' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000102',
+      name: 'کمپین نمونه CPC',
+      advertiserId: advertiser.id,
+      status: 'ACTIVE',
+      budget: 3_000_000n,
+      bidType: 'CPC',
+      bidAmount: 2000n,
+      startDate: new Date(),
+    },
+  });
+
+  const sampleMedia = 'https://picsum.photos/seed/agahiram-ad/1080/1080';
+
+  await prisma.ad.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000201' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000201',
+      campaignId: cpmCampaign.id,
+      title: 'تبلیغ اکسپلور نمونه',
+      mediaUrl: sampleMedia,
+      redirectUrl: 'https://agahiram.ir',
+      slot: 'EXPLORE_FEED',
+      status: 'APPROVED',
+      startsAt: new Date(),
+      approvedAt: new Date(),
+      approvedById: advertiser.id,
+    },
+  });
+
+  await prisma.ad.upsert({
+    where: { id: '00000000-0000-4000-8000-000000000202' },
+    update: {},
+    create: {
+      id: '00000000-0000-4000-8000-000000000202',
+      campaignId: cpcCampaign.id,
+      title: 'تبلیغ استوری نمونه',
+      mediaUrl: 'https://picsum.photos/seed/agahiram-story/1080/1920',
+      redirectUrl: 'https://agahiram.ir',
+      slot: 'STORY',
+      status: 'APPROVED',
+      startsAt: new Date(),
+      approvedAt: new Date(),
+      approvedById: advertiser.id,
+    },
+  });
+
+  console.log('Ad campaigns seeded.');
+}
+
 async function main() {
   await seedCategories();
   await seedLocations();
   await seedNeighborhoods();
   await seedBoostPlans();
   await seedAdmin();
+  await seedAds();
 }
 
 main()

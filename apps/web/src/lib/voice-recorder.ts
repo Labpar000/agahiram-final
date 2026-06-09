@@ -50,19 +50,22 @@ export class VoiceRecorderSession {
 
   async start(onTick?: (elapsedMs: number) => void, onMaxDuration?: () => void): Promise<void> {
     this.onTick = onTick ?? null;
+    // Avoid forcing sampleRate/channelCount — mismatched hardware rates cause
+    // pitch-shifted playback. Let the browser pick native capture settings.
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        sampleRate: 48000,
-        channelCount: 1,
         echoCancellation: true,
         noiseSuppression: true,
+        autoGainControl: true,
       },
     });
     const picked = pickVoiceMimeType();
     this.mimeType = picked ?? 'audio/webm';
-    this.recorder = picked
-      ? new MediaRecorder(this.stream, { mimeType: picked })
-      : new MediaRecorder(this.stream);
+    const recorderOptions: MediaRecorderOptions = picked ? { mimeType: picked } : {};
+    if (picked) {
+      recorderOptions.audioBitsPerSecond = 48_000;
+    }
+    this.recorder = new MediaRecorder(this.stream, recorderOptions);
     this.chunks = [];
     this.startedAt = Date.now();
 
@@ -101,10 +104,18 @@ export class VoiceRecorderSession {
 
     const durationMs = Date.now() - this.startedAt;
 
+    const normalizedType = normalizeVoiceContentType(this.mimeType);
     const blob = await new Promise<Blob>((resolve) => {
       recorder.onstop = () => {
-        resolve(new Blob(this.chunks, { type: this.mimeType }));
+        resolve(new Blob(this.chunks, { type: normalizedType }));
       };
+      if (recorder.state === 'recording') {
+        try {
+          recorder.requestData();
+        } catch {
+          /* optional — not all browsers expose requestData */
+        }
+      }
       recorder.stop();
     });
 
@@ -117,7 +128,7 @@ export class VoiceRecorderSession {
 
     return {
       blob,
-      mimeType: normalizeVoiceContentType(this.mimeType),
+      mimeType: normalizedType,
       extension: mimeToExtension(this.mimeType),
       durationMs: maxDurationReached ? MAX_VOICE_DURATION_MS : durationMs,
     };

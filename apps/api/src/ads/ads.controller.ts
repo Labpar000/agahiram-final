@@ -1,55 +1,118 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  UsePipes,
+} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
-import { UserRole } from '@agahiram/shared';
+import {
+  UserRole,
+  adAnalyticsQuerySchema,
+  adImpressionSchema,
+  adReportSchema,
+  adServeSchema,
+  createAdSchema,
+  createCampaignSchema,
+  reviewAdSchema,
+  updateAdSchema,
+  updateCampaignSchema,
+  type AdAnalyticsQueryInput,
+  type AdImpressionInput,
+  type AdReportInput,
+  type AdServeInput,
+  type CreateAdInput,
+  type CreateCampaignInput,
+  type ReviewAdInput,
+  type UpdateAdInput,
+  type UpdateCampaignInput,
+} from '@agahiram/shared';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { SettingsService } from '../admin/settings.service';
 import { AdsService } from './ads.service';
 
 @Controller('ads')
 export class AdsController {
-  constructor(private readonly ads: AdsService) {}
+  constructor(
+    private readonly ads: AdsService,
+    private readonly settings: SettingsService,
+  ) {}
+
+  @Public()
+  @Get('config')
+  config() {
+    const s = this.settings.getCached();
+    return {
+      adsEnabled: s.adsEnabled,
+      adsExploreInterval: s.adsExploreInterval,
+      adsStoryInterval: s.adsStoryInterval,
+    };
+  }
 
   /* ──────────── Public ad serving ──────────── */
 
   @Public()
   @Get('serve')
-  serve(
-    @Query('slot') slot: string,
-    @Query('cityId') cityId?: string,
-    @Query('categoryId') categoryId?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.ads.serveAds(slot, cityId, categoryId, limit ? Number(limit) : 1);
+  @UsePipes(new ZodValidationPipe(adServeSchema))
+  serve(@Query() query: AdServeInput) {
+    return this.ads.serveAds(
+      query.slot,
+      query.cityId,
+      query.categoryId,
+      query.limit,
+      query.sessionId,
+    );
   }
 
   @Public()
   @Post('impression/:id')
   recordImpression(
     @Param('id') id: string,
-    @Body('userId') userId?: string,
-    @Body('source') source?: string,
+    @Body(new ZodValidationPipe(adImpressionSchema)) body: AdImpressionInput,
   ) {
-    void this.ads.recordImpression(id, userId, source);
+    void this.ads.recordImpression(id, body.userId, body.source, body.sessionId);
     return { ok: true };
   }
 
-  /* ──────────── Click tracking ──────────── */
-
   @Public()
   @Get('click/:id')
-  async click(@Param('id') id: string, @Query('uid') userId?: string, @Req() req?: FastifyRequest) {
+  async click(
+    @Param('id') id: string,
+    @Query('uid') userId?: string,
+    @Query('sid') sessionId?: string,
+    @Req() req?: FastifyRequest,
+  ) {
     const fwd = (req?.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim();
     const ua = req?.headers?.['user-agent'] as string | undefined;
-    await this.ads.recordClick(id, userId, fwd ?? req?.ip, ua);
+    await this.ads.recordClick(id, userId, fwd ?? req?.ip, ua, sessionId);
     const ad = await this.ads.getAd(id);
     const redirectUrl = this.ads.getClickRedirectUrl(ad);
     if (redirectUrl) {
       return { redirect: redirectUrl };
     }
     return { ok: true };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/report')
+  @UsePipes(new ZodValidationPipe(adReportSchema))
+  reportAd(
+    @Param('id') id: string,
+    @CurrentUser('sub') userId: string,
+    @Body() body: AdReportInput,
+  ) {
+    return this.ads.reportAd(userId, id, body.reason, body.details);
   }
 
   /* ──────────── Admin campaign management ──────────── */
@@ -80,16 +143,33 @@ export class AdsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @Get('admin/campaigns/:id/analytics')
+  @UsePipes(new ZodValidationPipe(adAnalyticsQuerySchema))
+  campaignAnalytics(@Param('id') id: string, @Query() query: AdAnalyticsQueryInput) {
+    return this.ads.campaignAnalytics(id, query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
   @Patch('admin/campaigns/:id')
-  adminUpdateCampaign(@Param('id') id: string, @Body() body: Record<string, unknown>) {
-    return this.ads.updateCampaign(id, body as any);
+  adminUpdateCampaign(
+    @Param('id') id: string,
+    @CurrentUser('sub') adminId: string,
+    @CurrentUser('role') role: string,
+    @Body(new ZodValidationPipe(updateCampaignSchema)) body: UpdateCampaignInput,
+  ) {
+    return this.ads.updateCampaign(adminId, id, body, role);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
   @Post('admin/campaigns')
-  adminCreateCampaign(@CurrentUser('sub') adminId: string, @Body() body: Record<string, unknown>) {
-    return this.ads.createCampaign(adminId, body as any);
+  adminCreateCampaign(
+    @CurrentUser('sub') adminId: string,
+    @CurrentUser('role') role: string,
+    @Body(new ZodValidationPipe(createCampaignSchema)) body: CreateCampaignInput,
+  ) {
+    return this.ads.createCampaign(adminId, body, role);
   }
 
   /* ──────────── Admin ad management ──────────── */
@@ -122,9 +202,44 @@ export class AdsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @Get('admin/ads/:id/analytics')
+  @UsePipes(new ZodValidationPipe(adAnalyticsQuerySchema))
+  adAnalytics(@Param('id') id: string, @Query() query: AdAnalyticsQueryInput) {
+    return this.ads.adAnalytics(id, query);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
   @Post('admin/ads')
-  adminCreateAd(@Body() body: Record<string, unknown>) {
-    return this.ads.createAd((body as any).campaignId, body as any);
+  adminCreateAd(
+    @CurrentUser('sub') adminId: string,
+    @CurrentUser('role') role: string,
+    @Body(new ZodValidationPipe(createAdSchema)) body: CreateAdInput,
+  ) {
+    return this.ads.createAd(adminId, body, role);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @Patch('admin/ads/:id')
+  adminUpdateAd(
+    @Param('id') id: string,
+    @CurrentUser('sub') adminId: string,
+    @CurrentUser('role') role: string,
+    @Body(new ZodValidationPipe(updateAdSchema)) body: UpdateAdInput,
+  ) {
+    return this.ads.updateAd(adminId, id, body, role);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.MODERATOR)
+  @Delete('admin/ads/:id')
+  adminDeleteAd(
+    @Param('id') id: string,
+    @CurrentUser('sub') adminId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    return this.ads.deleteAd(adminId, id, role);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -133,10 +248,10 @@ export class AdsController {
   adminReviewAd(
     @Param('id') id: string,
     @CurrentUser('sub') adminId: string,
-    @Body('action') action: 'approve' | 'reject',
-    @Body('note') note?: string,
+    @CurrentUser('role') role: string,
+    @Body(new ZodValidationPipe(reviewAdSchema)) body: ReviewAdInput,
   ) {
-    return this.ads.reviewAd(adminId, id, action, note);
+    return this.ads.reviewAd(adminId, id, body, role);
   }
 
   /* ──────────── Pending review ──────────── */
@@ -156,7 +271,8 @@ export class AdsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.MODERATOR)
   @Get('admin/stats')
-  adminStats() {
-    return this.ads.stats();
+  @UsePipes(new ZodValidationPipe(adAnalyticsQuerySchema))
+  adminStats(@Query() query: AdAnalyticsQueryInput) {
+    return this.ads.stats(query);
   }
 }

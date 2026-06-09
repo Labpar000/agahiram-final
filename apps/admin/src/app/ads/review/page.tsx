@@ -17,6 +17,7 @@ import {
 } from '@agahiram/ui';
 import Shell from '../../layout-shell';
 import { apiClient } from '@/lib/api';
+import { AD_SLOT_LABELS, adPreviewAspect } from '@/lib/ads-utils';
 
 interface AdItem {
   id: string;
@@ -33,12 +34,6 @@ interface AdItem {
     advertiser: { id: string; username: string | null; name: string | null };
   };
 }
-
-const SLOT_LABELS: Record<string, string> = {
-  STORY: 'استوری',
-  EXPLORE_FEED: 'اکسپلور',
-  BANNER: 'بنر',
-};
 
 export default function AdsReviewPage() {
   const qc = useQueryClient();
@@ -68,7 +63,10 @@ export default function AdsReviewPage() {
     },
     onSuccess: () => {
       toast.success('تایید شد');
-      qc.invalidateQueries({ queryKey: ['admin', 'ads'] });
+      setViewing(null);
+      void qc.invalidateQueries({ queryKey: ['admin', 'ads'] });
+      void qc.invalidateQueries({ queryKey: ['admin', 'ads', 'pending'] });
+      void qc.invalidateQueries({ queryKey: ['admin', 'ads', 'stats'] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -82,7 +80,10 @@ export default function AdsReviewPage() {
       toast.success('رد شد');
       setRejectTargetId(null);
       setRejectNote('');
-      qc.invalidateQueries({ queryKey: ['admin', 'ads'] });
+      setViewing(null);
+      void qc.invalidateQueries({ queryKey: ['admin', 'ads'] });
+      void qc.invalidateQueries({ queryKey: ['admin', 'ads', 'pending'] });
+      void qc.invalidateQueries({ queryKey: ['admin', 'ads', 'stats'] });
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -133,12 +134,15 @@ export default function AdsReviewPage() {
                         {ad.title ?? 'بدون عنوان'}
                       </span>
                       <Badge tone="neutral" size="sm">
-                        {SLOT_LABELS[ad.slot] ?? ad.slot}
+                        {AD_SLOT_LABELS[ad.slot] ?? ad.slot}
                       </Badge>
                       {ad.campaign && (
-                        <span className="text-[11px] text-muted-foreground">
+                        <Link
+                          href={`/ads/campaigns/${ad.campaign.id}`}
+                          className="text-[11px] text-muted-foreground hover:underline"
+                        >
                           کمپین: {ad.campaign.name}
-                        </span>
+                        </Link>
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
@@ -218,19 +222,26 @@ export default function AdsReviewPage() {
             onClick={(e) => e.stopPropagation()}
           >
             {viewing.mediaUrl && (
-              <img src={viewing.mediaUrl} alt="" className="w-full rounded-lg mb-3" />
+              <div className={`${adPreviewAspect(viewing.slot)} mb-3`}>
+                <img src={viewing.mediaUrl} alt="" className="size-full object-cover" />
+              </div>
             )}
             <h3 className="font-bold">{viewing.title ?? 'بدون عنوان'}</h3>
             <p className="text-sm text-muted-foreground mt-1">
               {viewing.description ?? 'بدون توضیح'}
             </p>
             <div className="mt-2 flex gap-2 text-xs text-muted-foreground">
-              <span>{SLOT_LABELS[viewing.slot] ?? viewing.slot}</span>
+              <span>{AD_SLOT_LABELS[viewing.slot] ?? viewing.slot}</span>
               {viewing.redirectUrl && <span dir="ltr">{viewing.redirectUrl}</span>}
             </div>
-            <Button variant="outline" className="mt-4 w-full" onClick={() => setViewing(null)}>
-              بستن
-            </Button>
+            <div className="mt-4 flex gap-2">
+              <Button variant="brand" className="flex-1" asChild>
+                <Link href={`/ads/ads/${viewing.id}`}>جزئیات تبلیغ</Link>
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => setViewing(null)}>
+                بستن
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -22,6 +22,7 @@ import {
 import type { TrustTierValue } from '@agahiram/ui';
 import type { ShopTypeValue } from '@agahiram/ui';
 import type { BadgeTypeValue } from '@agahiram/ui';
+import { getPostCoverMedia } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 
 interface ShopData {
@@ -126,39 +127,42 @@ export function ShopPageClient({ shop }: { shop: ShopData }) {
             </div>
           ) : postsQuery.data && postsQuery.data.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {postsQuery.data.map((post) => (
-                <Link
-                  key={post.id}
-                  href={`/post/${post.id}`}
-                  className="group rounded-xl border border-border overflow-hidden hover:border-primary/50 transition-colors"
-                >
-                  <div className="aspect-square bg-muted relative overflow-hidden">
-                    {post.media[0] ? (
-                      <img
-                        src={post.media[0].thumbnailUrl ?? post.media[0].url}
-                        alt={post.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
-                        بدون تصویر
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-2">
-                    <p className="text-xs font-medium truncate">{post.title}</p>
-                    <p className="text-xs text-primary mt-0.5">
-                      {formatPrice(post.price, post.priceType)}
-                    </p>
-                    {post.city && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
-                        <MapPin className="size-2.5" />
-                        {post.city.name}
+              {postsQuery.data.map((post) => {
+                const cover = getPostCoverMedia(post.media);
+                return (
+                  <Link
+                    key={post.id}
+                    href={`/post/${post.id}`}
+                    className="group rounded-xl border border-border overflow-hidden hover:border-primary/50 transition-colors"
+                  >
+                    <div className="aspect-square bg-muted relative overflow-hidden">
+                      {cover ? (
+                        <img
+                          src={cover.thumbnailUrl ?? cover.url}
+                          alt={post.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                          بدون تصویر
+                        </div>
+                      )}
+                    </div>
+                    <div className="p-2">
+                      <p className="text-xs font-medium truncate">{post.title}</p>
+                      <p className="text-xs text-primary mt-0.5">
+                        {formatPrice(post.price, post.priceType)}
                       </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                      {post.city && (
+                        <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          <MapPin className="size-2.5" />
+                          {post.city.name}
+                        </p>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           ) : (
             <EmptyState

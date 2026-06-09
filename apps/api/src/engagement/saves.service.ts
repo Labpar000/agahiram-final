@@ -18,14 +18,16 @@ export class SavesService {
       update: { collectionId },
       create: { userId, postId, collectionId },
     });
-    return { saved: true };
+    const savesCount = await this.prisma.savedPost.count({ where: { postId } });
+    return { saved: true, savesCount };
   }
 
   async unsave(userId: string, postId: string) {
     await this.prisma.savedPost
       .delete({ where: { userId_postId: { userId, postId } } })
       .catch(() => null);
-    return { saved: false };
+    const savesCount = await this.prisma.savedPost.count({ where: { postId } });
+    return { saved: false, savesCount };
   }
 
   async listSaved(userId: string, cursor?: string, limit = 12) {

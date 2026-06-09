@@ -46,6 +46,7 @@ import {
   type CommentRow,
 } from '@/lib/query-cache-comments';
 import { ReportDialog } from '@/components/report-dialog';
+import { useMobileInputScroll } from '@/hooks/use-mobile-input';
 import { CommentComposerBar, CommentLoginPrompt } from '@/components/comment-composer-bar';
 import { profilePath } from '@/lib/profile-path';
 
@@ -809,17 +810,29 @@ export function CommentSectionProvider({
 export function CommentList({
   variant = 'page',
   showHeader,
+  centerEmptyState = false,
 }: {
   variant?: CommentSectionVariant;
   /** When undefined, header shows only on page variant */
   showHeader?: boolean;
+  /** Vertically center empty state in drawer scroll area */
+  centerEmptyState?: boolean;
 }) {
   const ctx = useCommentSectionContext();
   const isDrawer = variant === 'drawer';
   const headerVisible = showHeader ?? !isDrawer;
 
   return (
-    <div className={cn(isDrawer ? 'px-4 py-3' : 'space-y-4 p-4')}>
+    <div
+      className={cn(
+        isDrawer ? 'px-4 py-3' : 'space-y-4 p-4',
+        !isDrawer && 'pb-[var(--composer-stack)]',
+        centerEmptyState &&
+          ctx.comments.length === 0 &&
+          !ctx.isLoading &&
+          'flex min-h-full flex-1 flex-col justify-center',
+      )}
+    >
       {headerVisible ? (
         <div className="mb-4 flex items-center justify-between gap-3">
           <h3 className="text-base font-semibold leading-tight">نظرات</h3>
@@ -834,7 +847,7 @@ export function CommentList({
             </label>
           ) : null}
         </div>
-      ) : ctx.isOwner ? (
+      ) : ctx.isOwner && !(centerEmptyState && ctx.comments.length === 0 && !ctx.isLoading) ? (
         <div className="mb-3 flex justify-end">
           <label className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <Switch
@@ -929,7 +942,8 @@ export function CommentComposer({ variant = 'page' }: { variant?: CommentSection
       <div
         className={cn(
           'border-t border-border',
-          !isDrawer && 'sticky bottom-[calc(var(--bottom-nav)+env(safe-area-inset-bottom))]',
+          !isDrawer &&
+            'sticky bottom-[calc(var(--bottom-nav)+var(--safe-bottom))] z-[var(--z-raised)] bg-surface/95 backdrop-blur-md',
         )}
       >
         <CommentLoginPrompt variant={variant} />
@@ -941,7 +955,8 @@ export function CommentComposer({ variant = 'page' }: { variant?: CommentSection
     <div
       className={cn(
         'relative border-t border-border',
-        !isDrawer && 'sticky bottom-[calc(var(--bottom-nav)+env(safe-area-inset-bottom))]',
+        !isDrawer &&
+          'sticky bottom-[calc(var(--bottom-nav)+var(--safe-bottom))] z-[var(--z-raised)] bg-surface/95 backdrop-blur-md',
       )}
     >
       {ctx.replyTo ? (
@@ -1024,6 +1039,8 @@ export function CommentSection({
   variant?: CommentSectionVariant;
 }) {
   const isDrawer = variant === 'drawer';
+  const sectionRef = useRef<HTMLElement>(null);
+  useMobileInputScroll(sectionRef, { enabled: !isDrawer });
 
   return (
     <CommentSectionProvider
@@ -1033,6 +1050,7 @@ export function CommentSection({
       highlightCommentId={highlightCommentId}
     >
       <section
+        ref={sectionRef}
         className={cn(
           'bg-surface',
           isDrawer

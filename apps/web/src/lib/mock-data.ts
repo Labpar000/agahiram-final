@@ -33,6 +33,7 @@ export const mockUser: UserProfile = {
   username: 'ali_m',
   bio: 'فروشنده لوازم دیجیتال | تهران',
   avatar: placeholder(1, 150, 150),
+  website: 'https://example.com',
   isVerified: true,
   isBusiness: false,
   role: 'user' as UserProfile['role'],
@@ -55,6 +56,8 @@ export const mockPosts: PostSummary[] = Array.from({ length: 12 }, (_, i) => ({
   viewCount: 120 + i * 30,
   likesCount: 15 + i * 3,
   commentsCount: 2 + i,
+  savesCount: 4 + i,
+  sharesCount: 1 + Math.floor(i / 2),
   createdAt: new Date(Date.now() - i * 3600000).toISOString(),
   user: {
     id: `user-${(i % 3) + 1}`,
@@ -149,5 +152,27 @@ export const mockNotifications: NotificationItem[] = [
     payload: { username: 'ali_m', postId: 'post-2', text: 'قیمت نهایی چنده؟' },
     isRead: true,
     createdAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
+export const mockNotificationPreferences = {
+  userId: 'user-1',
+  likesPush: true,
+  commentsPush: true,
+  followsPush: true,
+  messagesPush: true,
+  likesEmail: false,
+  commentsEmail: false,
+  followsEmail: false,
+  messagesEmail: false,
+};
+
+export const mockBlockedUsers = [
+  {
+    id: 'user-blocked-1',
+    username: 'spam_user',
+    name: 'کاربر اسپم',
+    avatar: null,
+    isVerified: false,
   },
 ];

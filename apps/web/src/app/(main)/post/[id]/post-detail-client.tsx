@@ -111,7 +111,7 @@ export function PostDetailClient({ id }: { id: string }) {
   return (
     <PostDetailSwipe postId={id}>
       <div className="bg-background">
-        <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+        <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center gap-2 border-b border-border-subtle px-3 py-2">
           <IconButton
             aria-label="بازگشت"
             icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}

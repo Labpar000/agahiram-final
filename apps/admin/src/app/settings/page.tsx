@@ -31,6 +31,9 @@ interface PlatformSettings {
   defaultPostExpiryDays?: number;
   privacyContent?: string | null;
   termsContent?: string | null;
+  adsEnabled?: boolean;
+  adsExploreInterval?: number;
+  adsStoryInterval?: number;
 }
 
 export default function SettingsPage() {
@@ -160,6 +163,44 @@ export default function SettingsPage() {
               placeholder="در حال به‌روزرسانی هستیم. به‌زودی برمی‌گردیم."
             />
           </FormField>
+        </SectionCard>
+
+        <SectionCard
+          icon={<Tag className="size-5" aria-hidden />}
+          title="تبلیغات"
+          description="فعال‌سازی و فاصله نمایش تبلیغات در اپ"
+        >
+          <ToggleRow
+            label="نمایش تبلیغات در اپ"
+            description="اگر خاموش باشد، تبلیغات در اکسپلور و استوری نمایش داده نمی‌شوند."
+            checked={!!form.adsEnabled}
+            onChange={(v) => set('adsEnabled', v)}
+          />
+          <Separator />
+          <div className="grid grid-cols-2 gap-3">
+            <FormField id="adsExploreInterval" label="فاصله تبلیغ در اکسپلور (هر N tile)">
+              <Input
+                id="adsExploreInterval"
+                type="number"
+                min={3}
+                max={30}
+                value={form.adsExploreInterval ?? 9}
+                onChange={(e) => set('adsExploreInterval', Number(e.target.value))}
+                disabled={isLoading}
+              />
+            </FormField>
+            <FormField id="adsStoryInterval" label="فاصله تبلیغ در استوری (هر N استوری)">
+              <Input
+                id="adsStoryInterval"
+                type="number"
+                min={3}
+                max={20}
+                value={form.adsStoryInterval ?? 5}
+                onChange={(e) => set('adsStoryInterval', Number(e.target.value))}
+                disabled={isLoading}
+              />
+            </FormField>
+          </div>
         </SectionCard>
 
         <SectionCard

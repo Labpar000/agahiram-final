@@ -252,6 +252,7 @@ export class AuthService {
     username: string | null;
     bio: string | null;
     avatar: string | null;
+    website?: string | null;
     isVerified: boolean;
     isBusiness: boolean;
     isPrivate?: boolean;
@@ -267,6 +268,7 @@ export class AuthService {
       username: user.username,
       bio: user.bio,
       avatar: user.avatar,
+      website: user.website ?? null,
       isVerified: user.isVerified,
       isBusiness: user.isBusiness,
       isPrivate: user.isPrivate ?? false,

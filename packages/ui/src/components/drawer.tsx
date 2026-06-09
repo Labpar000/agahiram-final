@@ -5,10 +5,12 @@ import { cn } from '../lib/utils';
 
 export const Drawer = ({
   shouldScaleBackground = true,
+  repositionInputs = true,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
   <DrawerPrimitive.Root
     shouldScaleBackground={shouldScaleBackground}
+    repositionInputs={repositionInputs}
     direction="bottom"
     {...props}
   />
@@ -25,7 +27,7 @@ export const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn('fixed inset-0 z-50 bg-black/55', className)}
+    className={cn('fixed inset-0 z-[var(--z-overlay)] bg-black/55', className)}
     {...props}
   />
 ));
@@ -40,7 +42,7 @@ export const DrawerContent = React.forwardRef<
     <DrawerPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto max-h-[92svh] flex-col rounded-t-3xl border-t border-border bg-popover text-popover-foreground shadow-popover',
+        'fixed inset-x-0 bottom-0 z-[var(--z-overlay)] mt-24 flex h-auto max-h-[92svh] flex-col rounded-t-3xl border-t border-border bg-popover text-popover-foreground shadow-popover',
         className,
       )}
       {...props}
@@ -60,7 +62,7 @@ DrawerHeader.displayName = 'DrawerHeader';
 export const DrawerFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'mt-auto flex flex-col gap-2 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]',
+      'mt-auto flex flex-col gap-2 p-5 pb-[max(1.25rem,var(--safe-bottom))]',
       className,
     )}
     {...props}

@@ -52,7 +52,7 @@ export default function StoryArchivePage() {
 
   return (
     <div className="min-h-svh bg-background pb-8">
-      <header className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-4 py-3">
+      <header className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center gap-2 border-b border-border-subtle px-4 py-3">
         <IconButton
           aria-label="بازگشت"
           icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}

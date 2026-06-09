@@ -17,7 +17,7 @@ export const SheetOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/55',
+      'fixed inset-0 z-[var(--z-overlay)] bg-black/55',
       'data-[state=open]:animate-in data-[state=closed]:animate-out',
       'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
       className,
@@ -29,7 +29,7 @@ SheetOverlay.displayName = 'SheetOverlay';
 
 const sheetVariants = cva(
   cn(
-    'fixed z-50 gap-4 bg-popover text-popover-foreground border-border shadow-popover',
+    'fixed z-[var(--z-overlay)] gap-4 bg-popover text-popover-foreground border-border shadow-popover',
     'transition ease-in-out',
     'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-200 data-[state=open]:duration-300',
   ),

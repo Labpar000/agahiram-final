@@ -404,6 +404,7 @@ model Post {
   isPromoted        Boolean    @default(false)
   boostExpiresAt    DateTime?
   viewCount         Int        @default(0)
+  shareCount        Int        @default(0)
   qualityScore      Int        @default(0)
   commentsEnabled   Boolean    @default(true)
   expiresAt         DateTime?
@@ -922,6 +923,7 @@ enum ReportTargetType {
   story
   user
   comment
+  ad
 }
 
 model Report {
@@ -1198,19 +1200,35 @@ model AdCampaign {
   advertiser    User             @relation(fields: [advertiserId], references: [id])
   status        AdCampaignStatus @default(DRAFT)
   budget        BigInt
+  totalSpent    BigInt           @default(0)
   dailyBudget   BigInt?
   bidType       BidType          @default(CPM)
   bidAmount     BigInt
   startDate     DateTime
   endDate       DateTime?
+  pauseReason   String?
   targeting     Json?
   ads           Ad[]
   payments      AdPayment[]
+  dailySpends   AdDailySpend[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   @@index([advertiserId])
   @@index([status])
+}
+
+model AdDailySpend {
+  id         String     @id @default(uuid())
+  campaignId String
+  campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  date       DateTime   @db.Date
+  amount     BigInt     @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([campaignId, date])
+  @@index([campaignId])
 }
 
 model Ad {
@@ -1274,14 +1292,16 @@ model AdClick {
 }
 
 model AdPayment {
-  id         String   @id @default(uuid())
+  id         String     @id @default(uuid())
   campaignId String
   campaign   AdCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adId       String?
   amount     BigInt
   refId      String?
-  status     String   @default("COMPLETED")
+  status     String     @default("DEBITED")
   note       String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime   @default(now())
 
   @@index([campaignId])
+  @@index([adId])
 }

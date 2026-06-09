@@ -48,10 +48,20 @@ export const searchSuggestionsSchema = z.object({
 
 export type SearchSuggestionsInput = z.infer<typeof searchSuggestionsSchema>;
 
-export const searchAlertCreateSchema = z.object({
-  query: z.string().min(1).max(100).optional(),
-  cityId: z.string().uuid().optional(),
-  filters: z.record(z.string(), z.unknown()).default({}),
-});
+export const searchAlertCreateSchema = z
+  .object({
+    query: z.string().min(1).max(100).optional(),
+    cityId: z.string().uuid().optional(),
+    filters: z.record(z.string(), z.unknown()).default({}),
+  })
+  .refine(
+    (data) => {
+      const hasQuery = !!data.query?.trim();
+      const hasCity = !!data.cityId;
+      const hasFilters = Object.keys(data.filters ?? {}).length > 0;
+      return hasQuery || hasCity || hasFilters;
+    },
+    { message: 'حداقل عبارت جستجو یا فیلتر لازم است' },
+  );
 
 export type SearchAlertCreateInput = z.infer<typeof searchAlertCreateSchema>;

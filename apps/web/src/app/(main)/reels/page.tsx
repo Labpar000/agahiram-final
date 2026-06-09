@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState, ErrorState, IgArrowBack, IgReels, IgSearch, Spinner } from '@agahiram/ui';
 import { fetchReelsPage } from '@/lib/query-definitions';
+import { getPostCoverMedia } from '@agahiram/shared';
 import { ReelPlayer } from '@/components/reel-player';
 import { videoPlaybackController } from '@/lib/video-playback-controller';
 
@@ -75,7 +76,7 @@ export default function ReelsPage() {
           }
         }
       },
-      { threshold: [0.7] },
+      { threshold: [0, 0.5, 0.7, 1] },
     );
 
     return () => {
@@ -107,8 +108,12 @@ export default function ReelsPage() {
       return;
     }
     if (!activeReelId) return;
-    videoPlaybackController.pauseExcept(`reel-${activeReelId}`);
-    void videoPlaybackController.requestPlay(`reel-${activeReelId}`, { resetUserPaused: true });
+    const playbackId = `reel-${activeReelId}`;
+    videoPlaybackController.pauseExcept(playbackId);
+    // Tab keep-alive mounts reels hidden (display:none) — retry play when the tab becomes visible.
+    requestAnimationFrame(() => {
+      void videoPlaybackController.requestPlay(playbackId, { resetUserPaused: false });
+    });
   }, [onReelsTab, activeIndex, activeReelId]);
 
   useEffect(() => {
@@ -130,79 +135,82 @@ export default function ReelsPage() {
   }, [activeIndex, reels, qc]);
 
   return (
-    <div className="relative bg-black">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between px-3 pt-[calc(var(--safe-top)+0.5rem)] text-white">
-        <button
-          type="button"
-          aria-label="بازگشت"
-          onClick={() => router.back()}
-          className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/40 tap-none"
-        >
-          <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
-        </button>
-        <span className="text-sm font-semibold drop-shadow-md">ریلز</span>
-      </div>
+    <div className="fixed inset-0 z-[var(--z-chrome)] flex justify-center bg-black">
+      <div className="relative h-full w-full max-w-2xl bg-black">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between px-3 pt-[calc(var(--safe-top)+0.5rem)] text-white">
+          <button
+            type="button"
+            aria-label="بازگشت"
+            onClick={() => router.back()}
+            className="pointer-events-auto grid size-10 place-items-center rounded-full bg-black/40 tap-none"
+          >
+            <IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />
+          </button>
+          <span className="text-sm font-semibold drop-shadow-md">ریلز</span>
+        </div>
 
-      <div
-        ref={scrollRef}
-        className="reels-scroll bg-black scrollbar-hide overflow-y-scroll overscroll-y-contain snap-y snap-mandatory"
-        style={{ WebkitOverflowScrolling: 'touch' }}
-      >
-        {isLoading && !data ? (
-          <div className="grid h-full place-items-center text-white">
-            <Spinner className="size-8" aria-label="در حال بارگذاری ریلز" />
-          </div>
-        ) : isError ? (
-          <div className="grid h-full place-items-center px-6 text-white">
-            <ErrorState
-              onRetry={() => void refetch()}
-              className="[&_h3]:text-white [&_p]:text-white/70 [&_button]:border-white/20 [&_button]:text-white"
-            />
-          </div>
-        ) : reels.length === 0 ? (
-          <div className="grid h-full place-items-center text-white">
-            <EmptyState
-              icon={<IgReels className="size-10" strokeWidth={1.5} aria-hidden />}
-              title="فعلاً ریلی نیست"
-              description="به‌زودی ویدیوهای تازه را اینجا می‌بینید."
-              className="text-white [&_[data-empty-copy]_*]:text-white [&_[data-empty-visual]]:border-white/10 [&_[data-empty-visual]]:from-white/10 [&_[data-empty-visual]]:via-white/5 [&_[data-empty-visual]]:to-white/10 [&_[data-empty-visual]>span]:bg-white/10 [&_[data-empty-visual]>span]:text-white [&_[data-empty-visual]>span]:ring-white/10"
-            />
-          </div>
-        ) : (
-          <>
-            {reels.map((r, i) => {
-              const inWindow = Math.abs(i - activeIndex) <= WINDOW;
-              return (
-                <div
-                  key={r.id}
-                  data-reel-index={i}
-                  ref={(node) => setReelRef(node, i)}
-                  className="relative flex w-full snap-start snap-always items-center justify-center bg-black"
-                >
-                  {inWindow ? (
-                    <ReelPlayer reel={r} active={i === activeIndex} />
-                  ) : (
-                    <div
-                      className="size-full bg-neutral-950"
-                      style={{
-                        backgroundImage: r.media[0]?.thumbnailUrl
-                          ? `url(${r.media[0].thumbnailUrl})`
-                          : undefined,
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center',
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-            <div className="grid h-16 snap-start place-items-center text-white/70">
-              {isFetchingNextPage ? (
-                <Spinner className="size-6" aria-label="در حال بارگذاری ریل‌های بیشتر" />
-              ) : null}
+        <div
+          ref={scrollRef}
+          className="reels-scroll h-full bg-black scrollbar-hide overflow-y-scroll overscroll-y-contain snap-y snap-mandatory"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          {isLoading && !data ? (
+            <div className="grid h-full place-items-center text-white">
+              <Spinner className="size-8" aria-label="در حال بارگذاری ریلز" />
             </div>
-          </>
-        )}
+          ) : isError ? (
+            <div className="grid h-full place-items-center px-6 text-white">
+              <ErrorState
+                onRetry={() => void refetch()}
+                className="[&_h3]:text-white [&_p]:text-white/70 [&_button]:border-white/20 [&_button]:text-white"
+              />
+            </div>
+          ) : reels.length === 0 ? (
+            <div className="grid h-full place-items-center text-white">
+              <EmptyState
+                icon={<IgReels className="size-10" strokeWidth={1.5} aria-hidden />}
+                title="فعلاً ریلی نیست"
+                description="به‌زودی ویدیوهای تازه را اینجا می‌بینید."
+                className="text-white [&_[data-empty-copy]_*]:text-white [&_[data-empty-visual]]:border-white/10 [&_[data-empty-visual]]:from-white/10 [&_[data-empty-visual]]:via-white/5 [&_[data-empty-visual]]:to-white/10 [&_[data-empty-visual]>span]:bg-white/10 [&_[data-empty-visual]>span]:text-white [&_[data-empty-visual]>span]:ring-white/10"
+              />
+            </div>
+          ) : (
+            <>
+              {reels.map((r, i) => {
+                const inWindow = Math.abs(i - activeIndex) <= WINDOW;
+                const cover = getPostCoverMedia(r.media);
+                return (
+                  <div
+                    key={r.id}
+                    data-reel-index={i}
+                    ref={(node) => setReelRef(node, i)}
+                    className="relative flex w-full snap-start snap-always items-center justify-center bg-black"
+                  >
+                    {inWindow ? (
+                      <ReelPlayer reel={r} active={onReelsTab && i === activeIndex} />
+                    ) : (
+                      <div
+                        className="size-full bg-neutral-950"
+                        style={{
+                          backgroundImage: cover?.thumbnailUrl
+                            ? `url(${cover.thumbnailUrl})`
+                            : undefined,
+                          backgroundSize: 'cover',
+                          backgroundPosition: 'center',
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+              <div className="grid h-16 snap-start place-items-center text-white/70">
+                {isFetchingNextPage ? (
+                  <Spinner className="size-6" aria-label="در حال بارگذاری ریل‌های بیشتر" />
+                ) : null}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

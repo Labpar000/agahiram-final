@@ -32,7 +32,7 @@ export function IgTabBar({ children, className, columns = 5 }: IgTabBarProps) {
     <nav
       aria-label="ناوبری اصلی"
       className={cn(
-        'glass fixed inset-x-0 bottom-0 z-40 border-t-[0.5px] border-[var(--ig-tab-border)] bg-surface/95 pb-safe backdrop-blur-xl',
+        'glass fixed inset-x-0 bottom-0 z-[var(--z-nav)] border-t-[0.5px] border-[var(--ig-tab-border)] bg-surface/95 pb-safe backdrop-blur-xl',
         className,
       )}
     >

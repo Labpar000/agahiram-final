@@ -4,7 +4,7 @@ import { IgArrowBack, IgWordmark } from '@agahiram/ui';
 export default function LegalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-svh bg-background">
-      <header className="glass sticky top-0 z-20 border-b border-border-subtle">
+      <header className="glass sticky top-0 z-[var(--z-raised)] border-b border-border-subtle">
         <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
           <Link
             href="/feed"

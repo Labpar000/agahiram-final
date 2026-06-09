@@ -1,9 +1,14 @@
 'use client';
 
-// FIXED: rAF-based progress tracking + proper cleanup + reelAutoplay fix
+// FIXED: rAF-based progress tracking + source-ready autoplay + playback recovery
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { videoPlaybackController, type VideoPlaybackKind } from '@/lib/video-playback-controller';
-import { setupVideoSource, trackVideoProgress } from '@/lib/video-playback';
+import {
+  installVideoPlaybackRecovery,
+  setupVideoSource,
+  trackVideoProgress,
+  type VideoSourceHandle,
+} from '@/lib/video-playback';
 
 type UseManagedVideoOptions = {
   id: string;
@@ -32,8 +37,9 @@ export function useManagedVideo({
   const containerRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
-  const cleanupSourceRef = useRef<(() => void) | undefined>(undefined);
+  const sourceRef = useRef<VideoSourceHandle | null>(null);
   const cleanupTrackingRef = useRef<(() => void) | undefined>(undefined);
+  const cleanupRecoveryRef = useRef<(() => void) | undefined>(undefined);
   const activeRef = useRef(active);
   activeRef.current = active;
 
@@ -42,71 +48,6 @@ export function useManagedVideo({
     if (!video) return;
     video.loop = loop;
     video.muted = muted;
-
-    let stallTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const onStalled = () => {
-      stallTimer = setTimeout(() => {
-        if (video.readyState === 0 || video.readyState === 1) {
-          const ct = video.currentTime;
-          video.load();
-          video.currentTime = ct;
-          void video.play().catch(() => {});
-        }
-      }, 3000);
-    };
-
-    const onPlaying = () => {
-      if (stallTimer) {
-        clearTimeout(stallTimer);
-        stallTimer = null;
-      }
-    };
-
-    const onWaiting = () => {
-      if (video.paused) {
-        stallTimer = setTimeout(() => {
-          if (video.readyState < 3) {
-            video.load();
-            void video.play().catch(() => {});
-          }
-        }, 3000);
-      }
-    };
-
-    let playStallTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const onPlay = () => {
-      playStallTimer = setTimeout(() => {
-        if (video.paused && !video.ended) {
-          video.load();
-          void video.play().catch(() => {});
-        }
-      }, 5000);
-    };
-
-    const onPauseCleanup = () => {
-      if (playStallTimer) {
-        clearTimeout(playStallTimer);
-        playStallTimer = null;
-      }
-    };
-
-    video.addEventListener('stalled', onStalled);
-    video.addEventListener('playing', onPlaying);
-    video.addEventListener('waiting', onWaiting);
-    video.addEventListener('play', onPlay);
-    video.addEventListener('pause', onPauseCleanup);
-
-    return () => {
-      video.removeEventListener('stalled', onStalled);
-      video.removeEventListener('playing', onPlaying);
-      video.removeEventListener('waiting', onWaiting);
-      video.removeEventListener('play', onPlay);
-      video.removeEventListener('pause', onPauseCleanup);
-      if (stallTimer) clearTimeout(stallTimer);
-      if (playStallTimer) clearTimeout(playStallTimer);
-    };
   }, [loop, muted]);
 
   useEffect(() => {
@@ -119,21 +60,38 @@ export function useManagedVideo({
     const video = videoRef.current;
     if (!video || !active) return;
 
-    // Cleanup previous source setup
-    cleanupSourceRef.current?.();
-    cleanupSourceRef.current = setupVideoSource(video, hlsUrl ?? undefined, mp4Url ?? undefined);
+    sourceRef.current?.cleanup();
+    const source = setupVideoSource(video, hlsUrl ?? undefined, mp4Url ?? undefined);
+    sourceRef.current = source;
+
+    cleanupRecoveryRef.current?.();
+    cleanupRecoveryRef.current = installVideoPlaybackRecovery(video, {
+      getHls: source.getHls,
+    });
+
+    let cancelled = false;
+    const shouldAutoplay = kind === 'reel' ? reelAutoplay : autoplayWhenActive;
+
+    void source.ready.then(() => {
+      if (cancelled || !activeRef.current || !video.isConnected) return;
+      if (shouldAutoplay && !videoPlaybackController.isUserPaused(id)) {
+        void videoPlaybackController.requestPlay(id, { resetUserPaused: true });
+      }
+    });
 
     return () => {
-      cleanupSourceRef.current?.();
-      cleanupSourceRef.current = undefined;
+      cancelled = true;
+      cleanupRecoveryRef.current?.();
+      cleanupRecoveryRef.current = undefined;
+      source.cleanup();
+      if (sourceRef.current === source) sourceRef.current = null;
     };
-  }, [active, hlsUrl, mp4Url, id]);
+  }, [active, hlsUrl, mp4Url, id, kind, reelAutoplay, autoplayWhenActive]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    // FIXED: rAF-based progress tracking instead of timeupdate for buttery-smooth progress bar
     if (active) {
       cleanupTrackingRef.current?.();
       const stop = trackVideoProgress(video, (ratio) => {
@@ -164,13 +122,30 @@ export function useManagedVideo({
       }
       setPlaying(false);
       setProgress(0);
-      return;
     }
+  }, [active, kind]);
+
+  // Retry autoplay when the container becomes visible (hidden tab slots, iOS display:none).
+  useEffect(() => {
+    if (!active) return;
+    const container = containerRef.current;
+    if (!container || typeof IntersectionObserver === 'undefined') return;
+
     const shouldAutoplay = kind === 'reel' ? reelAutoplay : autoplayWhenActive;
-    if (shouldAutoplay && !videoPlaybackController.isUserPaused(id)) {
-      void videoPlaybackController.requestPlay(id, { resetUserPaused: true });
-    }
-  }, [active, id, autoplayWhenActive, reelAutoplay, kind]);
+    if (!shouldAutoplay) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting || entry.intersectionRatio < 0.25) return;
+        if (!activeRef.current || videoPlaybackController.isUserPaused(id)) return;
+        void videoPlaybackController.requestPlay(id, { resetUserPaused: false });
+      },
+      { threshold: [0, 0.25, 0.5, 0.75, 1] },
+    );
+    obs.observe(container);
+    return () => obs.disconnect();
+  }, [active, id, kind, reelAutoplay, autoplayWhenActive]);
 
   const togglePlay = useCallback(() => {
     videoPlaybackController.togglePlay(id);

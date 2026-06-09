@@ -16,6 +16,10 @@ export const updateProfileSchema = z.object({
   username: usernameSchema.optional(),
   bio: z.string().max(150).optional(),
   avatarKey: z.string().optional(),
+  website: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? '' : v),
+    z.string().url('آدرس وب‌سایت نامعتبر است').optional().or(z.literal('')),
+  ),
   isPrivate: z.boolean().optional(),
   defaultCityId: z.string().uuid().optional().nullable(),
   storyArchiveEnabled: z.boolean().optional(),

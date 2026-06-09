@@ -20,6 +20,9 @@ export const createPostSchema = z.object({
         key: z.string(),
         type: z.enum(['image', 'video']),
         order: z.number().int().min(0),
+        isThumbnail: z.boolean().optional(),
+        /** Video-only: second offset used when generating the poster/thumbnail. */
+        coverTimeSec: z.number().min(0).optional(),
       }),
     )
     .min(1, 'حداقل یک تصویر یا ویدیو لازم است')
@@ -68,6 +71,7 @@ export const createReelSchema = z.object({
   cityId: z.string().uuid(),
   mediaKey: z.string(),
   duration: z.number().min(1).max(60),
+  coverTime: z.number().min(0).optional(),
 });
 
 export type CreateReelInput = z.infer<typeof createReelSchema>;

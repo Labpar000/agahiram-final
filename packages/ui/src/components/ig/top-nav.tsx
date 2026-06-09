@@ -20,7 +20,7 @@ export function IgTopNav({ brand, actions, className, sticky = true }: IgTopNavP
   return (
     <header
       className={cn(
-        'glass z-30 border-b border-[var(--ig-tab-border)] pt-safe',
+        'glass z-[var(--z-chrome)] border-b border-[var(--ig-tab-border)] pt-safe',
         sticky && 'sticky top-0',
         className,
       )}

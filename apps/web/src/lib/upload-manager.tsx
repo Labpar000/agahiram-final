@@ -126,7 +126,7 @@ function UploadProgressPill({ tasks }: { tasks: UploadTask[] }) {
   const task = active[0]!;
   return (
     <div
-      className="fixed bottom-[calc(var(--bottom-nav)+var(--safe-bottom)+0.75rem)] end-3 z-50 min-w-[10rem] rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg backdrop-blur-md"
+      className="fixed bottom-[calc(var(--bottom-nav)+var(--safe-bottom)+0.75rem)] end-3 z-[var(--z-toast)] min-w-[10rem] rounded-2xl border border-border bg-surface/95 px-3 py-2 shadow-lg backdrop-blur-md"
       role="status"
       aria-live="polite"
     >

@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import type { Metadata } from 'next';
 import { serverApi } from '@/lib/server-api';
+import { getPostCoverMedia } from '@agahiram/shared';
 import { PostDetailClient } from '@/app/(main)/post/[id]/post-detail-client';
 import { JsonLd, productJsonLd } from '@/components/json-ld';
 import { buildPostPath, parsePostIdFromSlugParam, postAdPathsMatch } from '@/lib/post-url';
@@ -10,7 +11,12 @@ interface PostMeta {
   title: string;
   description?: string | null;
   price?: number | null;
-  media?: Array<{ url: string; thumbnailUrl?: string | null }>;
+  media?: Array<{
+    url: string;
+    thumbnailUrl?: string | null;
+    isThumbnail?: boolean;
+    order?: number;
+  }>;
   user?: { name?: string | null; username?: string | null };
   city?: { name?: string; slug?: string } | null;
   category?: { slug: string };
@@ -31,7 +37,8 @@ export async function generateMetadata({
   const description =
     (post?.description ?? post?.title ?? 'آگهی در آگهی‌گرام').slice(0, 160) +
     (city ? ` — ${city}` : '');
-  const image = post?.media?.[0]?.thumbnailUrl ?? post?.media?.[0]?.url;
+  const cover = getPostCoverMedia(post?.media);
+  const image = cover?.thumbnailUrl ?? cover?.url;
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agahiram.ir';
   const canonical =
     post?.category?.slug && post.title

@@ -342,6 +342,12 @@ export class StoriesController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('stories/privacy/hidden')
+  listHiddenFrom(@CurrentUser('sub') userId: string) {
+    return this.stories.listHiddenFromUsers(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('stories/privacy/hide')
   @UsePipes(new ZodValidationPipe(storyHiddenFromSchema))
   hideFrom(@CurrentUser('sub') userId: string, @Body() body: { hiddenUserId: string }) {
@@ -352,6 +358,12 @@ export class StoriesController {
   @Delete('stories/privacy/hide/:hiddenUserId')
   unhideFrom(@CurrentUser('sub') userId: string, @Param('hiddenUserId') hiddenUserId: string) {
     return this.stories.unhideStoryFrom(userId, hiddenUserId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('stories/mute')
+  listMuted(@CurrentUser('sub') userId: string) {
+    return this.stories.listMutedUsers(userId);
   }
 
   @UseGuards(JwtAuthGuard)

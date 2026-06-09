@@ -16,7 +16,7 @@ export const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/55 backdrop-blur-[2px]',
+      'fixed inset-0 z-[var(--z-overlay)] bg-black/55 backdrop-blur-[2px]',
       'data-[state=open]:animate-in data-[state=closed]:animate-out',
       'data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0',
       className,
@@ -49,7 +49,7 @@ export const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed z-50 grid gap-4',
+        'fixed z-[var(--z-overlay)] grid gap-4',
         /* Use translate-X/Y centering — avoids RTL + inset-x-0 mx-auto conflicts on iOS. */
         'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
         'w-[calc(100%-2rem)]',

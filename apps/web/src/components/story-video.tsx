@@ -53,7 +53,8 @@ function PreviewStoryVideo({
     const video = ref.current;
     if (!video) return;
     applySafariVideoAttrs(video);
-    return setupVideoSource(video, hlsUrl ?? undefined, mediaUrl);
+    const source = setupVideoSource(video, hlsUrl ?? undefined, mediaUrl);
+    return () => source.cleanup();
   }, [hlsUrl, mediaUrl]);
 
   const setRef = useCallback(mergeVideoRef(ref, onVideoRef), [onVideoRef]);

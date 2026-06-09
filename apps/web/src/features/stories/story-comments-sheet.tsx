@@ -29,6 +29,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { CommentContent } from '@/components/comment-content';
 import { CommentComposerBar, CommentLoginPrompt } from '@/components/comment-composer-bar';
 import { CommentsDrawerHeader } from '@/components/comments-drawer-header';
+import { drawerMaxHeightStyle } from '@/lib/mobile-layout';
 import { profilePath } from '@/lib/profile-path';
 
 export interface StoryComment {
@@ -169,17 +170,16 @@ export function StoryCommentsSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="flex max-h-[85svh] flex-col overflow-hidden">
-        <div aria-hidden className="mx-auto mt-2 h-1 w-10 rounded-full bg-muted-foreground/25" />
+      <DrawerContent className="flex flex-col overflow-hidden" style={drawerMaxHeightStyle}>
         <CommentsDrawerHeader title="نظرات استوری" onClose={() => onOpenChange(false)} />
 
         {open ? (
           <>
-            <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0">
+            <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0 pb-[var(--composer-stack)]">
               {isLoading ? (
                 <StoryCommentListSkeleton />
               ) : comments.length === 0 ? (
-                <div className="px-4 py-8">
+                <div className="flex min-h-full flex-col justify-center px-4 py-8">
                   <EmptyState
                     size="sm"
                     icon={<IgComment className="size-6" strokeWidth={1.75} aria-hidden />}
@@ -202,7 +202,7 @@ export function StoryCommentsSheet({
             </DrawerBody>
 
             {showComposerFooter ? (
-              <DrawerFooter className="shrink-0 border-t border-border bg-surface/95 p-0">
+              <DrawerFooter className="relative z-[var(--z-raised)] shrink-0 border-t border-border bg-surface/95 p-0">
                 {me ? (
                   <CommentComposerBar
                     variant="drawer"

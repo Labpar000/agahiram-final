@@ -351,9 +351,21 @@ export default function CreateStoryPage() {
 
   const totalSlides = slides.length + (current ? 1 : 0);
 
+  if (step === 'camera') {
+    return (
+      <StoryCamera
+        fullscreen
+        onClose={() => setStep('pick')}
+        onCapture={(c) => void handleCapture(c)}
+        onGallery={() => setStep('pick')}
+        onLayout={() => setStep('layout')}
+      />
+    );
+  }
+
   return (
     <div className="bg-background pb-12">
-      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center justify-between gap-2 border-b border-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <IconButton
             aria-label="بازگشت"
@@ -448,19 +460,6 @@ export default function CreateStoryPage() {
                 <IgImagePlus className="size-10" strokeWidth={1.75} aria-hidden />
               </span>
             </div>
-          </>
-        ) : null}
-
-        {step === 'camera' ? (
-          <>
-            <StoryCamera
-              onCapture={(c) => void handleCapture(c)}
-              onGallery={() => setStep('pick')}
-              onLayout={() => setStep('layout')}
-            />
-            <Button variant="outline" onClick={() => setStep('pick')}>
-              بازگشت
-            </Button>
           </>
         ) : null}
 

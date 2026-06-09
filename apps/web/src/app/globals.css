@@ -57,7 +57,8 @@ main {
 }
 
 /* iOS: fixed bottom chrome must not be clipped by transformed ancestors. */
-nav[aria-label='ناوبری اصلی'] {
+nav[aria-label='ناوبری اصلی'],
+[data-fixed-bottom-chrome] {
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
 }
@@ -78,11 +79,9 @@ nav[aria-label='ناوبری اصلی'] {
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -259,6 +258,15 @@ video {
 }
 
 .post-media-slide {
+  min-height: 0;
+}
+
+.reel-media-carousel {
+  touch-action: pan-x pinch-zoom;
+  overscroll-behavior-x: contain;
+}
+
+.reel-media-slide {
   min-height: 0;
 }
 

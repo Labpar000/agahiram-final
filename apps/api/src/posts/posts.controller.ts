@@ -146,4 +146,10 @@ export class PostsController {
   contact(@Param('id') id: string, @CurrentUser('sub') viewerId?: string) {
     return this.postsService.logContactImpression(id, viewerId);
   }
+
+  @Public()
+  @Post(':id/share')
+  share(@Param('id') id: string) {
+    return this.postsService.recordShare(id);
+  }
 }

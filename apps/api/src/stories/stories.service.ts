@@ -1058,6 +1058,34 @@ export class StoriesService {
     return { unmuted: true };
   }
 
+  async listMutedUsers(userId: string) {
+    const rows = await this.prisma.storyMute.findMany({
+      where: { userId },
+      include: {
+        muted: {
+          select: { id: true, username: true, name: true, avatar: true, isVerified: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return rows.map((r) => r.muted);
+  }
+
+  async listHiddenFromUsers(userId: string) {
+    const rows = await this.prisma.storyHiddenFrom.findMany({
+      where: { userId },
+      include: {
+        hidden: {
+          select: { id: true, username: true, name: true, avatar: true, isVerified: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return rows.map((r) => r.hidden);
+  }
+
   private serializeDiscoverStory(
     s: {
       id: string;

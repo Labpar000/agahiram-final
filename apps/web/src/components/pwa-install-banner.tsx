@@ -74,7 +74,7 @@ export function PwaInstallBanner() {
 
   return (
     <div
-      className="pointer-events-none fixed inset-x-3 z-40 mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-floating"
+      className="pointer-events-none fixed inset-x-3 z-[var(--z-chrome)] mx-auto flex max-w-2xl items-center gap-3 rounded-2xl border border-border bg-surface p-3 shadow-floating"
       style={{
         bottom: 'calc(var(--bottom-nav) + var(--safe-bottom) + 1rem)',
         paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',

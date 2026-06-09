@@ -145,7 +145,7 @@ export function TopBar() {
       />
 
       {searchOpen ? (
-        <div className="fixed inset-0 z-50 bg-surface">
+        <div className="fixed inset-0 z-[var(--z-overlay)] bg-surface">
           <div className="glass border-b border-border-subtle pt-safe">
             <div className="mx-auto flex h-[var(--header-height)] max-w-2xl items-center gap-2 px-4 py-2">
               <div className="flex-1">

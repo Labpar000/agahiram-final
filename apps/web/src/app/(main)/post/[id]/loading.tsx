@@ -3,7 +3,7 @@ import { Skeleton } from '@agahiram/ui';
 export default function PostLoading() {
   return (
     <div className="bg-background" aria-hidden>
-      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <Skeleton className="size-9 rounded-full" shimmer={false} />
         <Skeleton className="h-4 w-24 rounded-full" shimmer={false} />
       </div>

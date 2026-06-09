@@ -144,7 +144,9 @@ export default function CreatePage() {
     }
     const prev = (step - 1) as Step;
     autoAdvancedRef.current[step] = false;
-    autoAdvancedRef.current[prev] = false;
+    // Suppress auto-advance on the step we're returning to — city/category/media
+    // are still filled, so the effect would immediately skip forward again.
+    autoAdvancedRef.current[prev] = true;
     setStep(prev);
   }, [step, router]);
 
@@ -380,6 +382,7 @@ export default function CreatePage() {
       toast.error(`حداکثر ${MAX_MEDIA} مورد مجاز است`);
       return;
     }
+    autoAdvancedRef.current[2] = false;
     const images: File[] = [];
     const videos: File[] = [];
     for (const raw of Array.from(files)) {
@@ -507,7 +510,7 @@ export default function CreatePage() {
       }}
     >
       {/* Header */}
-      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-3 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] border-b border-border-subtle px-3 py-2">
         <div className="flex items-center gap-2">
           <IconButton
             aria-label={step === 0 ? 'انصراف' : 'مرحله قبل'}
@@ -565,6 +568,7 @@ export default function CreatePage() {
                   setCityId('');
                 }}
                 onPickCity={(c, p) => {
+                  autoAdvancedRef.current[0] = false;
                   setCityId(c.id);
                   setProvinceId(p.id);
                   try {
@@ -643,6 +647,7 @@ export default function CreatePage() {
                           setCategoryId('');
                           setCategory(null);
                         } else {
+                          autoAdvancedRef.current[1] = false;
                           setCategoryId(c.id);
                           setCategory(c);
                         }
@@ -1011,7 +1016,8 @@ export default function CreatePage() {
       {/* Fixed bottom bar — only on steps that require explicit user action */}
       {showBottomBar && (
         <div
-          className="fixed inset-x-0 z-50 border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
+          className="fixed inset-x-0 z-[var(--z-overlay)] border-t border-border bg-surface/95 px-3 py-3 shadow-floating backdrop-blur-md"
+          data-fixed-bottom-chrome
           style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
         >
           <div className="mx-auto max-w-2xl">

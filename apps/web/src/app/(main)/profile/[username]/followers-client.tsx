@@ -111,7 +111,7 @@ export function FollowersClient({
 
   return (
     <div className="min-h-dvh bg-background">
-      <header className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+      <header className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <Link
           href={`/profile/${username}`}
           aria-label="بازگشت"

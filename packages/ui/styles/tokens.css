@@ -129,6 +129,25 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --app-reels-height: 100dvh;
 
+  /* Z-index scale — single source for mobile chrome and overlays */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-chrome: 30;
+  --z-nav: 40;
+  --z-overlay: 50;
+  --z-toast: 60;
+  --z-critical: 100;
+
+  /* Bottom composer / input bar stack height */
+  --composer-bar-height: 4.25rem;
+  --composer-stack: calc(var(--composer-bar-height) + var(--safe-bottom));
+  --chat-composer-stack: calc(5.5rem + var(--safe-bottom));
+
+  /* Visual viewport (updated at runtime by useVisualViewport) */
+  --vv-height: 100svh;
+  --vv-offset-top: 0px;
+  --keyboard-inset: 0px;
+
   /* Typography metrics (Vazirmatn tuned) */
   --leading-tight: 1.25;
   --leading-snug: 1.4;
@@ -261,6 +280,13 @@
 
   --spacing-ig-action: var(--ig-action);
   --spacing-ig-icon: var(--ig-icon);
+
+  --z-index-raised: var(--z-raised);
+  --z-index-chrome: var(--z-chrome);
+  --z-index-nav: var(--z-nav);
+  --z-index-overlay: var(--z-overlay);
+  --z-index-toast: var(--z-toast);
+  --z-index-critical: var(--z-critical);
 
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);

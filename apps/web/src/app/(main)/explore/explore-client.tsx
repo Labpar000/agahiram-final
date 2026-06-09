@@ -1,8 +1,7 @@
 'use client';
 
-// FIXED: Instagram-spec explore grid:
-// - 3-column grid with 2px gap
-// - Featured 2×2 cells at positions 7n+3 and 7n+7
+// Explore grid:
+// - 3-column grid with 2px gap, uniform square tiles (posts + reels)
 // - Desktop hover video preview (300ms delay, autoplay muted, pause on leave)
 // - 18px video indicator icon
 // - Tile-shaped loading skeletons
@@ -13,17 +12,26 @@ import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInfiniteScroll } from '@/hooks/use-infinite-scroll';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { keepPreviousData, useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { formatPersianNumber, formatPersianCompact, formatPersianPrice } from '@agahiram/shared';
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { AdSlot, type PaginatedResponse, type PostSummary } from '@agahiram/shared';
+import {
+  formatPersianNumber,
+  formatPersianCompact,
+  formatPersianPrice,
+  getPostCoverMedia,
+} from '@agahiram/shared';
 import {
   EmptyState,
   ErrorState,
   IconButton,
-  IgActivity,
   IgEye,
   IgGrid,
-  IgHeart,
+  IgActivity,
   IgLayers,
   IgPlay,
   IgSearch,
@@ -38,6 +46,18 @@ import type { Filters } from '@/components/search-filters';
 import { toast } from '@agahiram/ui';
 import { parseExploreSearchParams } from '@/lib/explore-url';
 import { StoryDiscoverRings, type DiscoverGroup } from '@/features/stories/story-discover-rings';
+import { AdTile } from '@/components/ad-tile';
+import { useAdsConfig, useServedAds } from '@/hooks/use-ads';
+import { mergeFeedWithAds } from '@/lib/merge-feed-with-ads';
+import { useAuthStore } from '@/lib/auth-store';
+import { handleEngagementError } from '@/lib/engagement-auth';
+import { endUserSession } from '@/lib/logout-session';
+import {
+  findMatchingSearchAlert,
+  hasSearchCriteria,
+  serializeAlertFilters,
+} from '@/lib/search-alert-utils';
+import { useSearchAlerts } from '@/features/settings/hooks/useSearchAlerts';
 
 const SearchFiltersSheet = dynamic(
   () => import('@/components/search-filters').then((m) => m.SearchFiltersSheet),
@@ -45,7 +65,7 @@ const SearchFiltersSheet = dynamic(
     ssr: false,
     loading: () => (
       <div
-        className="fixed inset-x-0 z-50 h-[40svh] animate-pulse rounded-t-3xl bg-muted"
+        className="fixed inset-x-0 z-[var(--z-overlay)] h-[40svh] animate-pulse rounded-t-3xl bg-muted"
         style={{ bottom: 'calc(var(--bottom-nav) + var(--safe-bottom))' }}
       />
     ),
@@ -76,6 +96,8 @@ export function ExploreClient({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [q, setQ] = useState(initialQ);
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [debouncedQ, setDebouncedQ] = useState(initialQ);
@@ -168,54 +190,54 @@ export function ExploreClient({
     placeholderData: keepPreviousData,
   });
 
-  const [savedSearches, setSavedSearches] = useState<string[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      return JSON.parse(localStorage.getItem('agahiram_saved_searches') ?? '[]') as string[];
-    } catch {
-      return [];
-    }
-  });
+  const {
+    data: searchAlerts,
+    create: createSearchAlert,
+    remove: removeSearchAlert,
+  } = useSearchAlerts({ enabled: isAuthenticated });
 
-  const isSearchSaved = debouncedQ.trim()
-    ? savedSearches.some((s) => s === debouncedQ.trim())
-    : false;
+  const matchingSearchAlert = useMemo(
+    () => findMatchingSearchAlert(searchAlerts, debouncedQ, filters),
+    [searchAlerts, debouncedQ, filters],
+  );
+  const isSearchAlertSaved = !!matchingSearchAlert;
+  const searchAlertBusy = createSearchAlert.isPending || removeSearchAlert.isPending;
 
-  const toggleSavedSearch = () => {
-    const queryValue = debouncedQ.trim();
-    if (!queryValue) {
-      toast.error('برای ذخیره جستجو، ابتدا عبارت جستجو را وارد کنید.');
+  const toggleSearchAlert = () => {
+    if (!hasSearchCriteria(debouncedQ, filters)) {
+      toast.error('برای ذخیره جستجو، عبارت جستجو یا فیلتر انتخاب کنید.');
       return;
     }
-    let next: string[];
-    if (isSearchSaved) {
-      next = savedSearches.filter((s) => s !== queryValue);
-      toast.success('از جستجوهای ذخیره‌شده حذف شد');
-    } else {
-      next = [queryValue, ...savedSearches].slice(0, 20); // keep max 20
-      toast.success('جستجو ذخیره شد');
-    }
-    setSavedSearches(next);
-    try {
-      localStorage.setItem('agahiram_saved_searches', JSON.stringify(next));
-    } catch {
-      /* ignore quota */
-    }
-  };
-
-  const createSearchAlert = async () => {
-    const queryValue = debouncedQ.trim();
-    if (!queryValue) {
-      toast.error('برای ساخت هشدار جستجو، ابتدا عبارت جستجو را وارد کنید.');
+    if (!isAuthenticated) {
+      handleEngagementError({ success: false, statusCode: 401 }, 'searchAlert', () => {
+        void endUserSession(queryClient);
+      });
       return;
     }
-    const r = await apiClient.post('/search/alerts', {
-      query: queryValue,
-      cityId: filters.cityId,
-      filters,
-    });
-    if (r.success) toast.success('هشدار جستجو ذخیره شد.');
-    else toast.error(r.error ?? 'برای ذخیره هشدار ابتدا وارد شوید.');
+
+    if (matchingSearchAlert) {
+      removeSearchAlert.mutate(matchingSearchAlert.id, {
+        onSuccess: () => toast.success('هشدار جستجو حذف شد.'),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : 'خطا در حذف هشدار جستجو'),
+      });
+      return;
+    }
+
+    const queryValue = debouncedQ.trim();
+    createSearchAlert.mutate(
+      {
+        ...(queryValue ? { query: queryValue } : {}),
+        cityId: filters.cityId,
+        filters: serializeAlertFilters(filters),
+      },
+      {
+        onSuccess: () =>
+          toast.success('هشدار جستجو ذخیره شد. از تنظیمات اعلان‌ها قابل مدیریت است.'),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : 'خطا در ذخیره هشدار جستجو'),
+      },
+    );
   };
 
   const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -228,6 +250,19 @@ export function ExploreClient({
   });
 
   const posts = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
+
+  const { data: adsConfig } = useAdsConfig();
+  const { data: exploreAds = [] } = useServedAds(AdSlot.EXPLORE_FEED, {
+    cityId: filters.cityId,
+    categoryId: filters.categoryId,
+    limit: 5,
+    enabled: !!adsConfig?.adsEnabled,
+  });
+
+  const feedItems = useMemo(
+    () => mergeFeedWithAds(posts, exploreAds, adsConfig?.adsExploreInterval ?? 9),
+    [posts, exploreAds, adsConfig?.adsExploreInterval],
+  );
   const searchUsers = (data?.pages[0] as ExplorePage | undefined)?.users ?? [];
   const searchCategories = (data?.pages[0] as ExplorePage | undefined)?.categories ?? [];
   const hasSearchExtras = debouncedQ && (searchUsers.length > 0 || searchCategories.length > 0);
@@ -248,7 +283,7 @@ export function ExploreClient({
 
   return (
     <div className="bg-background">
-      <div className="glass sticky top-[var(--header-height)] z-20 border-b border-border-subtle px-4 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] border-b border-border-subtle px-4 py-2">
         <div className="mx-auto flex max-w-2xl items-center gap-2">
           <div className="flex-1">
             <Input
@@ -279,20 +314,19 @@ export function ExploreClient({
             ) : null}
           </div>
           <IconButton
-            aria-label={isSearchSaved ? 'حذف از جستجوهای ذخیره‌شده' : 'ذخیره جستجو'}
+            aria-label={isSearchAlertSaved ? 'حذف هشدار جستجو' : 'ذخیره هشدار جستجو'}
             icon={
-              <IgHeart className="size-5" filled={isSearchSaved} strokeWidth={1.75} aria-hidden />
+              <IgActivity
+                className="size-5"
+                filled={isSearchAlertSaved}
+                strokeWidth={1.75}
+                aria-hidden
+              />
             }
             variant="secondary"
             size="md"
-            onClick={() => toggleSavedSearch()}
-          />
-          <IconButton
-            aria-label="ذخیره هشدار جستجو"
-            icon={<IgActivity className="size-5" strokeWidth={1.75} aria-hidden />}
-            variant="secondary"
-            size="md"
-            onClick={() => void createSearchAlert()}
+            disabled={searchAlertBusy}
+            onClick={toggleSearchAlert}
           />
         </div>
         {hashtagStoryTag ? (
@@ -326,13 +360,7 @@ export function ExploreClient({
         // FIXED: Tile-shaped skeletons matching the 2px grid
         <div className="grid grid-cols-3 gap-[2px]">
           {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton
-              key={i}
-              className={`aspect-square rounded-none bg-neutral-800 ${
-                (i + 1) % 7 === 3 || (i + 1) % 7 === 0 ? 'col-span-2 row-span-2' : ''
-              }`}
-              shimmer
-            />
+            <Skeleton key={i} className="aspect-square rounded-none bg-neutral-800" shimmer />
           ))}
         </div>
       ) : isError ? (
@@ -395,13 +423,14 @@ export function ExploreClient({
               {debouncedQ ? (
                 <h2 className="border-b border-border px-3 py-2 text-sm font-semibold">آگهی‌ها</h2>
               ) : null}
-              {/* FIXED: Instagram-spec 3-col grid, 2px gap, featured 2×2 cells */}
               <div className="grid grid-cols-3 gap-[2px]">
-                {posts.map((p, i) => {
-                  const idx = i + 1; // 1-based index
-                  const isFeatured = idx % 7 === 3 || idx % 7 === 0;
-                  return <ExploreTile key={p.id} post={p} featured={isFeatured} />;
-                })}
+                {feedItems.map((item, i) =>
+                  item.type === 'ad' ? (
+                    <AdTile key={`ad-${item.data.id}-${i}`} ad={item.data} />
+                  ) : (
+                    <ExploreTile key={item.data.id} post={item.data} />
+                  ),
+                )}
               </div>
             </>
           ) : null}
@@ -430,9 +459,8 @@ export function ExploreClient({
   );
 }
 
-// FIXED: Full Instagram-spec Explore tile with hover video preview, featured cell support, 18px video icon
-function ExploreTile({ post, featured = false }: { post: PostSummary; featured?: boolean }) {
-  const media = post.media[0];
+function ExploreTile({ post }: { post: PostSummary }) {
+  const media = getPostCoverMedia(post.media);
   const isVideo = media?.type === 'video';
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
@@ -468,16 +496,12 @@ function ExploreTile({ post, featured = false }: { post: PostSummary; featured?:
     };
   }, []);
 
-  const tileClassName = featured
-    ? 'cv-tile group relative block overflow-hidden bg-neutral-900 col-span-2 row-span-2 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring'
-    : 'cv-tile group relative block aspect-square overflow-hidden bg-neutral-900 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring';
-
   return (
     <PostLink
       postId={post.id}
       post={post}
       aria-label={`${post.title}، ${formatPersianPrice(post.price)}`}
-      className={tileClassName}
+      className="cv-tile group relative block aspect-square overflow-hidden bg-neutral-900 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -487,7 +511,7 @@ function ExploreTile({ post, featured = false }: { post: PostSummary; featured?:
             src={media.thumbnailUrl ?? media.url}
             alt=""
             fill
-            sizes={featured ? '(max-width: 640px) 66vw, 400px' : '(max-width: 640px) 33vw, 200px'}
+            sizes="(max-width: 640px) 33vw, 200px"
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             // FIXED: When video loads, hide placeholder image so the <video> shows through
             style={videoReady && isVideo ? { opacity: 0 } : undefined}
@@ -532,14 +556,14 @@ function ExploreTile({ post, featured = false }: { post: PostSummary; featured?:
           {formatPersianNumber(post.media.length)}
         </span>
       ) : null}
+      {post.viewCount > 0 ? (
+        <span className="absolute bottom-1.5 end-1.5 z-10 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover:opacity-100">
+          <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
+          {formatPersianCompact(post.viewCount)}
+        </span>
+      ) : null}
 
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent p-2 pt-6 opacity-100 transition-opacity duration-200 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-        {post.viewCount > 0 ? (
-          <span className="absolute bottom-1.5 start-1.5 inline-flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-sm">
-            <IgEye className="size-3" strokeWidth={1.75} aria-hidden />
-            {formatPersianCompact(post.viewCount)}
-          </span>
-        ) : null}
         <p className="line-clamp-1 text-[12px] font-bold text-white drop-shadow">{post.title}</p>
         <p className="truncate text-[11px] text-white/95 drop-shadow">
           {formatPersianPrice(post.price)}

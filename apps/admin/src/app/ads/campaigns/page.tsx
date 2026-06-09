@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { Eye, Megaphone, Plus, TrendingUp } from 'lucide-react';
+import { Megaphone, Plus } from 'lucide-react';
 import { formatJalaliDate, formatPersianNumber, formatPersianPrice } from '@agahiram/shared';
-import { Badge, Button, Card, CardContent, ErrorState, Spinner, toast } from '@agahiram/ui';
+import { Badge, Button, Card, CardContent, ErrorState } from '@agahiram/ui';
+import { CAMPAIGN_STATUS_LABELS } from '@/lib/ads-utils';
 import Shell from '../../layout-shell';
 import { apiClient } from '@/lib/api';
 import { DataTable, type Column } from '@/components/data-table';
@@ -15,6 +16,7 @@ interface CampaignItem {
   name: string;
   status: string;
   budget: string;
+  totalSpent?: string;
   dailyBudget: string | null;
   bidType: string;
   bidAmount: string;
@@ -24,14 +26,6 @@ interface CampaignItem {
   advertiser: { id: string; username: string | null; name: string | null };
   createdAt: string;
 }
-
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'پیش‌نویس',
-  ACTIVE: 'فعال',
-  PAUSED: 'متوقف',
-  COMPLETED: 'پایان‌یافته',
-  REJECTED: 'رد شده',
-};
 
 const BID_LABELS: Record<string, string> = { CPM: 'CPM', CPC: 'CPC' };
 
@@ -80,7 +74,7 @@ export default function CampaignsPage() {
                   : 'neutral';
           return (
             <Badge tone={t} size="sm">
-              {STATUS_LABELS[c.status] ?? c.status}
+              {CAMPAIGN_STATUS_LABELS[c.status] ?? c.status}
             </Badge>
           );
         },
@@ -89,14 +83,21 @@ export default function CampaignsPage() {
         key: 'budget',
         header: 'بودجه',
         hideOnMobile: true,
-        cell: (c) => (
-          <div className="text-sm tabular-nums">
-            <div>{formatPersianPrice(Number(c.budget))} تومان</div>
-            <div className="text-[10px] text-muted-foreground">
-              {BID_LABELS[c.bidType]} · {formatPersianPrice(Number(c.bidAmount))}
+        cell: (c) => {
+          const spent = Number(c.totalSpent ?? 0);
+          const budget = Number(c.budget);
+          const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+          return (
+            <div className="text-sm tabular-nums">
+              <div>
+                {formatPersianPrice(spent)} / {formatPersianPrice(budget)}
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                {BID_LABELS[c.bidType]} · {pct}% مصرف
+              </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'ads',
@@ -145,12 +146,18 @@ export default function CampaignsPage() {
   );
 
   return (
-    <Shell>
+    <Shell adminOnly>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-h2 font-extrabold tracking-tight">کمپین‌های تبلیغاتی</h1>
           <p className="mt-1 text-sm text-muted-foreground">مدیریت کمپین‌ها و تبلیغات</p>
         </div>
+        <Button variant="brand" size="sm" asChild>
+          <Link href="/ads/campaigns/new">
+            <Plus className="size-4 me-1" />
+            کمپین جدید
+          </Link>
+        </Button>
       </div>
 
       <Card className="mb-4">
@@ -174,18 +181,22 @@ export default function CampaignsPage() {
         </CardContent>
       </Card>
 
-      <DataTable
-        columns={columns}
-        rows={data?.data ?? []}
-        rowKey={(c) => c.id}
-        isLoading={isLoading}
-        emptyIcon={<Megaphone className="size-7" />}
-        emptyTitle="کمپینی یافت نشد"
-        page={page}
-        pageSize={20}
-        total={data?.total ?? 0}
-        onPageChange={setPage}
-      />
+      {isError ? (
+        <ErrorState onRetry={() => void refetch()} />
+      ) : (
+        <DataTable
+          columns={columns}
+          rows={data?.data ?? []}
+          rowKey={(c) => c.id}
+          isLoading={isLoading}
+          emptyIcon={<Megaphone className="size-7" />}
+          emptyTitle="کمپینی یافت نشد"
+          page={page}
+          pageSize={20}
+          total={data?.total ?? 0}
+          onPageChange={setPage}
+        />
+      )}
     </Shell>
   );
 }

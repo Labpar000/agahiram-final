@@ -11,7 +11,17 @@ export type VerificationTypeValue =
 
 export type VerificationStatusValue = 'PENDING' | 'UNDER_REVIEW' | 'APPROVED' | 'REJECTED' | null;
 
-const TYPE_CONFIG: Record<
+export const ALL_VERIFICATION_TYPES: VerificationTypeValue[] = [
+  'PHONE',
+  'NATIONAL_ID',
+  'BUSINESS_LICENSE',
+  'COMPANY_REG',
+  'ENAMAD',
+  'ADDRESS',
+  'BANK_ACCOUNT',
+];
+
+export const VERIFICATION_TYPE_CONFIG: Record<
   VerificationTypeValue,
   { fa: string; description: string; score: number; icon: string }
 > = {
@@ -58,7 +68,7 @@ export function VerificationCard({
   isLoading,
   className,
 }: VerificationCardProps) {
-  const config = TYPE_CONFIG[type];
+  const config = VERIFICATION_TYPE_CONFIG[type];
   const statusConfig = status ? STATUS_CONFIG[status] : null;
   const isApproved = status === 'APPROVED';
   const isPending = status === 'PENDING' || status === 'UNDER_REVIEW';

@@ -57,6 +57,11 @@ export class ReportsService {
         if (!c) throw new NotFoundException('هدف گزارش یافت نشد');
         break;
       }
+      case 'ad': {
+        const a = await this.prisma.ad.findUnique({ where: { id: targetId } });
+        if (!a) throw new NotFoundException('هدف گزارش یافت نشد');
+        break;
+      }
     }
   }
 }

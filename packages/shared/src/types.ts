@@ -5,10 +5,19 @@ export enum UserRole {
 }
 
 export enum AdStatus {
-  DRAFT = 'DRAFT',
   PENDING_REVIEW = 'PENDING_REVIEW',
   APPROVED = 'APPROVED',
   REJECTED = 'REJECTED',
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  COMPLETED = 'COMPLETED',
+}
+
+export enum AdCampaignPauseReason {
+  DAILY_BUDGET = 'DAILY_BUDGET',
+  WALLET_EMPTY = 'WALLET_EMPTY',
+  BUDGET_EXHAUSTED = 'BUDGET_EXHAUSTED',
+  MANUAL = 'MANUAL',
 }
 
 export enum AdCampaignStatus {
@@ -104,7 +113,7 @@ export enum AttributeType {
   BOOL = 'bool',
 }
 
-export type ReportTargetType = 'post' | 'story' | 'user' | 'comment';
+export type ReportTargetType = 'post' | 'story' | 'user' | 'comment' | 'ad';
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -143,6 +152,7 @@ export interface UserProfile {
   username: string | null;
   bio: string | null;
   avatar: string | null;
+  website?: string | null;
   isVerified: boolean;
   isBusiness: boolean;
   isPrivate?: boolean;
@@ -174,6 +184,8 @@ export interface PostSummary {
   isSaved?: boolean;
   likesCount: number;
   commentsCount: number;
+  savesCount: number;
+  sharesCount: number;
   createdAt: string;
   user: {
     id: string;
@@ -201,6 +213,7 @@ export interface PostSummary {
     thumbnailUrl: string | null;
     type: MediaType;
     order: number;
+    isThumbnail?: boolean;
     width?: number | null;
     height?: number | null;
     hlsUrl?: string | null;
@@ -356,6 +369,9 @@ export interface PlatformSettings {
   defaultPostExpiryDays: number;
   privacyContent: string | null;
   termsContent: string | null;
+  adsEnabled: boolean;
+  adsExploreInterval: number;
+  adsStoryInterval: number;
 }
 
 export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
@@ -370,6 +386,9 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   defaultPostExpiryDays: 30,
   privacyContent: null,
   termsContent: null,
+  adsEnabled: false,
+  adsExploreInterval: 9,
+  adsStoryInterval: 5,
 };
 
 export interface AuditLogEntry {

@@ -112,6 +112,7 @@ export default function CreateReelPage() {
         cityId,
         mediaKey,
         duration,
+        coverTime,
         priceType: 'negotiable',
       });
       if (!r.success) throw new Error(r.error ?? 'خطا در انتشار');
@@ -126,7 +127,7 @@ export default function CreateReelPage() {
 
   return (
     <div className="bg-background pb-12">
-      <div className="glass sticky top-[var(--header-height)] z-20 mb-4 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] mb-4 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <IconButton
           aria-label="بازگشت"
           icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}

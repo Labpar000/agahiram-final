@@ -13,7 +13,7 @@ export function VoiceRecordOverlay({ elapsedLabel, visible }: VoiceRecordOverlay
 
   return (
     <div
-      className="absolute inset-x-0 bottom-full mb-2 flex items-center justify-center px-3"
+      className="absolute inset-x-0 bottom-full z-[var(--z-raised)] mb-2 flex items-center justify-center px-3"
       aria-live="polite"
     >
       <div className="flex items-center gap-3 rounded-full border border-border-subtle bg-surface/95 px-4 py-2 shadow-lg backdrop-blur-md">

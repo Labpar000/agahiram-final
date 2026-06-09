@@ -5,3 +5,4 @@ export * from './i18n';
 export * from './cn';
 export * from './story-overlay';
 export * from './story-text';
+export * from './post-media';

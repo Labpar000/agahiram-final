@@ -40,7 +40,7 @@ export function CommentComposerBar({
       onSubmit={onSubmit}
       className={cn(
         'bg-surface/95 p-3 backdrop-blur-md',
-        variant === 'drawer' ? 'pb-[max(0.75rem,env(safe-area-inset-bottom))]' : undefined,
+        variant === 'drawer' ? 'pb-[max(0.75rem,var(--safe-bottom))]' : undefined,
         className,
       )}
     >
@@ -81,7 +81,7 @@ export function CommentLoginPrompt({
     <div
       className={cn(
         'bg-surface/95 p-4 text-center text-sm text-muted-foreground',
-        variant === 'drawer' && 'pb-[max(0.75rem,env(safe-area-inset-bottom))]',
+        variant === 'drawer' && 'pb-[max(0.75rem,var(--safe-bottom))]',
       )}
     >
       برای ارسال نظر{' '}

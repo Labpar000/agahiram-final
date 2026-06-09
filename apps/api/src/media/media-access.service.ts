@@ -67,8 +67,13 @@ export class MediaAccessService {
     const ownerId = key.split('/')[1];
     if (ownerId === userId) return true;
 
+    // Message content stores `/api/v1/media/object?key=<url-encoded-key>`; a raw
+    // key match (`messages/user/uuid.webm`) never hits encoded slashes (`%2F`).
+    const encodedKeyParam = `key=${encodeURIComponent(key)}`;
     const message = await this.prisma.message.findFirst({
-      where: { content: { contains: key } },
+      where: {
+        OR: [{ content: { contains: encodedKeyParam } }, { content: { contains: key } }],
+      },
       select: { conversationId: true },
     });
     if (!message) return false;

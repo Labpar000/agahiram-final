@@ -4,6 +4,7 @@ import { toast } from '@agahiram/ui';
 const LOGIN_MESSAGES = {
   like: 'برای لایک ابتدا وارد شوید',
   save: 'برای ذخیره ابتدا وارد شوید',
+  searchAlert: 'برای ذخیره جستجو ابتدا وارد شوید',
 } as const;
 
 /** Show a Persian toast for failed like/save actions; clears stale auth on 401. */

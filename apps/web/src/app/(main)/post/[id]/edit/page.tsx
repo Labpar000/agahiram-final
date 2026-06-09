@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { PostStatus } from '@agahiram/shared';
 import {
+  PostStatus,
+  cn,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
   MAX_IMAGE_UPLOAD_BYTES,
@@ -60,6 +61,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [media, setMedia] = useState<EditMediaItem[]>([]);
+  const [coverIndex, setCoverIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
@@ -67,21 +69,24 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
     setTitle(String(data.title ?? ''));
     setDescription(String(data.description ?? ''));
     setPrice(data.price != null ? String(data.price) : '');
-    const raw = data.media as Array<{ url: string; type: string }> | undefined;
+    const raw = data.media as
+      | Array<{ url: string; type: string; isThumbnail?: boolean }>
+      | undefined;
     if (raw?.length) {
-      setMedia(
-        raw
-          .map((m) => {
-            const key = mediaKeyFromUrl(m.url);
-            if (!key) return null;
-            return {
-              key,
-              type: m.type === 'video' ? 'video' : 'image',
-              preview: m.url,
-            } satisfies EditMediaItem;
-          })
-          .filter((x): x is EditMediaItem => x !== null),
-      );
+      const items = raw
+        .map((m) => {
+          const key = mediaKeyFromUrl(m.url);
+          if (!key) return null;
+          return {
+            key,
+            type: m.type === 'video' ? 'video' : 'image',
+            preview: m.url,
+          } satisfies EditMediaItem;
+        })
+        .filter((x): x is EditMediaItem => x !== null);
+      setMedia(items);
+      const thumbIdx = raw.findIndex((m) => m.isThumbnail);
+      setCoverIndex(thumbIdx >= 0 ? thumbIdx : 0);
     }
   }, [data]);
 
@@ -158,7 +163,12 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
         title,
         description: description || undefined,
         price: price ? Number(price) : null,
-        mediaKeys: media.map((m, i) => ({ key: m.key, type: m.type, order: i })),
+        mediaKeys: media.map((m, i) => ({
+          key: m.key,
+          type: m.type,
+          order: i,
+          isThumbnail: i === coverIndex,
+        })),
       });
       if (!r.success) throw new Error(r.error ?? 'خطا در ذخیره');
       return r.data;
@@ -184,7 +194,7 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
 
   return (
     <div className="bg-background pb-12">
-      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center gap-2 border-b border-border-subtle px-3 py-2">
         <IconButton
           aria-label="بازگشت"
           icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}
@@ -201,19 +211,51 @@ export default function EditPostPage({ params }: { params: Promise<{ id: string 
         }}
       >
         <div className="space-y-2">
-          <Label>تصاویر (اولین تصویر = کاور)</Label>
+          <Label>تصاویر و ویدیو</Label>
+          <p className="text-xs text-muted-foreground">
+            روی «کاور شود» بزنید تا تصویر اصلی آگهی انتخاب شود.
+          </p>
           <div className="grid grid-cols-3 gap-2">
             {media.map((m, i) => (
               <div
                 key={`${m.key}-${i}`}
                 className="relative aspect-square overflow-hidden rounded-lg bg-muted"
               >
-                <Image src={m.preview} alt="" fill className="object-cover" sizes="120px" />
+                {m.type === 'video' ? (
+                  <video src={m.preview} className="size-full object-cover" muted playsInline />
+                ) : (
+                  <Image src={m.preview} alt="" fill className="object-cover" sizes="120px" />
+                )}
+                {i === coverIndex ? (
+                  <span className="absolute start-1 top-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
+                    کاور
+                  </span>
+                ) : null}
+                <button
+                  type="button"
+                  aria-label="تنظیم به عنوان کاور"
+                  onClick={() => setCoverIndex(i)}
+                  className={cn(
+                    'absolute bottom-1 start-1 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur-sm',
+                    i === coverIndex
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-black/60 text-white hover:bg-black/70',
+                  )}
+                >
+                  {i === coverIndex ? 'کاور' : 'کاور شود'}
+                </button>
                 <button
                   type="button"
                   aria-label="حذف"
                   className="absolute end-1 top-1 grid size-7 place-items-center rounded-full bg-black/60 text-white"
-                  onClick={() => setMedia((arr) => arr.filter((_, j) => j !== i))}
+                  onClick={() => {
+                    setCoverIndex((ci) => {
+                      if (i === ci) return 0;
+                      if (i < ci) return ci - 1;
+                      return ci;
+                    });
+                    setMedia((arr) => arr.filter((_, j) => j !== i));
+                  }}
                 >
                   <IgClose className="size-3.5" strokeWidth={1.75} aria-hidden />
                 </button>

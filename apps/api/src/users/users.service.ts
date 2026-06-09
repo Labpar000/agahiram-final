@@ -60,6 +60,16 @@ export class UsersService {
   }
 
   async getUserShopProfile(username: string) {
+    const verificationTypes = [
+      'PHONE',
+      'NATIONAL_ID',
+      'BUSINESS_LICENSE',
+      'COMPANY_REG',
+      'ENAMAD',
+      'ADDRESS',
+      'BANK_ACCOUNT',
+    ] as const;
+
     const user = await this.prisma.user.findUnique({
       where: { username },
       select: {
@@ -69,10 +79,12 @@ export class UsersService {
           select: {
             slug: true,
             name: true,
+            description: true,
             shopType: true,
             trustScore: true,
             trustTier: true,
             isActive: true,
+            badges: { select: { id: true, type: true, grantedAt: true } },
             verifications: {
               select: { id: true, type: true, status: true },
             },
@@ -85,18 +97,29 @@ export class UsersService {
     if (!user.shop) return { hasShop: false };
 
     const verifications = user.shop.verifications;
-    const totalTypes = 7; // PHONE, NATIONAL_ID, BUSINESS_LICENSE, COMPANY_REG, ENAMAD, ADDRESS, BANK_ACCOUNT
+    const totalTypes = verificationTypes.length;
+    const verificationMap = new Map(verifications.map((v) => [v.type, v.status]));
 
     return {
       hasShop: true,
       shop: {
         slug: user.shop.slug,
         name: user.shop.name,
+        description: user.shop.description,
         shopType: user.shop.shopType,
         trustScore: user.shop.trustScore,
         trustTier: user.shop.trustTier,
         isActive: user.shop.isActive,
       },
+      badges: user.shop.badges.map((b) => ({
+        id: b.id,
+        type: b.type,
+        grantedAt: b.grantedAt.toISOString(),
+      })),
+      verificationItems: verificationTypes.map((type) => ({
+        type,
+        status: verificationMap.get(type) ?? null,
+      })),
       verifications: {
         total: totalTypes,
         approved: verifications.filter((v) => v.status === 'APPROVED').length,
@@ -187,6 +210,7 @@ export class UsersService {
         username: input.username,
         bio: input.bio,
         avatar: avatarUrl,
+        ...(input.website !== undefined && { website: input.website || null }),
         isPrivate: input.isPrivate,
         defaultCityId: input.defaultCityId,
         ...(input.storyArchiveEnabled !== undefined && {
@@ -200,6 +224,7 @@ export class UsersService {
         username: true,
         bio: true,
         avatar: true,
+        website: true,
         isVerified: true,
         isBusiness: true,
         isPrivate: true,

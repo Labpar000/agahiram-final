@@ -66,6 +66,8 @@ export function useLikePost() {
   });
 }
 
+type SaveResult = { saved: boolean; savesCount: number };
+
 export function useSavePost() {
   const qc = useQueryClient();
   const me = useAuthStore((s) => s.user);
@@ -81,8 +83,11 @@ export function useSavePost() {
       collectionId?: string;
     }) => {
       const res = save
-        ? await apiClient.post(`/posts/${postId}/save`, collectionId ? { collectionId } : {})
-        : await apiClient.delete(`/posts/${postId}/save`);
+        ? await apiClient.post<SaveResult>(
+            `/posts/${postId}/save`,
+            collectionId ? { collectionId } : {},
+          )
+        : await apiClient.delete<SaveResult>(`/posts/${postId}/save`);
       if (!res.success) throw res;
       return res.data;
     },
@@ -98,9 +103,11 @@ export function useSavePost() {
       const prevPost = qc.getQueryData<PostSummary>(['post', postId]);
       const cached = findPostInClientCache(qc, postId);
       const postSnapshot = prevPost ?? cached;
+      const delta = save ? 1 : -1;
+      const savesCount = Math.max(0, (postSnapshot?.savesCount ?? 0) + delta);
 
-      patchPostInInfiniteQueries(qc, postId, { isSaved: save });
-      patchPostDetail(qc, postId, { isSaved: save });
+      patchPostInInfiniteQueries(qc, postId, { isSaved: save, savesCount });
+      patchPostDetail(qc, postId, { isSaved: save, savesCount });
 
       if (me?.username) {
         patchProfileSavedList(qc, me.username, postId, save, postSnapshot);
@@ -114,8 +121,10 @@ export function useSavePost() {
       }
       if (ctx?.username) {
         const cached = findPostInClientCache(qc, ctx.postId);
+        const base = ctx.prevPost ?? cached;
+        const savesCount = base?.savesCount ?? 0;
         patchProfileSavedList(qc, ctx.username, ctx.postId, !ctx.save, cached);
-        patchPostInInfiniteQueries(qc, ctx.postId, { isSaved: !ctx.save });
+        patchPostInInfiniteQueries(qc, ctx.postId, { isSaved: !ctx.save, savesCount });
       }
       handleEngagementError(err as unknown as ApiResponse, 'save', () => {
         void endUserSession(qc);

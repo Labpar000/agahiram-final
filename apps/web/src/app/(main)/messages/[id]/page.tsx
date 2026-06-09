@@ -29,6 +29,8 @@ import { ReportDialog } from '@/components/report-dialog';
 import { apiClient } from '@/lib/api';
 import { useUploadManager } from '@/lib/upload-manager';
 import { ChatMessage } from '@/components/chat-message';
+import { MobileInputShell } from '@/components/mobile-input-shell';
+import { viewportHeightAboveChrome } from '@/lib/mobile-layout';
 import { VoiceRecordOverlay } from '@/components/voice-record-overlay';
 import { useConversation } from '@/hooks/useConversation';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
@@ -59,9 +61,10 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     async (result: VoiceRecordingResult) => {
       const tempId = `temp-voice-${Date.now()}`;
       const me = meId ?? 'me';
+      const localPreviewUrl = URL.createObjectURL(result.blob);
       addOptimisticMessage({
         id: tempId,
-        content: '',
+        content: localPreviewUrl,
         type: MessageType.VOICE,
         metadata: { durationMs: result.durationMs, mimeType: result.mimeType },
         senderId: me,
@@ -102,6 +105,8 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
       } catch {
         removeOptimisticMessage(tempId);
         toast.error('خطا در آپلود صدا');
+      } finally {
+        URL.revokeObjectURL(localPreviewUrl);
       }
     },
     [addOptimisticMessage, meId, removeOptimisticMessage, sendMessage, uploadFile],
@@ -169,7 +174,7 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
     <div
       className="flex flex-col bg-background"
       style={{
-        height: 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
+        height: viewportHeightAboveChrome,
       }}
     >
       <div className="glass flex items-center gap-2 border-b border-border-subtle px-3 py-2">
@@ -258,104 +263,112 @@ export default function ChatPage({ params }: { params: Promise<{ id: string }> }
         />
       ) : null}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4">
-        {isError ? (
-          <ErrorState onRetry={refetch} />
-        ) : isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton
-                key={i}
-                className={`h-10 ${i % 2 === 0 ? 'me-auto w-2/5' : 'ms-auto w-3/5'} rounded-2xl`}
-              />
-            ))}
-          </div>
-        ) : grouped.length === 0 ? (
-          <EmptyState
-            icon={<IgDirect className="size-7" strokeWidth={1.75} aria-hidden />}
-            title="گفتگو خالی است"
-            description="اولین پیام خود را بفرستید"
-          />
-        ) : (
-          grouped.map((m) => (
-            <ChatMessage
-              key={m.id}
-              id={m.id}
-              content={m.content}
-              type={m.type}
-              metadata={m.metadata}
-              isMine={m.isMine}
-              createdAt={m.createdAt}
-              sender={m.sender ?? undefined}
-              storyPreview={m.storyPreview}
-              isFirstOfGroup={m.isFirstOfGroup}
-              isLastOfGroup={m.isLastOfGroup}
-              status={m.id.startsWith('temp-') ? 'sending' : 'sent'}
+      <MobileInputShell
+        stickyComposer={false}
+        composerPadding="var(--chat-composer-stack)"
+        scrollRef={scrollRef}
+        scrollClassName="px-3 py-4"
+        composer={
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+            className="relative flex items-center gap-2 px-3 py-3"
+            style={{ paddingBottom: 'calc(0.75rem + var(--safe-bottom))' }}
+          >
+            <VoiceRecordOverlay elapsedLabel={voice.elapsedLabel} visible={voice.isRecording} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void sendImage(f);
+                e.target.value = '';
+              }}
             />
-          ))
-        )}
-      </div>
-
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void send();
-        }}
-        className="relative flex items-center gap-2 border-t border-border bg-surface/95 px-3 py-3 backdrop-blur-md"
-        style={{ paddingBottom: 'calc(0.75rem + var(--safe-bottom))' }}
+            <button
+              type="button"
+              aria-label="ارسال تصویر"
+              className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <IgGallery className="size-5" strokeWidth={1.75} aria-hidden />
+            </button>
+            <button
+              type="button"
+              aria-label={voice.isRecording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
+              disabled={voice.isProcessing || callPhase !== 'idle'}
+              className={`grid size-10 place-items-center rounded-full touch-none select-none ${
+                voice.isRecording
+                  ? 'bg-destructive text-destructive-foreground'
+                  : 'text-muted-foreground hover:bg-muted'
+              }`}
+              onPointerDown={voice.handlePointerDown}
+              onPointerUp={voice.handlePointerUp}
+              onPointerCancel={voice.handlePointerCancel}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              <IgMic className="size-5" strokeWidth={1.75} aria-hidden />
+            </button>
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="پیام بنویسید…"
+              aria-label="نوشتن پیام"
+              className="h-11 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            />
+            <button
+              type="submit"
+              aria-label="ارسال"
+              disabled={!text.trim() || sendMessage.isPending}
+              className="grid size-11 place-items-center rounded-full bg-ig-link text-ig-link-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+            >
+              <IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />
+            </button>
+          </form>
+        }
       >
-        <VoiceRecordOverlay elapsedLabel={voice.elapsedLabel} visible={voice.isRecording} />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void sendImage(f);
-            e.target.value = '';
-          }}
-        />
-        <button
-          type="button"
-          aria-label="ارسال تصویر"
-          className="grid size-10 place-items-center rounded-full text-muted-foreground hover:bg-muted"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <IgGallery className="size-5" strokeWidth={1.75} aria-hidden />
-        </button>
-        <button
-          type="button"
-          aria-label={voice.isRecording ? 'پایان ضبط' : 'ضبط پیام صوتی'}
-          disabled={voice.isProcessing || callPhase !== 'idle'}
-          className={`grid size-10 place-items-center rounded-full touch-none select-none ${
-            voice.isRecording
-              ? 'bg-destructive text-destructive-foreground'
-              : 'text-muted-foreground hover:bg-muted'
-          }`}
-          onPointerDown={voice.handlePointerDown}
-          onPointerUp={voice.handlePointerUp}
-          onPointerCancel={voice.handlePointerCancel}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <IgMic className="size-5" strokeWidth={1.75} aria-hidden />
-        </button>
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="پیام بنویسید…"
-          aria-label="نوشتن پیام"
-          className="h-11 flex-1 rounded-full border border-transparent bg-muted px-4 text-sm text-foreground placeholder:text-muted-foreground outline-none transition focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-        />
-        <button
-          type="submit"
-          aria-label="ارسال"
-          disabled={!text.trim() || sendMessage.isPending}
-          className="grid size-11 place-items-center rounded-full bg-ig-link text-ig-link-foreground transition active:scale-[0.96] disabled:opacity-50 tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-        >
-          <IgSend className="size-5 swap-x" strokeWidth={1.75} aria-hidden />
-        </button>
-      </form>
+        <div>
+          {isError ? (
+            <ErrorState onRetry={refetch} />
+          ) : isLoading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton
+                  key={i}
+                  className={`h-10 ${i % 2 === 0 ? 'me-auto w-2/5' : 'ms-auto w-3/5'} rounded-2xl`}
+                />
+              ))}
+            </div>
+          ) : grouped.length === 0 ? (
+            <EmptyState
+              icon={<IgDirect className="size-7" strokeWidth={1.75} aria-hidden />}
+              title="گفتگو خالی است"
+              description="اولین پیام خود را بفرستید"
+            />
+          ) : (
+            grouped.map((m) => (
+              <ChatMessage
+                key={m.id}
+                id={m.id}
+                content={m.content}
+                type={m.type}
+                metadata={m.metadata}
+                isMine={m.isMine}
+                createdAt={m.createdAt}
+                sender={m.sender ?? undefined}
+                storyPreview={m.storyPreview}
+                isFirstOfGroup={m.isFirstOfGroup}
+                isLastOfGroup={m.isLastOfGroup}
+                status={m.id.startsWith('temp-') ? 'sending' : 'sent'}
+              />
+            ))
+          )}
+        </div>
+      </MobileInputShell>
     </div>
   );
 }

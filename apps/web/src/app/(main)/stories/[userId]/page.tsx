@@ -7,7 +7,7 @@ import { StoryViewer, type User } from 'react-instagram-stories';
 import 'react-instagram-stories/styles.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
+import { AdSlot, formatPersianNumber, formatRelativeTimeFa } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { connectStorySocket, SOCKET_EVENTS } from '@/lib/story-socket';
@@ -51,6 +51,10 @@ import {
   type StickerResultRow,
 } from '@/features/stories/stickers/story-sticker-results';
 import { downloadBlob } from '@/features/stories/story-media-utils';
+import { useAdsConfig, useServedAds } from '@/hooks/use-ads';
+import { injectStoryAds, isSponsoredUserId, sponsoredAdIdFromUserId } from '@/lib/inject-story-ads';
+import { trackAdClick, trackAdImpression } from '@/lib/ad-tracking';
+import { SponsoredBadge } from '@/components/sponsored-badge';
 
 /* ─────────────────── Types ─────────────────── */
 
@@ -125,7 +129,17 @@ function StoryViewerContent({ params }: { params: Promise<{ userId: string }> })
     },
   });
 
-  const mappedUsers = useMemo(() => mapGroups(groups ?? []), [groups]);
+  const { data: adsConfig } = useAdsConfig();
+  const { data: storyAds = [] } = useServedAds(AdSlot.STORY, {
+    limit: 3,
+    enabled: !!adsConfig?.adsEnabled,
+  });
+
+  const mappedUsers = useMemo(() => {
+    const base = mapGroups(groups ?? []);
+    if (!adsConfig?.adsEnabled) return base;
+    return injectStoryAds(base, storyAds, adsConfig.adsStoryInterval ?? 5);
+  }, [groups, storyAds, adsConfig?.adsEnabled, adsConfig?.adsStoryInterval]);
   const initialUserIdx = useMemo(
     () => mappedUsers.findIndex((u) => u.id === userId),
     [mappedUsers, userId],
@@ -180,8 +194,14 @@ function StoryViewerContent({ params }: { params: Promise<{ userId: string }> })
   /* Mark viewed */
   useEffect(() => {
     if (!activeStory?.id) return;
+    if (isSponsoredUserId(activeUserId)) {
+      const adId = sponsoredAdIdFromUserId(activeUserId);
+      if (!adId) return;
+      const t = setTimeout(() => void trackAdImpression(adId, 'story'), 2000);
+      return () => clearTimeout(t);
+    }
     void apiClient.post(`/stories/${activeStory.id}/view`);
-  }, [activeStory?.id]);
+  }, [activeStory?.id, activeUserId]);
 
   /* Socket — live viewer count */
   useEffect(() => {
@@ -268,8 +288,33 @@ function StoryViewerContent({ params }: { params: Promise<{ userId: string }> })
       {/* ── Custom overlay layer (above library's z=9999) ── */}
       <div className="fixed inset-0 z-[10000] pointer-events-none flex justify-center">
         <div className="pointer-events-auto relative w-full max-w-[420px] h-dvh">
+          {/* Sponsored story CTA */}
+          {isSponsoredUserId(activeUserId) ? (
+            <div className="absolute start-3 top-14 z-30">
+              <SponsoredBadge />
+            </div>
+          ) : null}
+          {isSponsoredUserId(activeUserId) ? (
+            <div className="absolute inset-x-0 bottom-40 z-30 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  const adId = sponsoredAdIdFromUserId(activeUserId);
+                  if (!adId) return;
+                  void trackAdClick(adId).then((url) => {
+                    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                  });
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-bold text-neutral-900 shadow-lg tap-none hover:scale-[1.03] transition-transform"
+              >
+                <IgExternalLink className="size-3.5" strokeWidth={1.75} aria-hidden />
+                بیشتر بدانید
+              </button>
+            </div>
+          ) : null}
+
           {/* Linked post banner */}
-          {activeStory?.linkedPostId ? (
+          {activeStory?.linkedPostId && !isSponsoredUserId(activeUserId) ? (
             <div className="absolute inset-x-0 bottom-40 z-30 flex justify-center">
               <Link
                 href={`/post/${activeStory.linkedPostId}`}
@@ -302,7 +347,7 @@ function StoryViewerContent({ params }: { params: Promise<{ userId: string }> })
           </AnimatePresence>
 
           {/* Footer overlay */}
-          <div className="absolute inset-x-0 bottom-0 z-25">
+          <div className="absolute inset-x-0 bottom-0 z-[var(--z-chrome)]">
             {isOwner ? (
               <OwnerFooter
                 viewersCount={activeStory?.viewerCount ?? 0}

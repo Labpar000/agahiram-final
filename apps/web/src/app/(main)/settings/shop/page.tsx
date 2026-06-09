@@ -387,7 +387,7 @@ export default function ShopSettingsPage() {
 
   return (
     <div className="bg-background min-h-svh pb-8">
-      <div className="glass sticky top-[var(--header-height)] z-20 flex items-center gap-2 border-b border-border-subtle px-3 py-4">
+      <div className="glass sticky top-[var(--header-height)] z-[var(--z-raised)] flex items-center gap-2 border-b border-border-subtle px-3 py-4">
         <IconButton
           aria-label="بازگشت"
           icon={<IgArrowBack className="size-5 rtl:rotate-180" strokeWidth={1.75} aria-hidden />}

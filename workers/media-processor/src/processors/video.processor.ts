@@ -13,6 +13,7 @@ ffmpeg.setFfprobePath(ffprobeBin);
 interface Job {
   mediaId: string;
   postId?: string;
+  coverTimeSec?: number;
 }
 
 /** Downscale so the video fits inside 1080x1920 while keeping aspect ratio, and
@@ -26,7 +27,7 @@ function probe(path: string): Promise<ffmpeg.FfprobeData> {
   });
 }
 
-export async function processVideoJob({ mediaId }: Job) {
+export async function processVideoJob({ mediaId, coverTimeSec }: Job) {
   const media = await prisma.postMedia.findUnique({ where: { id: mediaId } });
   if (!media) return;
 
@@ -123,12 +124,18 @@ export async function processVideoJob({ mediaId }: Job) {
       console.warn(`[video] HLS packaging failed for ${mediaId}`, (e as Error).message);
     }
 
-    // 3) Poster/thumbnail from 1s in.
+    // 3) Poster/thumbnail from the user-selected frame (or 1s by default).
     let thumbUrl: string | undefined;
+    const thumbAt = Math.max(0, coverTimeSec ?? 1);
     try {
       await new Promise<void>((resolve, reject) => {
         ffmpeg(optimizedPath)
-          .screenshots({ timestamps: ['1'], filename: 'thumb.jpg', folder: work, size: '720x?' })
+          .screenshots({
+            timestamps: [String(thumbAt)],
+            filename: 'thumb.jpg',
+            folder: work,
+            size: '720x?',
+          })
           .on('end', () => resolve())
           .on('error', (e) => reject(e));
       });

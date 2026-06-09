@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Infinity, Timer, Video, Zap, ZoomIn } from 'lucide-react';
-import { IgCamera, IgDownload, IgGrid2x2, IgRotate } from '@agahiram/ui';
+import { IgCamera, IgClose, IgDownload, IgGrid2x2, IgRotate } from '@agahiram/ui';
 import { IconButton } from '@agahiram/ui';
 import { cn } from '@agahiram/shared';
 import { captureSuperzoomFrame, downloadBlob, makeBoomerangBlob } from '../story-media-utils';
@@ -16,14 +16,66 @@ export type CapturedMedia = {
 
 export type CameraMode = 'normal' | 'boomerang' | 'superzoom' | 'handsfree';
 
+/** Story canvas is always 9:16 — match the camera stream to avoid object-cover crop/zoom. */
+const STORY_ASPECT = 9 / 16;
+
+function buildVideoConstraints(
+  facing: 'user' | 'environment',
+  torchOn: boolean,
+): MediaTrackConstraints {
+  return {
+    facingMode: facing,
+    width: { ideal: 1080 },
+    height: { ideal: 1920 },
+    aspectRatio: { ideal: STORY_ASPECT },
+    ...(torchOn && facing === 'environment'
+      ? { advanced: [{ torch: true } as MediaTrackConstraintSet] }
+      : {}),
+  };
+}
+
+async function openCameraStream(
+  facing: 'user' | 'environment',
+  torchOn: boolean,
+  withAudio: boolean,
+): Promise<MediaStream> {
+  const attempts: MediaStreamConstraints[] = [
+    { video: buildVideoConstraints(facing, torchOn), audio: withAudio },
+    {
+      video: {
+        facingMode: facing,
+        width: { ideal: 720 },
+        height: { ideal: 1280 },
+        aspectRatio: { ideal: STORY_ASPECT },
+      },
+      audio: withAudio,
+    },
+    { video: { facingMode: facing, aspectRatio: { ideal: STORY_ASPECT } }, audio: withAudio },
+    { video: { facingMode: facing }, audio: withAudio },
+  ];
+  let lastError: unknown;
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
 export function StoryCamera({
   onCapture,
   onGallery,
   onLayout,
+  onClose,
+  fullscreen = false,
 }: {
   onCapture: (media: CapturedMedia) => void;
   onGallery: () => void;
   onLayout?: () => void;
+  onClose?: () => void;
+  fullscreen?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -46,16 +98,6 @@ export function StoryCamera({
   const startCamera = useCallback(async () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     setCameraError(null);
-    const constraints: MediaStreamConstraints = {
-      video: {
-        facingMode: facing,
-        aspectRatio: { ideal: window.innerWidth / window.innerHeight },
-        ...(torchOn && facing === 'environment'
-          ? { advanced: [{ torch: true } as MediaTrackConstraintSet] }
-          : {}),
-      },
-      audio: mode !== 'superzoom',
-    };
     const attachStream = async (stream: MediaStream) => {
       streamRef.current = stream;
       if (videoRef.current) {
@@ -64,18 +106,9 @@ export function StoryCamera({
       }
     };
     try {
-      await attachStream(await navigator.mediaDevices.getUserMedia(constraints));
+      await attachStream(await openCameraStream(facing, torchOn, mode !== 'superzoom'));
     } catch {
-      try {
-        await attachStream(
-          await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facing },
-            audio: mode !== 'superzoom',
-          }),
-        );
-      } catch {
-        setCameraError('دوربین در دسترس نیست. از گالری یا آپلود فایل استفاده کنید.');
-      }
+      setCameraError('دوربین در دسترس نیست. از گالری یا آپلود فایل استفاده کنید.');
     }
   }, [facing, torchOn, mode]);
 
@@ -256,12 +289,24 @@ export function StoryCamera({
           : 'عادی';
 
   return (
-    <div className="relative aspect-[9/16] w-full overflow-hidden rounded-2xl bg-black">
+    <div
+      className={cn(
+        'relative overflow-hidden bg-black',
+        fullscreen ? 'fixed inset-0 z-50' : 'aspect-[9/16] w-full rounded-2xl',
+      )}
+    >
       <video
         ref={videoRef}
         className="size-full object-cover transition-transform duration-100"
         style={{
-          transform: mode === 'superzoom' ? `scale(${superzoom})` : undefined,
+          transform:
+            mode === 'superzoom'
+              ? facing === 'user'
+                ? `scaleX(-1) scale(${superzoom})`
+                : `scale(${superzoom})`
+              : facing === 'user'
+                ? 'scaleX(-1)'
+                : undefined,
         }}
         playsInline
         muted
@@ -291,6 +336,15 @@ export function StoryCamera({
 
       <div className="absolute inset-x-0 top-3 z-10 flex items-center justify-between px-3">
         <div className="flex gap-1">
+          {onClose ? (
+            <IconButton
+              aria-label="بستن"
+              variant="ghost"
+              className="text-white"
+              icon={<IgClose className="size-5" />}
+              onClick={onClose}
+            />
+          ) : null}
           <IconButton
             aria-label="تعویض دوربین"
             variant="ghost"

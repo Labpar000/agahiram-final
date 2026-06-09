@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Award, Shield, ShoppingBag } from 'lucide-react';
+import { Award, ShoppingBag } from 'lucide-react';
 import {
   keepPreviousData,
   useInfiniteQuery,
@@ -12,7 +12,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { cn, formatPersianNumber } from '@agahiram/shared';
+import { cn, formatPersianNumber, getPostCoverMedia } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -44,41 +44,28 @@ import { useAuth } from '@/hooks/useAuth';
 import { AdStatusBadge } from '@/components/ad-status-badge';
 import { ProfileHighlights } from '@/components/profile-highlights';
 import { ReportDialog } from '@/components/report-dialog';
+import { ShopProfileCard } from '@/components/shop-profile-card';
+import type { ShopVerificationItem } from '@agahiram/ui';
 
 interface ShopProfileInfo {
   hasShop: boolean;
   shop?: {
     slug: string;
     name: string;
+    description?: string | null;
     shopType: string;
     trustScore: number;
     trustTier: string;
     isActive: boolean;
   };
+  badges?: Array<{ id: string; type: string; grantedAt: string }>;
+  verificationItems?: ShopVerificationItem[];
   verifications?: {
     total: number;
     approved: number;
     pending: number;
   };
 }
-
-const TRUST_TIER_LABELS: Record<string, string> = {
-  UNVERIFIED: 'بدون تأیید',
-  BASIC: 'تأیید موبایل',
-  STANDARD: 'تأیید هویت',
-  VERIFIED: 'تأیید مدارک',
-  TRUSTED: 'تأیید کامل',
-  PREMIUM: 'فروشگاه برتر',
-};
-
-const TRUST_TIER_COLORS: Record<string, string> = {
-  UNVERIFIED: 'bg-muted text-muted-foreground',
-  BASIC: 'bg-blue-100 text-blue-700',
-  STANDARD: 'bg-green-100 text-green-700',
-  VERIFIED: 'bg-emerald-100 text-emerald-700',
-  TRUSTED: 'bg-amber-100 text-amber-700',
-  PREMIUM: 'bg-purple-100 text-purple-700',
-};
 
 export interface Profile {
   id: string;
@@ -325,7 +312,6 @@ export function ProfileClient({ username }: { username: string }) {
               {profile.bio}
             </p>
           ) : null}
-          <ProfileMetaChips profile={profile} shopInfo={shopInfo} />
         </div>
 
         {/* Seller / Shop CTA Section */}
@@ -356,48 +342,16 @@ export function ProfileClient({ username }: { username: string }) {
           </div>
         ) : null}
 
-        {isMe && shopInfo?.hasShop && shopInfo.shop ? (
-          <div className="mt-3 rounded-xl border border-border bg-surface-elevated p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <Shield className="size-4" strokeWidth={1.75} aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold">{shopInfo.shop.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {TRUST_TIER_LABELS[shopInfo.shop.trustTier] ?? shopInfo.shop.trustTier}
-                    {' · '}
-                    امتیاز {formatPersianNumber(shopInfo.shop.trustScore)}
-                  </p>
-                </div>
-              </div>
-              <Button
-                asChild
-                size="sm"
-                variant="outline"
-                className="shrink-0 h-8 rounded-lg text-xs"
-              >
-                <Link href="/settings/shop">مدیریت فروشگاه</Link>
-              </Button>
-            </div>
-            {shopInfo.verifications ? (
-              <div className="mt-2.5 flex items-center gap-2">
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{
-                      width: `${shopInfo.verifications.total > 0 ? (shopInfo.verifications.approved / shopInfo.verifications.total) * 100 : 0}%`,
-                    }}
-                  />
-                </div>
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  {formatPersianNumber(shopInfo.verifications.approved)} از{' '}
-                  {formatPersianNumber(shopInfo.verifications.total)} تایید
-                </span>
-              </div>
-            ) : null}
-          </div>
+        {shopInfo?.hasShop && shopInfo.shop ? (
+          <ShopProfileCard
+            className="mt-3"
+            shop={shopInfo.shop}
+            verificationItems={shopInfo.verificationItems}
+            badges={shopInfo.badges}
+            approvedCount={shopInfo.verifications?.approved}
+            totalCount={shopInfo.verifications?.total}
+            isMe={isMe}
+          />
         ) : null}
 
         <div className="flex gap-2">
@@ -525,7 +479,7 @@ export function ProfileClient({ username }: { username: string }) {
 
       {moreOpen && !isMe ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50"
+          className="fixed inset-0 z-[var(--z-overlay)] flex items-end justify-center bg-black/50"
           onClick={() => setMoreOpen(false)}
         >
           <div
@@ -553,29 +507,6 @@ export function ProfileClient({ username }: { username: string }) {
         targetId={profile.id}
         title="گزارش کاربر"
       />
-    </div>
-  );
-}
-
-function ProfileMetaChips({
-  profile,
-  shopInfo,
-}: {
-  profile: Profile;
-  shopInfo?: ShopProfileInfo | null;
-}) {
-  if (!profile.isBusiness) return null;
-  const tier = shopInfo?.shop?.trustTier ?? 'UNVERIFIED';
-  const tierLabel = TRUST_TIER_LABELS[tier] ?? tier;
-  const tierColor = TRUST_TIER_COLORS[tier] ?? TRUST_TIER_COLORS.UNVERIFIED!;
-  return (
-    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-      <span className="text-ig-meta rounded-sm bg-muted/80 px-1.5 py-0.5">فروشگاه</span>
-      {shopInfo?.shop ? (
-        <span className={cn('text-ig-meta rounded-full px-2 py-0.5 font-medium', tierColor)}>
-          {tierLabel}
-        </span>
-      ) : null}
     </div>
   );
 }
@@ -653,30 +584,33 @@ function PostsGrid({
   }
   return (
     <div className="ig-grid-gap grid grid-cols-3">
-      {posts.map((p) => (
-        <PostLink
-          key={p.id}
-          postId={p.id}
-          post={p}
-          aria-label={p.title}
-          className="cv-tile relative aspect-square overflow-hidden bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        >
-          {p.media[0] ? (
-            <Image
-              src={p.media[0].thumbnailUrl ?? p.media[0].url}
-              alt=""
-              fill
-              sizes="(max-width: 640px) 33vw, 200px"
-              className="object-cover"
-            />
-          ) : null}
-          {showStatus && tab === 'posts' ? (
-            <span className="absolute start-1 top-1 z-10">
-              <AdStatusBadge status={p.status} />
-            </span>
-          ) : null}
-        </PostLink>
-      ))}
+      {posts.map((p) => {
+        const cover = getPostCoverMedia(p.media);
+        return (
+          <PostLink
+            key={p.id}
+            postId={p.id}
+            post={p}
+            aria-label={p.title}
+            className="cv-tile relative aspect-square overflow-hidden bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            {cover ? (
+              <Image
+                src={cover.thumbnailUrl ?? cover.url}
+                alt=""
+                fill
+                sizes="(max-width: 640px) 33vw, 200px"
+                className="object-cover"
+              />
+            ) : null}
+            {showStatus && tab === 'posts' ? (
+              <span className="absolute start-1 top-1 z-10">
+                <AdStatusBadge status={p.status} />
+              </span>
+            ) : null}
+          </PostLink>
+        );
+      })}
       {hasMore ? (
         <div className="col-span-3 flex justify-center py-3">
           <Button variant="outline" size="sm" isLoading={isFetchingMore} onClick={onLoadMore}>

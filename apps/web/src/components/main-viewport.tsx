@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
+import { mainViewportMinHeight } from '@/lib/mobile-layout';
 
 /** Adjust main viewport height when TopBar is hidden (e.g. reels). */
 export function MainViewport({ children }: { children: React.ReactNode }) {
@@ -13,9 +14,7 @@ export function MainViewport({ children }: { children: React.ReactNode }) {
       id="main"
       className="mx-auto max-w-2xl"
       style={{
-        minHeight: immersive
-          ? 'var(--app-reels-height)'
-          : 'calc(100svh - var(--header-height) - var(--bottom-nav) - var(--safe-bottom))',
+        minHeight: immersive ? 'var(--app-reels-height)' : mainViewportMinHeight,
       }}
     >
       {children}

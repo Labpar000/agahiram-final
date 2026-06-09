@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MeiliService } from './meili.service';
@@ -323,13 +323,30 @@ export class SearchService {
   }
 
   async createAlert(userId: string, input: SearchAlertCreateInput) {
-    const query = input.query ? normalizePersianText(input.query) : null;
+    const query = input.query?.trim() ? normalizePersianText(input.query.trim()) : null;
+    const filters = serializeAlertFiltersForStorage(input.filters ?? {});
+    const hasCriteria = !!query || !!input.cityId || Object.keys(filters).length > 0;
+    if (!hasCriteria) {
+      throw new BadRequestException('حداقل عبارت جستجو یا فیلتر لازم است');
+    }
+
+    const existing = await this.prisma.searchAlert.findFirst({
+      where: {
+        userId,
+        isActive: true,
+        query,
+        cityId: input.cityId ?? null,
+        filters: { equals: filters as Prisma.InputJsonValue },
+      },
+    });
+    if (existing) return existing;
+
     const alert = await this.prisma.searchAlert.create({
       data: {
         userId,
         query,
         cityId: input.cityId,
-        filters: (input.filters ?? {}) as Prisma.InputJsonValue,
+        filters: filters as Prisma.InputJsonValue,
       },
     });
     return alert;
@@ -525,4 +542,15 @@ export class SearchService {
       cursor = batch[batch.length - 1]!.id;
     }
   }
+}
+
+function serializeAlertFiltersForStorage(
+  filters: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === '' || value === false || value === null) continue;
+    out[key] = value;
+  }
+  return out;
 }

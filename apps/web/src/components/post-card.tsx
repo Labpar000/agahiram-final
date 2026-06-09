@@ -14,6 +14,7 @@ import {
   formatPersianPrice,
   formatRelativeTimeFa,
   formatPhoneFa,
+  getPostCoverMedia,
 } from '@agahiram/shared';
 import {
   Avatar,
@@ -21,10 +22,6 @@ import {
   AvatarImage,
   Button,
   CarouselDots,
-  Drawer,
-  DrawerBody,
-  DrawerContent,
-  DrawerFooter,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -51,8 +48,7 @@ import { karmaTier, qualityLabel } from '@/lib/reputation';
 import { useAuthStore } from '@/lib/auth-store';
 import { endUserSession } from '@/lib/logout-session';
 import { CollectionPickerDrawer } from '@/components/collection-picker-drawer';
-import { CommentComposer, CommentList, CommentSectionProvider } from './comment-section';
-import { CommentsDrawerHeader } from './comments-drawer-header';
+import { CommentsDrawer } from '@/components/comments-drawer';
 import { FeedPostVideo } from './feed-post-video';
 import { aspectRatioStyle, getFeedMediaAspect } from '@/lib/media-aspect';
 
@@ -234,7 +230,7 @@ export function PostCard({
     const shareData: ShareData = { title: post.title, url };
 
     // Web Share Level 2: attach first image as file when supported
-    const firstMedia = post.media[0];
+    const firstMedia = getPostCoverMedia(post.media);
     if (
       firstMedia?.type === 'image' &&
       typeof navigator.canShare === 'function' &&
@@ -600,25 +596,13 @@ export function PostCard({
         </div>
       </div>
       {enableCommentsDrawer ? (
-        <Drawer open={commentsOpen} onOpenChange={setCommentsOpen}>
-          <DrawerContent className="flex max-h-[85svh] flex-col overflow-hidden">
-            <CommentsDrawerHeader title="نظرات" onClose={() => setCommentsOpen(false)} />
-            {commentsOpen ? (
-              <CommentSectionProvider
-                postId={post.id}
-                isOwner={isOwner}
-                commentsEnabled={post.commentsEnabled ?? true}
-              >
-                <DrawerBody className="min-h-0 flex-1 overscroll-contain p-0">
-                  <CommentList variant="drawer" showHeader={false} />
-                </DrawerBody>
-                <DrawerFooter className="shrink-0 border-t border-border bg-surface/95 p-0">
-                  <CommentComposer variant="drawer" />
-                </DrawerFooter>
-              </CommentSectionProvider>
-            ) : null}
-          </DrawerContent>
-        </Drawer>
+        <CommentsDrawer
+          postId={post.id}
+          open={commentsOpen}
+          onOpenChange={setCommentsOpen}
+          isOwner={isOwner}
+          commentsEnabled={post.commentsEnabled ?? true}
+        />
       ) : null}
       <ReportDialog
         open={reportOpen}
