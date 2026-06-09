@@ -1,6 +1,7 @@
 import type { PaginatedResponse, PostSummary, ReelItem } from '@agahiram/shared';
 import { apiClient, assertSuccess } from '@/lib/api';
 import { isMocksEnabled } from '@/lib/mock-data';
+import { toReelItem } from '@/lib/reel-url';
 
 export type FeedPage = PaginatedResponse<PostSummary>;
 
@@ -17,6 +18,21 @@ export async function fetchReelsPage(pageParam?: string): Promise<PaginatedRespo
     return { data: mockReels, nextCursor: null, hasMore: false };
   }
   return assertSuccess(r);
+}
+
+export async function fetchUserReelsPage(
+  username: string,
+  pageParam?: string,
+): Promise<PaginatedResponse<ReelItem>> {
+  const r = await apiClient.get<PaginatedResponse<PostSummary>>(
+    `/posts/user/${username}/reels`,
+    pageParam ? { cursor: pageParam } : undefined,
+  );
+  const page = assertSuccess(r);
+  return {
+    ...page,
+    data: page.data.map(toReelItem),
+  };
 }
 
 export async function fetchExplorePage(

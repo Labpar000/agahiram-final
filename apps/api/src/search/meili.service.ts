@@ -47,6 +47,9 @@ export class MeiliService implements OnModuleInit {
           'cityName',
           'neighborhoodName',
           'username',
+          'userName',
+          'normalizedUsername',
+          'normalizedUserName',
         ],
         filterableAttributes: [
           'categoryId',

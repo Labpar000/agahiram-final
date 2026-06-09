@@ -110,6 +110,16 @@ export function ExploreClient({
     return () => clearTimeout(t);
   }, [q]);
 
+  // Keep-alive explore tab keeps client state — sync when URL/deep-link props change.
+  useEffect(() => {
+    setQ(initialQ);
+    setDebouncedQ(initialQ);
+  }, [initialQ]);
+
+  useEffect(() => {
+    setFilters(initialFilters);
+  }, [initialFilters]);
+
   useEffect(() => {
     const params = new URLSearchParams(searchParams?.toString() ?? '');
     if (debouncedQ) params.set('q', debouncedQ);
@@ -292,6 +302,13 @@ export function ExploreClient({
               type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  const next = q.trim();
+                  setDebouncedQ(next);
+                }
+              }}
               placeholder="جستجو"
               className="h-9 rounded-full border-0 bg-muted text-sm"
               leadingIcon={<IgSearch className="size-4" strokeWidth={1.75} aria-hidden />}
@@ -396,7 +413,10 @@ export function ExploreClient({
                       href={`/profile/${u.username ?? u.id}`}
                       className="flex items-center gap-2 rounded-xl px-2 py-1.5 hover:bg-muted"
                     >
-                      <span className="font-medium">{u.username ?? u.name}</span>
+                      <span className="font-medium">{u.name?.trim() || u.username}</span>
+                      {u.username && u.name?.trim() ? (
+                        <span className="text-xs text-muted-foreground">@{u.username}</span>
+                      ) : null}
                     </Link>
                   </li>
                 ))}

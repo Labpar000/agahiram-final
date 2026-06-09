@@ -21,13 +21,47 @@ export class SearchService {
     private readonly notifications: NotificationsService,
   ) {}
 
+  private searchTerms(originalQ: string, normalizedQ: string): string[] {
+    const terms = new Set<string>();
+    const original = originalQ.trim();
+    const normalized = normalizedQ.trim();
+    if (original) terms.add(original);
+    if (normalized) terms.add(normalized);
+    return [...terms];
+  }
+
+  private searchWords(normalizedQ: string): string[] {
+    return normalizedQ
+      .split(/\s+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length >= 2);
+  }
+
+  private userSearchWhere(originalQ: string, normalizedQ: string): Prisma.UserWhereInput {
+    const terms = this.searchTerms(originalQ, normalizedQ);
+    return {
+      isPrivate: false,
+      OR: terms.flatMap((term) => [
+        { username: { contains: term, mode: 'insensitive' } },
+        { name: { contains: term, mode: 'insensitive' } },
+      ]),
+    };
+  }
+
+  private categorySearchWhere(originalQ: string, normalizedQ: string): Prisma.CategoryWhereInput {
+    const terms = this.searchTerms(originalQ, normalizedQ);
+    return {
+      OR: terms.map((term) => ({ name: { contains: term, mode: 'insensitive' } })),
+    };
+  }
+
   async search(input: SearchInput, viewerId?: string) {
     const normalizedQ = normalizePersianText(input.q);
     const q = normalizedQ || input.q;
     const [posts, users, categories] = await Promise.all([
       this.searchPosts(input, viewerId),
-      this.searchUsers(q),
-      this.searchCategories(q),
+      this.searchUsers(input.q, q),
+      this.searchCategories(input.q, q),
     ]);
     return { posts, users, categories };
   }
@@ -146,9 +180,12 @@ export class SearchService {
   private async searchFallbackIds(input: SearchInput, normalizedQ: string, offset: number) {
     const limit = Math.max(1, Math.min(50, input.limit ?? 20));
     const searchTerms = normalizedQ.trim().replace(/\s+/g, ' & ');
+    const words = this.searchWords(normalizedQ);
+    const originalTerms = this.searchTerms(input.q, normalizedQ);
     const now = new Date();
 
     const sortSql = this.fallbackSortSql(input, normalizedQ);
+    const textMatchSql = this.fallbackTextMatchSql(normalizedQ, originalTerms, words, searchTerms);
 
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT p.id
@@ -161,26 +198,7 @@ export class SearchService {
       WHERE p.status = 'approved'
         AND p.type = 'post'
         AND u."isPrivate" = false
-        AND (
-          to_tsvector(
-            'simple',
-            coalesce(p.title, '') || ' ' ||
-            coalesce(p.description, '') || ' ' ||
-            coalesce(c.name, '') || ' ' ||
-            coalesce(pr.name, '') || ' ' ||
-            coalesce(ci.name, '') || ' ' ||
-            coalesce(nb.name, '') || ' ' ||
-            coalesce(u.username, '')
-          ) @@ plainto_tsquery('simple', ${searchTerms})
-          OR p.title ILIKE ${`%${normalizedQ}%`}
-          OR coalesce(p.description, '') ILIKE ${`%${normalizedQ}%`}
-          OR c.name ILIKE ${`%${normalizedQ}%`}
-          OR pr.name ILIKE ${`%${normalizedQ}%`}
-          OR ci.name ILIKE ${`%${normalizedQ}%`}
-          OR coalesce(nb.name, '') ILIKE ${`%${normalizedQ}%`}
-          OR coalesce(u.username, '') ILIKE ${`%${normalizedQ}%`}
-          OR coalesce(u.name, '') ILIKE ${`%${normalizedQ}%`}
-        )
+        AND (${textMatchSql})
         ${input.categoryId ? Prisma.sql`AND p."categoryId" = ${input.categoryId}` : Prisma.empty}
         ${input.cityId ? Prisma.sql`AND p."cityId" = ${input.cityId}` : Prisma.empty}
         ${input.provinceId ? Prisma.sql`AND ci."provinceId" = ${input.provinceId}` : Prisma.empty}
@@ -194,16 +212,66 @@ export class SearchService {
     return rows.map((r) => r.id);
   }
 
-  private async searchUsers(q: string, limit = 8) {
-    const nq = normalizePersianText(q) || q;
+  private fallbackTextMatchSql(
+    normalizedQ: string,
+    originalTerms: string[],
+    words: string[],
+    searchTerms: string,
+  ): Prisma.Sql {
+    const fieldMatch = (like: string) => Prisma.sql`(
+      to_tsvector(
+        'simple',
+        coalesce(p.title, '') || ' ' ||
+        coalesce(p.description, '') || ' ' ||
+        coalesce(c.name, '') || ' ' ||
+        coalesce(pr.name, '') || ' ' ||
+        coalesce(ci.name, '') || ' ' ||
+        coalesce(nb.name, '') || ' ' ||
+        coalesce(u.username, '') || ' ' ||
+        coalesce(u.name, '')
+      ) @@ plainto_tsquery('simple', ${searchTerms})
+      OR p.title ILIKE ${like}
+      OR coalesce(p.description, '') ILIKE ${like}
+      OR c.name ILIKE ${like}
+      OR pr.name ILIKE ${like}
+      OR ci.name ILIKE ${like}
+      OR coalesce(nb.name, '') ILIKE ${like}
+      OR coalesce(u.username, '') ILIKE ${like}
+      OR coalesce(u.name, '') ILIKE ${like}
+    )`;
+
+    const likeClauses = originalTerms.map((term) => fieldMatch(`%${term}%`));
+    const wordClauses =
+      words.length > 1
+        ? [
+            Prisma.join(
+              words.map(
+                (word) => Prisma.sql`(
+                  coalesce(p.title, '') ILIKE ${`%${word}%`}
+                  OR coalesce(p.description, '') ILIKE ${`%${word}%`}
+                  OR coalesce(c.name, '') ILIKE ${`%${word}%`}
+                  OR coalesce(pr.name, '') ILIKE ${`%${word}%`}
+                  OR coalesce(ci.name, '') ILIKE ${`%${word}%`}
+                  OR coalesce(nb.name, '') ILIKE ${`%${word}%`}
+                  OR coalesce(u.username, '') ILIKE ${`%${word}%`}
+                  OR coalesce(u.name, '') ILIKE ${`%${word}%`}
+                )`,
+              ),
+              ' AND ',
+            ),
+          ]
+        : [];
+
+    const clauses = [...likeClauses, ...wordClauses];
+    if (clauses.length === 0) {
+      return fieldMatch(`%${normalizedQ}%`);
+    }
+    return Prisma.join(clauses, ' OR ');
+  }
+
+  private async searchUsers(originalQ: string, normalizedQ: string, limit = 8) {
     return this.prisma.user.findMany({
-      where: {
-        isPrivate: false,
-        OR: [
-          { username: { contains: nq, mode: 'insensitive' } },
-          { name: { contains: nq, mode: 'insensitive' } },
-        ],
-      },
+      where: this.userSearchWhere(originalQ, normalizedQ),
       select: {
         id: true,
         username: true,
@@ -213,14 +281,13 @@ export class SearchService {
         isBusiness: true,
       },
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ isVerified: 'desc' }, { createdAt: 'desc' }],
     });
   }
 
-  private async searchCategories(q: string, limit = 8) {
-    const nq = normalizePersianText(q) || q;
+  private async searchCategories(originalQ: string, normalizedQ: string, limit = 8) {
     return this.prisma.category.findMany({
-      where: { name: { contains: nq, mode: 'insensitive' } },
+      where: this.categorySearchWhere(originalQ, normalizedQ),
       select: { id: true, name: true, slug: true },
       take: limit,
       orderBy: { name: 'asc' },
@@ -259,8 +326,51 @@ export class SearchService {
   }
 
   async suggestions(input: SearchSuggestionsInput) {
-    const q = normalizePersianText(input.q) || input.q;
+    const normalizedQ = normalizePersianText(input.q) || input.q;
+    const originalQ = input.q.trim();
     const limit = input.limit ?? 8;
+    const [postSuggestions, users, categories] = await Promise.all([
+      this.postSuggestions(normalizedQ, limit),
+      this.searchUsers(originalQ, normalizedQ, Math.min(4, limit)),
+      this.searchCategories(originalQ, normalizedQ, Math.min(4, limit)),
+    ]);
+
+    const suggestions: Array<{
+      text: string;
+      kind?: 'post' | 'user' | 'category';
+      postId?: string;
+      userId?: string;
+      username?: string | null;
+      categoryId?: string | null;
+      cityId?: string | null;
+    }> = [];
+
+    for (const user of users) {
+      if (suggestions.length >= limit) break;
+      suggestions.push({
+        kind: 'user',
+        text: user.name?.trim() || user.username || '',
+        userId: user.id,
+        username: user.username,
+      });
+    }
+    for (const category of categories) {
+      if (suggestions.length >= limit) break;
+      suggestions.push({
+        kind: 'category',
+        text: category.name,
+        categoryId: category.id,
+      });
+    }
+    for (const post of postSuggestions) {
+      if (suggestions.length >= limit) break;
+      suggestions.push(post);
+    }
+
+    return { suggestions };
+  }
+
+  private async postSuggestions(q: string, limit: number) {
     try {
       const result = await this.meili.postsIndex.search(q, {
         limit,
@@ -270,6 +380,7 @@ export class SearchService {
       const seen = new Set<string>();
       const suggestions: Array<{
         text: string;
+        kind: 'post';
         postId?: string;
         categoryId?: string | null;
         cityId?: string | null;
@@ -279,6 +390,7 @@ export class SearchService {
         if (title && !seen.has(title)) {
           seen.add(title);
           suggestions.push({
+            kind: 'post',
             text: title,
             postId: String(hit.id ?? ''),
             categoryId: (hit.categoryId as string | null) ?? null,
@@ -287,30 +399,30 @@ export class SearchService {
         }
         if (suggestions.length >= limit) break;
       }
-      return { suggestions };
+      return suggestions;
     } catch {
+      const terms = this.searchTerms(q, q);
       const posts = await this.prisma.post.findMany({
         where: {
           status: 'approved',
           type: 'post',
           user: { isPrivate: false },
-          OR: [
-            { title: { contains: q, mode: 'insensitive' } },
-            { description: { contains: q, mode: 'insensitive' } },
-          ],
+          OR: terms.flatMap((term) => [
+            { title: { contains: term, mode: 'insensitive' } },
+            { description: { contains: term, mode: 'insensitive' } },
+          ]),
         },
         select: { id: true, title: true, categoryId: true, cityId: true },
         take: limit,
         orderBy: { createdAt: 'desc' },
       });
-      return {
-        suggestions: posts.map((p) => ({
-          text: p.title,
-          postId: p.id,
-          categoryId: p.categoryId,
-          cityId: p.cityId,
-        })),
-      };
+      return posts.map((p) => ({
+        kind: 'post' as const,
+        text: p.title,
+        postId: p.id,
+        categoryId: p.categoryId,
+        cityId: p.cityId,
+      }));
     }
   }
 
@@ -364,7 +476,7 @@ export class SearchService {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       include: {
-        user: { select: { username: true, isPrivate: true } },
+        user: { select: { username: true, name: true, isPrivate: true } },
         category: { select: { name: true } },
         city: { include: { province: true } },
         neighborhood: { select: { name: true } },
@@ -380,6 +492,7 @@ export class SearchService {
     const normalizedProvince = normalizePersianText(post.city?.province?.name ?? '');
     const normalizedNeighborhood = normalizePersianText(post.neighborhood?.name ?? '');
     const normalizedUsername = normalizePersianText(post.user.username ?? '');
+    const normalizedUserName = normalizePersianText(post.user.name ?? '');
 
     await this.meili.indexPost({
       id: post.id,
@@ -392,6 +505,7 @@ export class SearchService {
       normalizedProvince,
       normalizedNeighborhood,
       normalizedUsername,
+      normalizedUserName,
       price: post.price,
       priceType: post.priceType,
       type: post.type,
@@ -405,6 +519,7 @@ export class SearchService {
       neighborhoodId: post.neighborhoodId,
       neighborhoodName: post.neighborhood?.name,
       username: post.user.username,
+      userName: post.user.name,
       userIsPrivate: post.user.isPrivate,
       isPromoted: post.isPromoted,
       boostExpiresAt: post.boostExpiresAt ? Math.floor(post.boostExpiresAt.getTime() / 1000) : null,
@@ -423,6 +538,7 @@ export class SearchService {
       normalizedProvince,
       normalizedNeighborhood,
       normalizedUsername,
+      normalizedUserName,
     });
   }
 
@@ -489,6 +605,7 @@ export class SearchService {
       normalizedProvince: string;
       normalizedNeighborhood: string;
       normalizedUsername: string;
+      normalizedUserName: string;
     },
   ) {
     const cityFilters: Array<{ cityId: string | null }> = [{ cityId: null }];
@@ -502,6 +619,7 @@ export class SearchService {
       normalized.normalizedProvince,
       normalized.normalizedNeighborhood,
       normalized.normalizedUsername,
+      normalized.normalizedUserName,
     ]
       .join(' ')
       .trim();

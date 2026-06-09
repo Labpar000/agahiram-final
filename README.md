@@ -60,7 +60,7 @@ agahiram/
 # نصب dependencies
 pnpm install
 
-# بالا آوردن Postgres + Redis + MeiliSearch
+# بالا آوردن Postgres + Redis + MeiliSearch + MinIO
 cd docker && docker compose up -d && cd ..
 
 # تنظیم env

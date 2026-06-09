@@ -130,8 +130,10 @@ export class MinioService {
     }
   }
 
-  async statObject(key: string): Promise<{ size: number; metaData?: Record<string, string> }> {
-    return this.internal.statObject(this.bucket, key);
+  async statObject(key: string): Promise<{ size: number; contentType?: string }> {
+    const stat = await this.internal.statObject(this.bucket, key);
+    const contentType = stat.metaData?.['content-type'] ?? stat.metaData?.['Content-Type'];
+    return { size: stat.size, contentType };
   }
 
   async putObject(key: string, body: Buffer, contentType: string): Promise<void> {

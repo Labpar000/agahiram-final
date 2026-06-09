@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { PostSummary } from '@agahiram/shared';
 import { prefetchPostBundle } from '@/lib/prefetch-post';
 import { buildPostPathFromSummary } from '@/lib/post-url';
+import { buildReelPathFromSummary, isReelPost } from '@/lib/reel-url';
 
 type PostLinkProps = Omit<ComponentProps<typeof Link>, 'href' | 'prefetch'> & {
   postId: string;
@@ -26,7 +27,13 @@ export function PostLink({
   const prefetched = useRef(false);
   const ref = useRef<HTMLAnchorElement>(null);
 
-  const href = post?.category?.slug != null ? buildPostPathFromSummary(post) : `/post/${postId}`;
+  const href = post
+    ? isReelPost(post)
+      ? buildReelPathFromSummary(post)
+      : post.category?.slug != null
+        ? buildPostPathFromSummary(post)
+        : `/post/${postId}`
+    : `/post/${postId}`;
 
   const warmCache = useCallback(() => {
     if (prefetched.current) return;

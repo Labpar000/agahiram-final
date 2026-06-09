@@ -69,9 +69,10 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      const ok = await uploadToMinio(opts.url, opts.file, opts.contentType, (pct) => {
+      const result = await uploadToMinio(opts.url, opts.file, opts.contentType, (pct) => {
         setTasks((t) => t.map((x) => (x.id === id ? { ...x, progress: pct } : x)));
       });
+      const ok = result.ok;
 
       await releaseWakeLock();
 
@@ -82,6 +83,16 @@ export function UploadManagerProvider({ children }: { children: ReactNode }) {
             : x,
         ),
       );
+
+      if (!ok) {
+        const hint =
+          result.detail === 'network_error'
+            ? 'اتصال به سرور ذخیره‌سازی برقرار نشد'
+            : result.status
+              ? `خطای HTTP ${result.status}`
+              : 'آپلود ناموفق';
+        console.error('[upload]', hint, opts.url, result.detail);
+      }
 
       if (ok && document.visibilityState === 'hidden') {
         setTasks((t) => t.map((x) => (x.id === id ? { ...x, hiddenComplete: true } : x)));

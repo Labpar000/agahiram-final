@@ -263,7 +263,10 @@ export interface SearchFilters {
 
 export interface SearchSuggestionItem {
   text: string;
+  kind?: 'post' | 'user' | 'category';
   postId?: string;
+  userId?: string;
+  username?: string | null;
   categoryId?: string | null;
   cityId?: string | null;
 }

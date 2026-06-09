@@ -23,13 +23,14 @@ import {
 import { apiClient } from '@/lib/api';
 import { useUnreadMessages, useUnreadNotifications } from '@/hooks/useUnreadCounts';
 import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
+import { isImmersiveReelsRoute } from '@/lib/reel-url';
 
 const RECENT_KEY = 'agahiram_recent_searches';
 
 export function TopBar() {
   const pathname = usePathname() ?? '/';
   const router = useRouter();
-  const hideOnReels = pathname === '/reels';
+  const hideOnReels = isImmersiveReelsRoute(pathname);
   const hideOnStoryViewer = isImmersiveStoryViewerRoute(pathname);
   const notifUnread = useUnreadNotifications();
   const msgUnread = useUnreadMessages();
@@ -77,6 +78,30 @@ export function TopBar() {
       ),
     [recent, debounced],
   );
+
+  const openSuggestion = (s: SearchSuggestionItem) => {
+    if (s.kind === 'user' && s.username) {
+      setSearchOpen(false);
+      setSearchText('');
+      router.push(`/profile/${s.username}`);
+      return;
+    }
+    if (s.kind === 'category' && s.categoryId) {
+      setSearchOpen(false);
+      setSearchText('');
+      router.push(`/explore?categoryId=${encodeURIComponent(s.categoryId)}`);
+      return;
+    }
+    submitSearch(s.text);
+  };
+
+  const suggestionLabel = (s: SearchSuggestionItem) => {
+    if (s.kind === 'user' && s.username) {
+      return s.text && s.text !== s.username ? `${s.text} (@${s.username})` : `@${s.username}`;
+    }
+    if (s.kind === 'category') return `دسته: ${s.text}`;
+    return s.text;
+  };
 
   const submitSearch = (value: string) => {
     const term = value.trim();
@@ -197,13 +222,13 @@ export function TopBar() {
               ) : (
                 <ul className="divide-y divide-border-subtle">
                   {suggestions.map((s, i) => (
-                    <li key={`${s.text}-${i}`}>
+                    <li key={`${s.kind ?? 'post'}-${s.text}-${i}`}>
                       <button
                         type="button"
-                        onClick={() => submitSearch(s.text)}
-                        className="flex w-full items-center justify-between py-3 text-start text-sm transition hover:bg-muted/50"
+                        onClick={() => openSuggestion(s)}
+                        className="flex w-full items-center justify-between gap-3 py-3 text-start text-sm transition hover:bg-muted/50"
                       >
-                        <span className="truncate">{s.text}</span>
+                        <span className="min-w-0 truncate">{suggestionLabel(s)}</span>
                         <IgSearch
                           className="size-3.5 text-muted-foreground"
                           strokeWidth={1.75}

@@ -19,6 +19,7 @@ import {
 } from '@agahiram/ui';
 import { useAuthStore } from '@/lib/auth-store';
 import { isImmersiveStoryViewerRoute } from '@/lib/story-viewer-routes';
+import { isImmersiveReelsRoute } from '@/lib/reel-url';
 
 const items = [
   { href: '/feed', label: 'خانه', Icon: IgHome, filledWhenActive: true },
@@ -74,7 +75,7 @@ export function BottomNav() {
   }, [pathname]);
 
   // FIXED: Hide bottom nav on reels for full-screen immersive experience
-  if (hideOnStoryViewer || pathname === '/reels') return null;
+  if (hideOnStoryViewer || isImmersiveReelsRoute(pathname)) return null;
 
   return (
     <IgTabBar>
