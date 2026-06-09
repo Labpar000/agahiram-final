@@ -22,7 +22,7 @@ import {
 import type { TrustTierValue } from '@agahiram/ui';
 import type { ShopTypeValue } from '@agahiram/ui';
 import type { BadgeTypeValue } from '@agahiram/ui';
-import { getPostCoverMedia } from '@agahiram/shared';
+import { getPostCoverMedia, pickThumbnailSrc } from '@agahiram/shared';
 import { apiClient } from '@/lib/api';
 
 interface ShopData {
@@ -129,6 +129,7 @@ export function ShopPageClient({ shop }: { shop: ShopData }) {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {postsQuery.data.map((post) => {
                 const cover = getPostCoverMedia(post.media);
+                const thumbSrc = cover ? pickThumbnailSrc(cover) : null;
                 return (
                   <Link
                     key={post.id}
@@ -136,9 +137,9 @@ export function ShopPageClient({ shop }: { shop: ShopData }) {
                     className="group rounded-xl border border-border overflow-hidden hover:border-primary/50 transition-colors"
                   >
                     <div className="aspect-square bg-muted relative overflow-hidden">
-                      {cover ? (
+                      {thumbSrc ? (
                         <img
-                          src={cover.thumbnailUrl ?? cover.url}
+                          src={thumbSrc}
                           alt={post.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />

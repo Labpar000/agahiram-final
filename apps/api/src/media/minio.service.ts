@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as Minio from 'minio';
 import { v4 as uuidv4 } from 'uuid';
 import type { Readable } from 'stream';
+import { mediaKeyFromUrl, toServedMediaUrl } from '@agahiram/shared';
 
 export type MinioObjectResult = {
   Body: Readable;
@@ -143,45 +144,15 @@ export class MinioService {
     return `/api/v1/media/object?key=${encodeURIComponent(key)}`;
   }
 
+  private urlParseOpts() {
+    return { bucket: this.bucket, pathPrefix: this.publicPathPrefix };
+  }
+
   getKeyFromUrl(urlOrKey: string | null | undefined): string | null {
-    if (!urlOrKey) return null;
-    if (urlOrKey.includes('/api/v1/media/object')) {
-      try {
-        const url = new URL(urlOrKey, 'http://agahiram.local');
-        return url.searchParams.get('key');
-      } catch {
-        return null;
-      }
-    }
-    if (!urlOrKey.startsWith('http')) return urlOrKey.replace(/^\/+/, '');
-
-    try {
-      const url = new URL(urlOrKey);
-      const publicBase = new URL(this.publicUrl);
-      if (url.hostname === publicBase.hostname) {
-        let path = decodeURIComponent(url.pathname.replace(/^\/+/, ''));
-        if (this.publicPathPrefix && path.startsWith(this.publicPathPrefix.replace(/^\//, ''))) {
-          path = path.slice(this.publicPathPrefix.replace(/^\//, '').length).replace(/^\//, '');
-        }
-        const parts = path.split('/');
-        if (parts[0] === this.bucket) return parts.slice(1).join('/');
-        return path;
-      }
-
-      const internalHost = process.env.MINIO_ENDPOINT ?? 'minio';
-      if (url.hostname === internalHost || url.hostname.startsWith('minio')) {
-        const parts = url.pathname.replace(/^\/+/, '').split('/');
-        if (parts[0] === this.bucket) return decodeURIComponent(parts.slice(1).join('/'));
-      }
-    } catch {
-      return null;
-    }
-
-    return null;
+    return mediaKeyFromUrl(urlOrKey, this.urlParseOpts());
   }
 
   toServedUrl(urlOrKey: string | null | undefined): string | null {
-    const key = this.getKeyFromUrl(urlOrKey);
-    return key ? this.getPublicUrl(key) : (urlOrKey ?? null);
+    return toServedMediaUrl(urlOrKey, this.urlParseOpts());
   }
 }

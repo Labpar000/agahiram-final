@@ -15,6 +15,7 @@ import {
   formatRelativeTimeFa,
   formatPhoneFa,
   getPostCoverMedia,
+  toServedMediaUrl,
 } from '@agahiram/shared';
 import {
   Avatar,
@@ -414,7 +415,7 @@ export function PostCard({
                     }}
                   >
                     <Image
-                      src={m.url}
+                      src={toServedMediaUrl(m.url) ?? m.url}
                       alt={post.title}
                       fill
                       sizes="(max-width: 640px) 100vw, 600px"

@@ -1,4 +1,5 @@
 import * as Minio from 'minio';
+import { mediaKeyFromUrl, toServedMediaUrl } from '@agahiram/shared';
 
 const accessKey = process.env.MINIO_ACCESS_KEY ?? process.env.MINIO_ROOT_USER ?? 'agahiram';
 const secretKey = process.env.MINIO_SECRET_KEY ?? process.env.MINIO_ROOT_PASSWORD ?? 'dev';
@@ -30,7 +31,7 @@ export async function putObject(key: string, body: Buffer, contentType: string) 
   await client.putObject(BUCKET, key, body, body.length, {
     'Content-Type': contentType,
   });
-  return `${PUBLIC_URL}/${key}`;
+  return toServedMediaUrl(key, { bucket: BUCKET, pathPrefix: publicPathPrefix })!;
 }
 
 export async function deleteObject(key: string) {
@@ -45,33 +46,5 @@ export async function deleteObject(key: string) {
  */
 export function keyFromUrl(urlOrKey: string): string {
   if (!urlOrKey) return urlOrKey;
-
-  if (urlOrKey.includes('/media/object')) {
-    try {
-      const u = new URL(urlOrKey, 'http://agahiram.local');
-      const k = u.searchParams.get('key');
-      if (k) return k;
-    } catch {
-      /* fall through */
-    }
-  }
-
-  if (!/^https?:\/\//i.test(urlOrKey)) {
-    return urlOrKey.replace(/^\/+/, '');
-  }
-
-  try {
-    const u = new URL(urlOrKey);
-    const k = u.searchParams.get('key');
-    if (k) return k;
-    let path = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
-    const prefix = publicPathPrefix.replace(/^\//, '');
-    if (prefix && path.startsWith(`${prefix}/`)) {
-      path = path.slice(prefix.length + 1);
-    }
-    if (path.startsWith(`${BUCKET}/`)) path = path.slice(BUCKET.length + 1);
-    return path;
-  } catch {
-    return urlOrKey;
-  }
+  return mediaKeyFromUrl(urlOrKey, { bucket: BUCKET, pathPrefix: publicPathPrefix }) ?? urlOrKey;
 }

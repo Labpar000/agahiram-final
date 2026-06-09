@@ -24,6 +24,8 @@ import {
   formatPersianCompact,
   formatPersianPrice,
   getPostCoverMedia,
+  pickThumbnailSrc,
+  toServedMediaUrl,
 } from '@agahiram/shared';
 import {
   EmptyState,
@@ -462,6 +464,8 @@ export function ExploreClient({
 function ExploreTile({ post }: { post: PostSummary }) {
   const media = getPostCoverMedia(post.media);
   const isVideo = media?.type === 'video';
+  const thumbSrc = media ? pickThumbnailSrc(media) : null;
+  const videoSrc = media?.url ? (toServedMediaUrl(media.url) ?? media.url) : null;
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hoverTimerRef = useRef<number | null>(null);
   const [videoReady, setVideoReady] = useState(false);
@@ -507,21 +511,23 @@ function ExploreTile({ post }: { post: PostSummary }) {
     >
       {media ? (
         <>
-          <Image
-            src={media.thumbnailUrl ?? media.url}
-            alt=""
-            fill
-            sizes="(max-width: 640px) 33vw, 200px"
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            // FIXED: When video loads, hide placeholder image so the <video> shows through
-            style={videoReady && isVideo ? { opacity: 0 } : undefined}
-          />
+          {thumbSrc ? (
+            <Image
+              src={thumbSrc}
+              alt=""
+              fill
+              sizes="(max-width: 640px) 33vw, 200px"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+              // When video loads, hide placeholder image so the <video> shows through
+              style={videoReady && isVideo ? { opacity: 0 } : undefined}
+            />
+          ) : null}
 
-          {/* FIXED: Desktop hover video preview — autoplays muted after 300ms delay */}
-          {isVideo && media.url ? (
+          {/* Desktop hover video preview — autoplays muted after 300ms delay */}
+          {isVideo && videoSrc ? (
             <video
               ref={videoRef}
-              src={media.url}
+              src={videoSrc}
               muted
               playsInline
               preload="metadata"

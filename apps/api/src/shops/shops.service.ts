@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { MinioService } from '../media/minio.service';
 import {
   TRUST_TIER_THRESHOLDS,
   type CreateShopInput,
@@ -48,7 +49,10 @@ const shopSelect = {
 
 @Injectable()
 export class ShopsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly minio: MinioService,
+  ) {}
 
   async createShop(userId: string, dto: CreateShopInput) {
     const user = await this.prisma.user.findUnique({
@@ -163,7 +167,20 @@ export class ShopsService {
       this.prisma.post.count({ where: { userId: shop.userId, status: 'approved' } }),
     ]);
 
-    return { data: posts, total, page, pageSize: limit, totalPages: Math.ceil(total / limit) };
+    return {
+      data: posts.map((post) => ({
+        ...post,
+        media: post.media.map((m) => ({
+          ...m,
+          url: this.minio.toServedUrl(m.url) ?? m.url,
+          thumbnailUrl: this.minio.toServedUrl(m.thumbnailUrl),
+        })),
+      })),
+      total,
+      page,
+      pageSize: limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async getShopTrust(slug: string) {

@@ -12,7 +12,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import type { PaginatedResponse, PostSummary } from '@agahiram/shared';
-import { cn, formatPersianNumber, getPostCoverMedia } from '@agahiram/shared';
+import { cn, formatPersianNumber, getPostCoverMedia, pickThumbnailSrc } from '@agahiram/shared';
 import {
   Avatar,
   AvatarFallback,
@@ -586,6 +586,7 @@ function PostsGrid({
     <div className="ig-grid-gap grid grid-cols-3">
       {posts.map((p) => {
         const cover = getPostCoverMedia(p.media);
+        const thumbSrc = cover ? pickThumbnailSrc(cover) : null;
         return (
           <PostLink
             key={p.id}
@@ -594,9 +595,9 @@ function PostsGrid({
             aria-label={p.title}
             className="cv-tile relative aspect-square overflow-hidden bg-muted tap-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
-            {cover ? (
+            {thumbSrc ? (
               <Image
-                src={cover.thumbnailUrl ?? cover.url}
+                src={thumbSrc}
                 alt=""
                 fill
                 sizes="(max-width: 640px) 33vw, 200px"
