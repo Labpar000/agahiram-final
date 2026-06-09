@@ -29,8 +29,10 @@ DOMAIN="${DOMAIN:-alooche.com}"
 IMAGE_REGISTRY="${IMAGE_REGISTRY:-ghcr.io/labpar000/agahiram}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 LOCK_FILE="${LOCK_FILE:-/var/lock/agahiram-deploy.lock}"
+LOCK_PID_FILE="${LOCK_PID_FILE:-/var/lock/agahiram-deploy.pid}"
 STATUS_FILE="${STATUS_FILE:-/tmp/agahiram-deploy.status}"
 LOG_FILE="${LOG_FILE:-/tmp/agahiram-deploy.log}"
+STALE_LOCK_MAX_AGE_SEC="${STALE_LOCK_MAX_AGE_SEC:-1800}"
 
 COMPOSE="-f docker-compose.prod.yml"
 COMPOSE_BUILD="-f docker-compose.prod.yml -f docker-compose.build.yml"
@@ -41,13 +43,103 @@ write_status() {
   echo "$1" > "$STATUS_FILE"
 }
 
+read_env_var() {
+  local key="$1"
+  grep -m1 "^${key}=" "$ENV_FILE" 2>/dev/null | cut -d= -f2- || true
+}
+
+url_encode() {
+  python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
+}
+
+database_url_from_env() {
+  [[ -f "$ENV_FILE" ]] || {
+    log "missing $ENV_FILE — cannot build DATABASE_URL"
+    return 1
+  }
+  local user pass db enc_pass
+  user="$(read_env_var POSTGRES_USER)"
+  pass="$(read_env_var POSTGRES_PASSWORD)"
+  db="$(read_env_var POSTGRES_DB)"
+  if [[ -z "$user" || -z "$pass" || -z "$db" ]]; then
+    log "POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB missing in $ENV_FILE"
+    return 1
+  fi
+  enc_pass="$(url_encode "$pass")"
+  printf 'postgresql://%s:%s@postgres:5432/%s?schema=public' "$user" "$enc_pass" "$db"
+}
+
+sync_database_url_env() {
+  [[ -f "$ENV_FILE" ]] || return 0
+  local db_url
+  db_url="$(database_url_from_env)" || return 0
+  if grep -q '^DATABASE_URL=' "$ENV_FILE" 2>/dev/null; then
+    grep -v '^DATABASE_URL=' "$ENV_FILE" > "${ENV_FILE}.tmp"
+    printf 'DATABASE_URL=%s\n' "$db_url" >> "${ENV_FILE}.tmp"
+    mv "${ENV_FILE}.tmp" "$ENV_FILE"
+  else
+    printf 'DATABASE_URL=%s\n' "$db_url" >> "$ENV_FILE"
+  fi
+  log "synced DATABASE_URL from POSTGRES_* credentials"
+}
+
 run_db_migrate_and_seed() {
+  sync_database_url_env
+  local db_url
+  db_url="$(database_url_from_env)"
   log "running database migrations..."
-  docker compose $COMPOSE run --rm --workdir /app api sh -lc \
+  docker compose $COMPOSE run --rm --workdir /app \
+    -e "DATABASE_URL=${db_url}" \
+    api sh -lc \
     '/app/node_modules/.bin/prisma migrate deploy --schema /app/packages/database/prisma/schema.prisma'
   log "running database seed (idempotent)..."
-  docker compose $COMPOSE run --rm --workdir /app api sh -lc \
+  docker compose $COMPOSE run --rm --workdir /app \
+    -e "DATABASE_URL=${db_url}" \
+    api sh -lc \
     'cd /app/packages/database && node --experimental-strip-types prisma/seed.ts'
+}
+
+acquire_deploy_lock() {
+  mkdir -p "$(dirname "$LOCK_FILE")"
+  exec 9>"$LOCK_FILE"
+  if flock -n 9; then
+    echo $$ > "$LOCK_PID_FILE"
+    return 0
+  fi
+
+  local stale=false holder age mtime now status
+  if [[ -f "$LOCK_PID_FILE" ]]; then
+    holder="$(cat "$LOCK_PID_FILE" 2>/dev/null || true)"
+    if [[ -n "$holder" && ! -d "/proc/$holder" ]]; then
+      log "deploy lock holder pid $holder is not running"
+      stale=true
+    fi
+  fi
+
+  if [[ "$stale" != "true" && -f "$STATUS_FILE" ]]; then
+    status="$(cat "$STATUS_FILE" 2>/dev/null || true)"
+    mtime="$(stat -c %Y "$STATUS_FILE" 2>/dev/null || echo 0)"
+    now="$(date +%s)"
+    age=$((now - mtime))
+    if [[ "$status" == "running" && "$age" -gt "$STALE_LOCK_MAX_AGE_SEC" ]]; then
+      log "deploy status running for ${age}s (>${STALE_LOCK_MAX_AGE_SEC}s) — treating lock as stale"
+      stale=true
+    fi
+  fi
+
+  if [[ "$stale" == "true" ]]; then
+    log "clearing stale deploy lock"
+    rm -f "$LOCK_PID_FILE" "$LOCK_FILE"
+    exec 9>"$LOCK_FILE"
+    if flock -n 9; then
+      echo $$ > "$LOCK_PID_FILE"
+      return 0
+    fi
+  fi
+
+  log "another deploy is in progress — exiting"
+  write_status "failed:locked"
+  exit 1
 }
 
 migrate_minio_env() {
@@ -374,15 +466,9 @@ deploy_build() {
 main() {
   : > "$LOG_FILE"
   write_status "running"
+  acquire_deploy_lock
 
-  exec 9>"$LOCK_FILE"
-  if ! flock -n 9; then
-    log "another deploy is in progress — exiting"
-    write_status "failed:locked"
-    exit 1
-  fi
-
-  trap 'write_status failed:$?' ERR
+  trap 'rm -f "$LOCK_PID_FILE"; write_status failed:$?' ERR
 
   log "mode=$DEPLOY_MODE tag=$IMAGE_TAG services=$BUILD_SERVICES config_only=$CONFIG_ONLY"
 
@@ -395,6 +481,7 @@ main() {
   fi
 
   write_status "done"
+  rm -f "$LOCK_PID_FILE"
   log "done"
 }
 
